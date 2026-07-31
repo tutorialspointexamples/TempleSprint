@@ -26,6 +26,8 @@ namespace TempleSprint
         public int RelicsThisRun { get; private set; }
         public float Distance { get; private set; }
         public int NearMisses { get; private set; }
+        public int Combo { get; private set; }
+        public float ComboMultiplier => Combo <= 0 ? 1f : Mathf.Clamp(1f + Combo * 0.25f, 1f, 5f);
         public bool IsAlive { get; private set; } = true;
         public bool ReviveUsed { get; private set; }
         public bool IsFinalized { get; private set; }
@@ -33,6 +35,7 @@ namespace TempleSprint
         public event Action<RunEndPayload> OnRunEnded;
 
         float _scoreAccumulator;
+        float _comboTimer;
         MetaProgress _meta;
         List<float> _ghostSamples = new List<float>();
         RunEndPayload _pending;
@@ -49,10 +52,12 @@ namespace TempleSprint
             Score = CoinsThisRun = GemsThisRun = RelicsThisRun = 0;
             Distance = 0f;
             NearMisses = 0;
+            Combo = 0;
             IsAlive = true;
             ReviveUsed = false;
             IsFinalized = false;
             _scoreAccumulator = 0f;
+            _comboTimer = 0f;
             _ghostSamples.Clear();
             _pending = null;
         }
@@ -61,7 +66,13 @@ namespace TempleSprint
         {
             if (!IsAlive) return;
             Distance += deltaDistance;
-            _scoreAccumulator += deltaDistance * (1f + speed * 0.05f);
+            if (_comboTimer > 0f)
+            {
+                _comboTimer -= Time.deltaTime;
+                if (_comboTimer <= 0f) Combo = 0;
+            }
+            float comboScore = ComboMultiplier;
+            _scoreAccumulator += deltaDistance * (1f + speed * 0.05f) * comboScore;
             Score = Mathf.FloorToInt(_scoreAccumulator) + CoinsThisRun * 10 + GemsThisRun * 50 + RelicsThisRun * 100;
             if (_ghostSamples.Count == 0 || Distance - _ghostSamples[_ghostSamples.Count - 1] >= 2f)
                 _ghostSamples.Add(Distance);
@@ -70,12 +81,15 @@ namespace TempleSprint
         public void AddCoins(int amount)
         {
             if (!IsAlive || amount <= 0) return;
-            float mult = _meta.CoinMultiplier * CharacterRoster.PassiveCoinMult * EventService.EventCoinBonus;
+            float mult = _meta.CoinMultiplier * CharacterRoster.PassiveCoinMult
+                         * EventService.EventCoinBonus * CosmeticRoster.PetPassives.CoinMult
+                         * ComboMultiplier;
             if (PowerUpController.Instance != null)
                 mult *= PowerUpController.Instance.ScoreMultiplier;
             int gained = Mathf.Max(1, Mathf.RoundToInt(amount * mult));
             CoinsThisRun += gained;
             Score += gained * 10;
+            PowerUpController.Instance?.AddEnergyFromCoins(gained);
         }
 
         public void AddGems(int amount)
@@ -96,8 +110,11 @@ namespace TempleSprint
         public void RegisterNearMiss()
         {
             NearMisses++;
+            Combo = Mathf.Min(Combo + 1, 16);
+            _comboTimer = 2.6f;
             MissionSystem.Report(MissionType.DodgeObstacles, 1);
             _meta.Data.totalObstaclesDodged++;
+            GameUI.Instance?.PulseCombo(Combo, ComboMultiplier);
         }
 
         public bool TryRevive()
@@ -172,6 +189,7 @@ namespace TempleSprint
             MissionSystem.Report(MissionType.CollectCoins, payload.coinsEarned);
             MissionSystem.Report(MissionType.RunDistance, Mathf.FloorToInt(payload.distance));
             AchievementSystem.EvaluateRun(payload);
+            ArtifactHuntSystem.ReportRun(payload);
             AnalyticsService.Track("run_end", payload.score);
             _ = CloudSaveService.PushAsync();
 
