@@ -107,23 +107,52 @@ namespace TempleSprint
             return m;
         }
 
-        public static Material Path(BiomeId b) => b switch
+        public static Material Path(BiomeId b)
         {
-            BiomeId.DesertTombs => Make(new Color(0.78f, 0.62f, 0.35f)),
-            BiomeId.IceCaverns => Make(new Color(0.72f, 0.82f, 0.9f)),
-            BiomeId.CaveMines => Make(new Color(0.38f, 0.36f, 0.34f)),
-            BiomeId.VolcanicCrater => Make(new Color(0.42f, 0.28f, 0.22f)),
-            _ => JunglePalette.Path
-        };
+            if (b == BiomeId.JungleRuins) return JunglePalette.Path;
+            Color c = b switch
+            {
+                BiomeId.DesertTombs => new Color(0.78f, 0.62f, 0.35f),
+                BiomeId.IceCaverns => new Color(0.72f, 0.82f, 0.9f),
+                BiomeId.CaveMines => new Color(0.38f, 0.36f, 0.34f),
+                BiomeId.VolcanicCrater => new Color(0.42f, 0.28f, 0.22f),
+                _ => new Color(0.62f, 0.54f, 0.42f)
+            };
+            var m = Make(c);
+            // Original authored path texture, tinted per biome (not a TR2 asset).
+            ApplyTex(m, Resources.Load<Texture2D>("Nature/temple_path"), new Vector2(1.4f, 2.8f), c);
+            return m;
+        }
 
-        public static Material Stone(BiomeId b) => b switch
+        public static Material Stone(BiomeId b)
         {
-            BiomeId.DesertTombs => Make(new Color(0.55f, 0.4f, 0.25f)),
-            BiomeId.IceCaverns => Make(new Color(0.55f, 0.65f, 0.75f)),
-            BiomeId.CaveMines => Make(new Color(0.32f, 0.34f, 0.38f)),
-            BiomeId.VolcanicCrater => Make(new Color(0.35f, 0.22f, 0.18f)),
-            _ => JunglePalette.Stone
-        };
+            if (b == BiomeId.JungleRuins) return JunglePalette.Stone;
+            Color c = b switch
+            {
+                BiomeId.DesertTombs => new Color(0.55f, 0.4f, 0.25f),
+                BiomeId.IceCaverns => new Color(0.55f, 0.65f, 0.75f),
+                BiomeId.CaveMines => new Color(0.32f, 0.34f, 0.38f),
+                BiomeId.VolcanicCrater => new Color(0.35f, 0.22f, 0.18f),
+                _ => new Color(0.42f, 0.36f, 0.28f)
+            };
+            var m = Make(c);
+            ApplyTex(m, Resources.Load<Texture2D>("Nature/moss_stone"), new Vector2(1.5f, 1.5f), c);
+            return m;
+        }
+
+        static void ApplyTex(Material m, Texture2D tex, Vector2 tiling, Color tint)
+        {
+            if (m == null || tex == null) return;
+            m.mainTexture = tex;
+            m.mainTextureScale = tiling;
+            m.color = tint;
+            if (m.HasProperty("_BaseMap"))
+            {
+                m.SetTexture("_BaseMap", tex);
+                m.SetTextureScale("_BaseMap", tiling);
+            }
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", tint);
+        }
 
         public static Material Accent(BiomeId b) => b switch
         {
@@ -519,6 +548,28 @@ namespace TempleSprint
                 RenderSettings.skybox.SetColor("_Tint", skyTint);
             else if (RenderSettings.skybox != null && RenderSettings.skybox.HasProperty("_SkyTint"))
                 RenderSettings.skybox.SetColor("_SkyTint", skyTint);
+
+            // Retint distant hill billboards so each biome reads from the first second of a run.
+            if (_billboards != null)
+            {
+                Color hill = BiomeSystem.Current switch
+                {
+                    BiomeId.DesertTombs => new Color(0.72f, 0.55f, 0.3f),
+                    BiomeId.IceCaverns => new Color(0.65f, 0.78f, 0.88f),
+                    BiomeId.CaveMines => new Color(0.22f, 0.24f, 0.28f),
+                    BiomeId.VolcanicCrater => new Color(0.4f, 0.18f, 0.12f),
+                    _ => new Color(0.3f, 0.42f, 0.28f)
+                };
+                foreach (var b in _billboards)
+                {
+                    if (b == null) continue;
+                    var r = b.GetComponent<Renderer>();
+                    if (r == null || r.sharedMaterial == null) continue;
+                    var m = r.material;
+                    m.color = hill;
+                    if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", hill);
+                }
+            }
         }
 
         void LateUpdate()
