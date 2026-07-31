@@ -15,6 +15,10 @@ namespace TempleSprint
     {
         public static PowerUpController Instance { get; private set; }
 
+        public const float EnergyMax = 100f;
+        public const float EnergyPerCoin = 4.5f;
+        public const float ActivateCost = 100f;
+
         public bool HasShield { get; private set; }
         public bool MagnetActive => _magnetTimer > 0f;
         public bool SpeedBoostActive => _boostTimer > 0f;
@@ -25,6 +29,9 @@ namespace TempleSprint
         /// <summary>Movement scale only — SlowMo does NOT also change timeScale.</summary>
         public float SpeedScale => SpeedBoostActive ? 1.45f : (SlowMoActive ? 0.55f : 1f);
         public PowerUpType? EquippedConsumable { get; private set; }
+        public float Energy { get; private set; }
+        public float EnergyFill01 => Mathf.Clamp01(Energy / EnergyMax);
+        public bool EnergyReady => Energy >= ActivateCost - 0.01f;
 
         public string ActiveLabel
         {
@@ -38,6 +45,7 @@ namespace TempleSprint
                 if (SpeedBoostActive) parts.Add($"Boost {_boostTimer:0.0}s");
                 if (SlowMoActive) parts.Add($"Slow {_slowTimer:0.0}s");
                 if (EquippedConsumable.HasValue) parts.Add($"Tap:{EquippedConsumable.Value}");
+                parts.Add($"PWR {Mathf.FloorToInt(EnergyFill01 * 100f)}%");
                 return string.Join(" · ", parts);
             }
         }
@@ -59,9 +67,12 @@ namespace TempleSprint
             ClearTimers();
             HasShield = false;
             _triple = false;
-            EquippedConsumable = null;
+            EquippedConsumable = PowerUpType.SpeedBoost;
+            Energy = 0f;
             MagnetRadius = 3f + _meta.MagnetRadiusBonus + CharacterRoster.PassiveMagnetBonus;
             if (_meta.Data.reviveLevel >= 1 && Random.value < 0.35f)
+                HasShield = true;
+            if (CharacterRoster.EmberStartShield)
                 HasShield = true;
         }
 
@@ -69,6 +80,13 @@ namespace TempleSprint
         {
             _magnetTimer = _multiplierTimer = _boostTimer = _slowTimer = _reviveIFrames = 0f;
             Time.timeScale = 1f;
+        }
+
+        public void AddEnergyFromCoins(int coins)
+        {
+            if (coins <= 0) return;
+            float perCoin = EnergyPerCoin + (_meta != null ? _meta.EnergyFillBonus : 0f);
+            Energy = Mathf.Min(EnergyMax, Energy + coins * perCoin);
         }
 
         public void GrantReviveIFrames(float seconds = 1.75f)
@@ -81,7 +99,7 @@ namespace TempleSprint
             switch (type)
             {
                 case PowerUpType.Magnet:
-                    _magnetTimer = 8f;
+                    _magnetTimer = 8f + (_meta != null ? _meta.MagnetDurationBonus : 0f);
                     MissionSystem.Report(MissionType.UsePowerUps, 1);
                     break;
                 case PowerUpType.Shield:
@@ -89,7 +107,7 @@ namespace TempleSprint
                     MissionSystem.Report(MissionType.UsePowerUps, 1);
                     break;
                 case PowerUpType.ScoreMultiplier:
-                    _multiplierTimer = 10f;
+                    _multiplierTimer = 10f + (_meta != null ? _meta.BoostDurationBonus * 0.5f : 0f);
                     _triple = Random.value < 0.25f;
                     MissionSystem.Report(MissionType.UsePowerUps, 1);
                     break;
@@ -98,7 +116,7 @@ namespace TempleSprint
                         EquippedConsumable = PowerUpType.SpeedBoost;
                     else
                     {
-                        _boostTimer = 5f;
+                        _boostTimer = 5f + (_meta != null ? _meta.BoostDurationBonus : 0f);
                         EquippedConsumable = null;
                         MissionSystem.Report(MissionType.UsePowerUps, 1);
                     }
@@ -108,7 +126,7 @@ namespace TempleSprint
                         EquippedConsumable = PowerUpType.SlowMo;
                     else
                     {
-                        _slowTimer = 6f;
+                        _slowTimer = 6f + (_meta != null ? _meta.BoostDurationBonus * 0.6f : 0f);
                         EquippedConsumable = null;
                         MissionSystem.Report(MissionType.UsePowerUps, 1);
                     }
@@ -116,13 +134,26 @@ namespace TempleSprint
             }
         }
 
+        /// <summary>Spend full energy meter to fire the equipped power-up (or magnet fallback).</summary>
+        public bool TryActivateFromEnergy()
+        {
+            if (!EnergyReady) return false;
+            Energy = 0f;
+            var type = EquippedConsumable ?? PowerUpType.Magnet;
+            if (type == PowerUpType.SpeedBoost || type == PowerUpType.SlowMo)
+                Activate(type, false);
+            else
+                Activate(type, true);
+            EquippedConsumable = type;
+            return true;
+        }
+
         public void UseEquipped()
         {
+            if (TryActivateFromEnergy()) return;
             if (!EquippedConsumable.HasValue) return;
-            var t = EquippedConsumable.Value;
-            EquippedConsumable = null;
-            if (t == PowerUpType.SpeedBoost) { _boostTimer = 5f; MissionSystem.Report(MissionType.UsePowerUps, 1); }
-            else if (t == PowerUpType.SlowMo) { _slowTimer = 6f; MissionSystem.Report(MissionType.UsePowerUps, 1); }
+            // Without a full meter, only spend a ready pickup consumable if already granted via Activate equip path.
+            // Keep legacy tap for equipped boost/slow only when energy is empty but player has a free charge — none by default.
         }
 
         public bool TryAbsorbHit()

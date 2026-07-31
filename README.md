@@ -29,7 +29,13 @@ In Unity: wait for compile → press the Editor **Play** button → click **PLAY
 
 ## Controls
 
-WASD / arrows — lanes, jump, slide. Space — equipped power-up. Mouse drag — swipe.
+WASD / arrows — lanes, jump, slide. Space — equipped power-up (needs full energy). Mouse drag — swipe. Coins fill the power meter.
+
+## Biomes & stages
+
+Jungle Ruins, Desert Tombs, Ice Caverns, Cave Mines, Volcanic Crater — each with distinct fog, ground, and mist tint.
+Special crossings: river (boat/rope/jump/swim), fire (jump/vine/dunk), zipline, mine cart, ice surf.
+Locker: original characters plus hats & pets. Upgrades include energy fill and power durations.
 
 ## Optional (cloud / store)
 

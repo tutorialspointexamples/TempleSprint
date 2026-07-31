@@ -13,6 +13,9 @@ namespace TempleSprint
         EnvironmentZone,
         RiverCrossing,
         FireCrossing,
+        Zipline,
+        MineCart,
+        IceSurf,
         TurnLeft,
         TurnRight,
         TJunction
@@ -47,6 +50,8 @@ namespace TempleSprint
             if (marker != null) Destroy(marker);
             var fireMarker = GetComponent<FireCrossingMarker>();
             if (fireMarker != null) Destroy(fireMarker);
+            var special = GetComponent<SpecialStageMarker>();
+            if (special != null) Destroy(special);
             JunctionResolved = false;
             JunctionChoseLeft = false;
             gameObject.SetActive(false);
@@ -91,12 +96,15 @@ namespace TempleSprint
             PathLength = Length;
             ExitPose = entry.AdvanceStraight(Length);
 
-            if (kind == TileKind.HazardGap || kind == TileKind.RiverCrossing || kind == TileKind.FireCrossing)
+            if (kind == TileKind.HazardGap || kind == TileKind.RiverCrossing || kind == TileKind.FireCrossing
+                || kind == TileKind.Zipline || kind == TileKind.MineCart || kind == TileKind.IceSurf)
             {
                 if (kind == TileKind.HazardGap)
                     BuildFloorWithGap();
                 else if (kind == TileKind.FireCrossing)
                     BuildFloorWithFireChannel();
+                else if (kind == TileKind.Zipline || kind == TileKind.MineCart || kind == TileKind.IceSurf)
+                    BuildFloorWithSpecialChannel();
                 else
                     BuildFloorWithRiverChannel();
                 BuildRailsForGap();
@@ -113,6 +121,12 @@ namespace TempleSprint
                 BuildForestEdgeForRiver();
             else if (kind == TileKind.FireCrossing)
                 BuildForestEdgeForFire();
+            else if (kind == TileKind.Zipline)
+                BuildForestEdgeForSpecial();
+            else if (kind == TileKind.MineCart)
+                BuildCaveTunnelShell();
+            else if (kind == TileKind.IceSurf)
+                BuildIceSlopeShell();
             else
                 BuildForestEdge(transform, 0f, Length);
 
@@ -123,6 +137,9 @@ namespace TempleSprint
                     if (Random.value < 0.12f) SpawnRelicOrGem();
                     if (Random.value < 0.22f) BuildArch();
                     if (Random.value < 0.45f) BuildHangingVines(Random.Range(1, 3));
+                    if (BiomeSystem.Current == BiomeId.CaveMines && Random.value < 0.4f) BuildMineTimberFrame();
+                    if (BiomeSystem.Current == BiomeId.VolcanicCrater && Random.value < 0.35f) BuildVolcanicEdgeGlow();
+                    if (BiomeSystem.Current == BiomeId.IceCaverns && Random.value < 0.4f) BuildIceRunwayFrost();
                     break;
                 case TileKind.CoinLane:
                     ScatterCoins(10);
@@ -157,6 +174,15 @@ namespace TempleSprint
                     break;
                 case TileKind.FireCrossing:
                     BuildFireCrossing();
+                    break;
+                case TileKind.Zipline:
+                    BuildZiplineStage();
+                    break;
+                case TileKind.MineCart:
+                    BuildMineCartStage();
+                    break;
+                case TileKind.IceSurf:
+                    BuildIceSurfStage();
                     break;
             }
         }
@@ -797,10 +823,68 @@ namespace TempleSprint
                 case RiverCrossingMode.Rope:
                     BuildRiverRopeCrossing(marker, channelStart, channelEnd);
                     break;
+                case RiverCrossingMode.Swim:
+                    BuildRiverSwimCrossing(marker, channelStart, channelEnd, channelMid, channelLen);
+                    break;
                 default:
                     BuildRiverJumpCrossing(channelStart, channelEnd, channelLen);
                     break;
             }
+        }
+
+        void BuildRiverSwimCrossing(RiverCrossingMarker marker, float channelStart, float channelEnd,
+            float channelMid, float channelLen)
+        {
+            // Submerged coin lane under the surface sheet.
+            for (int i = 0; i < 5; i++)
+            {
+                float z = Mathf.Lerp(channelStart + 0.8f, channelEnd - 0.6f, i / 4f);
+                CollectibleCoin.Create(transform, new Vector3(0f, ForestFloorY + 0.55f, z));
+            }
+
+            // Floating barrels / logs that force lane changes while swimming.
+            int debris = _runDifficulty == RunDifficulty.Easy ? 2
+                : _runDifficulty == RunDifficulty.Hard ? 4 : 3;
+            int usedMask = 0;
+            for (int i = 0; i < debris; i++)
+            {
+                float z = Mathf.Lerp(channelStart + 1.2f, channelEnd - 1.2f, (i + 1f) / (debris + 1f));
+                int lane = Random.Range(0, 3);
+                int tries = 0;
+                while ((usedMask & (1 << lane)) != 0 && tries++ < 5)
+                    lane = Random.Range(0, 3);
+                usedMask |= 1 << lane;
+                Obstacle.CreateBoatDebris(transform, z, lane);
+            }
+
+            // Bubbles rising from the swim channel.
+            for (int i = 0; i < 8; i++)
+            {
+                var bubble = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                bubble.name = "SwimBubble";
+                bubble.transform.SetParent(transform, false);
+                bubble.transform.localPosition = new Vector3(
+                    Random.Range(-DeckWidth * 0.35f, DeckWidth * 0.35f),
+                    ForestFloorY + Random.Range(0.2f, 1.1f),
+                    channelStart + channelLen * Random.Range(0.1f, 0.9f));
+                float s = Random.Range(0.18f, 0.38f);
+                bubble.transform.localScale = new Vector3(s, s, s);
+                bubble.GetComponent<Renderer>().sharedMaterial = JunglePalette.Foam;
+                StripCollider(bubble);
+            }
+
+            var mountGo = new GameObject("SwimMount");
+            mountGo.transform.SetParent(transform, false);
+            mountGo.transform.localPosition = new Vector3(0f, 0.6f, channelStart + 0.15f);
+            var mountCol = mountGo.AddComponent<BoxCollider>();
+            mountCol.isTrigger = true;
+            mountCol.size = new Vector3(DeckWidth + 0.5f, 2.2f, 1.6f);
+            var mount = mountGo.AddComponent<RiverSwimMount>();
+            mount.Marker = marker;
+            mount.SwimDepth = ForestFloorY + 0.35f;
+
+            if (_runDifficulty != RunDifficulty.Easy && Random.value < 0.4f)
+                GemPickup.Create(transform, new Vector3(-PlayerController.LaneWidth, ForestFloorY + 0.7f, channelMid));
         }
 
         void BuildNaturalRiverShell(float channelStart, float channelEnd, float channelLen, float channelMid)
@@ -1614,6 +1698,346 @@ namespace TempleSprint
 
             float sx = (safeLane - 1) * PlayerController.LaneWidth;
             CollectibleCoin.Create(transform, new Vector3(sx, 1.25f, Length * 0.5f));
+        }
+
+        void GetSpecialChannel(out float channelStart, out float channelEnd, out float channelLen)
+        {
+            float profileSpeed = DifficultyProfile.For(_runDifficulty).BaseSpeed;
+            channelLen = Mathf.Clamp(7.2f + profileSpeed * 0.2f, 8.2f, 10f);
+            channelStart = (Length - channelLen) * 0.5f;
+            channelEnd = channelStart + channelLen;
+        }
+
+        void BuildFloorWithSpecialChannel()
+        {
+            GetSpecialChannel(out float channelStart, out float channelEnd, out _);
+            float beforeLen = channelStart;
+            float afterLen = Length - channelEnd;
+
+            var before = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            before.name = "FloorBeforeSpecial";
+            before.transform.SetParent(transform, false);
+            before.transform.localPosition = new Vector3(0f, -0.12f, beforeLen * 0.5f);
+            before.transform.localScale = new Vector3(DeckWidth, 0.38f, beforeLen);
+            before.GetComponent<Renderer>().sharedMaterial = BiomeSystem.PathMat;
+            Object.Destroy(before.GetComponent<Collider>());
+
+            var after = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            after.name = "FloorAfterSpecial";
+            after.transform.SetParent(transform, false);
+            after.transform.localPosition = new Vector3(0f, -0.12f, channelEnd + afterLen * 0.5f);
+            after.transform.localScale = new Vector3(DeckWidth, 0.38f, afterLen);
+            after.GetComponent<Renderer>().sharedMaterial = BiomeSystem.PathMat;
+            Object.Destroy(after.GetComponent<Collider>());
+        }
+
+        void BuildForestEdgeForSpecial()
+        {
+            GetSpecialChannel(out float channelStart, out float channelEnd, out _);
+            BuildForestEdge(transform, 0f, channelStart);
+            BuildForestEdge(transform, channelEnd, Length - channelEnd);
+        }
+
+        void BuildCaveTunnelShell()
+        {
+            GetSpecialChannel(out float channelStart, out float channelEnd, out float channelLen);
+            float mid = (channelStart + channelEnd) * 0.5f;
+
+            // Rock walls framing the mine corridor.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                wall.name = "CaveWall";
+                wall.transform.SetParent(transform, false);
+                wall.transform.localPosition = new Vector3(side * (DeckWidth * 0.5f + 2.2f), 2.2f, mid);
+                wall.transform.localScale = new Vector3(3.2f, 5.2f, channelLen + 2f);
+                wall.GetComponent<Renderer>().sharedMaterial = BiomeSystem.StoneMat;
+                StripCollider(wall);
+            }
+
+            var ceiling = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            ceiling.name = "CaveCeiling";
+            ceiling.transform.SetParent(transform, false);
+            ceiling.transform.localPosition = new Vector3(0f, 4.6f, mid);
+            ceiling.transform.localScale = new Vector3(DeckWidth + 5f, 0.7f, channelLen + 1.5f);
+            ceiling.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
+            StripCollider(ceiling);
+
+            for (int i = 0; i < 3; i++)
+            {
+                float z = channelStart + channelLen * ((i + 1f) / 4f);
+                BuildMineTimberAt(z);
+            }
+        }
+
+        void BuildMineTimberFrame()
+        {
+            BuildMineTimberAt(Length * Random.Range(0.35f, 0.7f));
+        }
+
+        void BuildMineTimberAt(float z)
+        {
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var post = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                post.transform.SetParent(transform, false);
+                post.transform.localPosition = new Vector3(side * (DeckWidth * 0.48f + 0.15f), 1.6f, z);
+                post.transform.localScale = new Vector3(0.28f, 3.2f, 0.28f);
+                post.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+                StripCollider(post);
+            }
+            var beam = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            beam.transform.SetParent(transform, false);
+            beam.transform.localPosition = new Vector3(0f, 3.15f, z);
+            beam.transform.localScale = new Vector3(DeckWidth + 0.6f, 0.28f, 0.28f);
+            beam.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+            StripCollider(beam);
+        }
+
+        void BuildVolcanicEdgeGlow()
+        {
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var glow = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                glow.transform.SetParent(transform, false);
+                glow.transform.localPosition = new Vector3(side * (DeckWidth * 0.55f + 0.8f), -0.4f, Length * 0.5f);
+                glow.transform.localScale = new Vector3(1.2f, 0.2f, Length * 0.7f);
+                glow.GetComponent<Renderer>().sharedMaterial = JunglePalette.Ember;
+                StripCollider(glow);
+            }
+        }
+
+        void BuildZiplineStage()
+        {
+            GetSpecialChannel(out float channelStart, out float channelEnd, out float channelLen);
+            float mid = (channelStart + channelEnd) * 0.5f;
+
+            var marker = gameObject.AddComponent<SpecialStageMarker>();
+            marker.Configure(SpecialStageKind.Zipline, channelStart, channelEnd, PathStartDistance, _runDifficulty);
+
+            // Deep cliff void under the cable.
+            var voidBed = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            voidBed.name = "ZiplineVoid";
+            voidBed.transform.SetParent(transform, false);
+            voidBed.transform.localPosition = new Vector3(0f, ForestFloorY - 1.5f, mid);
+            voidBed.transform.localScale = new Vector3(ForestOuter * 2.2f + DeckWidth, 2f, channelLen + 2f);
+            voidBed.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.1f, 0.14f, 0.12f), 0.2f);
+            StripCollider(voidBed);
+
+            for (int lane = 0; lane < 3; lane++)
+                GapKillZone.Create(transform, mid, lane, channelLen, "Fell from the zipline");
+
+            // Twin posts + cable.
+            var nearPost = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            nearPost.transform.SetParent(transform, false);
+            nearPost.transform.localPosition = new Vector3(0f, 2.2f, channelStart);
+            nearPost.transform.localScale = new Vector3(0.35f, 2.2f, 0.35f);
+            nearPost.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+            StripCollider(nearPost);
+
+            var farPost = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            farPost.transform.SetParent(transform, false);
+            farPost.transform.localPosition = new Vector3(0f, 2.2f, channelEnd);
+            farPost.transform.localScale = new Vector3(0.35f, 2.2f, 0.35f);
+            farPost.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+            StripCollider(farPost);
+
+            var cable = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            cable.name = "ZiplineCable";
+            cable.transform.SetParent(transform, false);
+            cable.transform.localPosition = new Vector3(0f, 3.9f, mid);
+            cable.transform.localScale = new Vector3(0.08f, 0.08f, channelLen);
+            cable.GetComponent<Renderer>().sharedMaterial = JunglePalette.Rope;
+            StripCollider(cable);
+
+            var mountGo = new GameObject("ZiplineMount");
+            mountGo.transform.SetParent(transform, false);
+            mountGo.transform.localPosition = new Vector3(0f, 1.2f, channelStart + 0.25f);
+            var mountCol = mountGo.AddComponent<BoxCollider>();
+            mountCol.isTrigger = true;
+            mountCol.size = new Vector3(DeckWidth + 0.6f, 3f, 1.8f);
+            var mount = mountGo.AddComponent<ZiplineMount>();
+            mount.Marker = marker;
+            mount.RideHeight = 2.55f;
+
+            // Overhead beams that require a slide while riding.
+            int beams = _runDifficulty == RunDifficulty.Easy ? 1 : _runDifficulty == RunDifficulty.Hard ? 3 : 2;
+            for (int i = 0; i < beams; i++)
+            {
+                float z = Mathf.Lerp(channelStart + 1.4f, channelEnd - 1.4f, (i + 1f) / (beams + 1f));
+                Obstacle.CreateLowBeam(transform, z, 1);
+            }
+
+            CollectibleCoin.Create(transform, new Vector3(0f, 2.8f, channelStart + 1f));
+            CollectibleCoin.Create(transform, new Vector3(0f, 2.9f, mid));
+            CollectibleCoin.Create(transform, new Vector3(0f, 2.8f, channelEnd - 0.8f));
+        }
+
+        void BuildMineCartStage()
+        {
+            GetSpecialChannel(out float channelStart, out float channelEnd, out float channelLen);
+            float mid = (channelStart + channelEnd) * 0.5f;
+
+            var marker = gameObject.AddComponent<SpecialStageMarker>();
+            marker.Configure(SpecialStageKind.MineCart, channelStart, channelEnd, PathStartDistance, _runDifficulty);
+
+            // Rail bed across the channel (cart rides above kill voids at sides).
+            var rails = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            rails.name = "MineRails";
+            rails.transform.SetParent(transform, false);
+            rails.transform.localPosition = new Vector3(0f, -0.05f, mid);
+            rails.transform.localScale = new Vector3(DeckWidth * 0.92f, 0.18f, channelLen);
+            rails.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
+            StripCollider(rails);
+
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var rail = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                rail.transform.SetParent(transform, false);
+                rail.transform.localPosition = new Vector3(side * 0.55f, 0.05f, mid);
+                rail.transform.localScale = new Vector3(0.12f, 0.1f, channelLen);
+                rail.GetComponent<Renderer>().sharedMaterial = JunglePalette.Stone;
+                StripCollider(rail);
+            }
+
+            var rideGo = new GameObject("MineCartRide");
+            rideGo.transform.SetParent(transform, false);
+            var ride = rideGo.AddComponent<MineCartRide>();
+            ride.Marker = marker;
+            ride.BuildVisual(rideGo.transform);
+
+            var mountGo = new GameObject("MineCartMount");
+            mountGo.transform.SetParent(transform, false);
+            mountGo.transform.localPosition = new Vector3(0f, 1f, channelStart + 0.2f);
+            var mountCol = mountGo.AddComponent<BoxCollider>();
+            mountCol.isTrigger = true;
+            mountCol.size = new Vector3(DeckWidth + 0.5f, 2.5f, 1.8f);
+            var mount = mountGo.AddComponent<MineCartMount>();
+            mount.Marker = marker;
+            mount.Ride = ride;
+
+            // Low beams + side rock walls — dodge lanes / slide.
+            int hazards = _runDifficulty == RunDifficulty.Easy ? 2
+                : _runDifficulty == RunDifficulty.Hard ? 4 : 3;
+            int usedMask = 0;
+            for (int i = 0; i < hazards; i++)
+            {
+                float z = Mathf.Lerp(channelStart + 1.3f, channelEnd - 1.3f, (i + 1f) / (hazards + 1f));
+                if (i % 2 == 0)
+                {
+                    Obstacle.CreateLowBeam(transform, z, Random.Range(0, 3));
+                }
+                else
+                {
+                    int lane = Random.Range(0, 3);
+                    int tries = 0;
+                    while ((usedMask & (1 << lane)) != 0 && tries++ < 5)
+                        lane = Random.Range(0, 3);
+                    usedMask |= 1 << lane;
+                    Obstacle.CreateBoatDebris(transform, z, lane);
+                }
+            }
+
+            CollectibleCoin.Create(transform, new Vector3(0f, 1.5f, channelStart + 0.9f));
+            CollectibleCoin.Create(transform, new Vector3(0f, 1.6f, mid));
+            CollectibleCoin.Create(transform, new Vector3(0f, 1.5f, channelEnd - 0.6f));
+            if (_runDifficulty != RunDifficulty.Easy && Random.value < 0.45f)
+                GemPickup.Create(transform, new Vector3(PlayerController.LaneWidth, 1.55f, mid + 1f));
+        }
+
+        void BuildIceSlopeShell()
+        {
+            // Snow banks flanking the iced slope.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var bank = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                bank.name = "SnowBank";
+                bank.transform.SetParent(transform, false);
+                bank.transform.localPosition = new Vector3(side * (DeckWidth * 0.5f + 2.4f), 0.4f, Length * 0.5f);
+                bank.transform.localScale = new Vector3(3.2f, 1.6f, Length * 0.95f);
+                bank.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.85f, 0.92f, 0.98f), 0.35f);
+                StripCollider(bank);
+
+                for (int i = 0; i < 3; i++)
+                {
+                    var spike = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                    spike.transform.SetParent(transform, false);
+                    spike.transform.localPosition = new Vector3(
+                        side * (DeckWidth * 0.5f + 1.6f + Random.Range(0f, 1.2f)),
+                        1.1f + Random.Range(0f, 0.6f),
+                        Length * (0.2f + i * 0.25f));
+                    spike.transform.localScale = new Vector3(0.35f, Random.Range(0.8f, 1.4f), 0.35f);
+                    spike.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.7f, 0.85f, 0.95f), 0.55f, 0.2f);
+                    StripCollider(spike);
+                }
+            }
+        }
+
+        void BuildIceRunwayFrost()
+        {
+            var frost = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            frost.name = "IceFrostSheet";
+            frost.transform.SetParent(transform, false);
+            frost.transform.localPosition = new Vector3(0f, 0.06f, Length * 0.5f);
+            frost.transform.localScale = new Vector3(DeckWidth * 0.95f, 0.05f, Length * 0.85f);
+            frost.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.78f, 0.9f, 0.98f), 0.7f, 0.15f);
+            StripCollider(frost);
+        }
+
+        void BuildIceSurfStage()
+        {
+            GetSpecialChannel(out float channelStart, out float channelEnd, out float channelLen);
+            float mid = (channelStart + channelEnd) * 0.5f;
+
+            var marker = gameObject.AddComponent<SpecialStageMarker>();
+            marker.Configure(SpecialStageKind.IceSurf, channelStart, channelEnd, PathStartDistance, _runDifficulty);
+
+            var slope = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            slope.name = "IceSlope";
+            slope.transform.SetParent(transform, false);
+            slope.transform.localPosition = new Vector3(0f, -0.08f, mid);
+            slope.transform.localRotation = Quaternion.Euler(6f, 0f, 0f);
+            slope.transform.localScale = new Vector3(DeckWidth * 0.98f, 0.22f, channelLen);
+            slope.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.72f, 0.86f, 0.96f), 0.65f, 0.25f);
+            StripCollider(slope);
+
+            for (int side = -1; side <= 1; side += 2)
+            {
+                GapKillZone.Create(transform, mid, side < 0 ? 0 : 2, channelLen * 0.35f, "Slid off the ice");
+            }
+
+            var rideGo = new GameObject("IceBoardRide");
+            rideGo.transform.SetParent(transform, false);
+            var ride = rideGo.AddComponent<IceBoardRide>();
+            ride.Marker = marker;
+            ride.BuildVisual(rideGo.transform);
+
+            var mountGo = new GameObject("IceSurfMount");
+            mountGo.transform.SetParent(transform, false);
+            mountGo.transform.localPosition = new Vector3(0f, 0.9f, channelStart + 0.2f);
+            var mountCol = mountGo.AddComponent<BoxCollider>();
+            mountCol.isTrigger = true;
+            mountCol.size = new Vector3(DeckWidth + 0.5f, 2.4f, 1.8f);
+            var mount = mountGo.AddComponent<IceSurfMount>();
+            mount.Marker = marker;
+            mount.Ride = ride;
+
+            int hazards = _runDifficulty == RunDifficulty.Easy ? 2
+                : _runDifficulty == RunDifficulty.Hard ? 4 : 3;
+            for (int i = 0; i < hazards; i++)
+            {
+                float z = Mathf.Lerp(channelStart + 1.2f, channelEnd - 1.2f, (i + 1f) / (hazards + 1f));
+                if (i % 2 == 0)
+                    Obstacle.CreateLowBeam(transform, z, Random.Range(0, 3));
+                else
+                    Obstacle.CreateBoatDebris(transform, z, Random.Range(0, 3));
+            }
+
+            CollectibleCoin.Create(transform, new Vector3(0f, 1.2f, channelStart + 0.8f));
+            CollectibleCoin.Create(transform, new Vector3(0f, 1.15f, mid));
+            CollectibleCoin.Create(transform, new Vector3(0f, 1.1f, channelEnd - 0.7f));
+            if (_runDifficulty != RunDifficulty.Easy && Random.value < 0.4f)
+                GemPickup.Create(transform, new Vector3(-PlayerController.LaneWidth, 1.25f, mid + 0.8f));
         }
     }
 }
