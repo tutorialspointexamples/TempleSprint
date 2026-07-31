@@ -51,6 +51,7 @@ namespace TempleSprint
         }
 
         float _magnetTimer, _multiplierTimer, _boostTimer, _slowTimer, _reviveIFrames;
+        float _petMagnetCd, _petShieldCd;
         bool _triple;
         MetaProgress _meta;
 
@@ -70,6 +71,12 @@ namespace TempleSprint
             EquippedConsumable = PowerUpType.SpeedBoost;
             Energy = 0f;
             MagnetRadius = 3f + _meta.MagnetRadiusBonus + CharacterRoster.PassiveMagnetBonus;
+            _petMagnetCd = CosmeticRoster.PetPassives.MagnetPulse
+                ? CosmeticRoster.PetPassives.MagnetPulseInterval * 0.4f
+                : 999f;
+            _petShieldCd = CosmeticRoster.PetPassives.ShieldChirp
+                ? CosmeticRoster.PetPassives.ShieldChirpInterval * 0.5f
+                : 999f;
             if (_meta.Data.reviveLevel >= 1 && Random.value < 0.35f)
                 HasShield = true;
             if (CharacterRoster.EmberStartShield)
@@ -79,6 +86,7 @@ namespace TempleSprint
         public void ClearTimers()
         {
             _magnetTimer = _multiplierTimer = _boostTimer = _slowTimer = _reviveIFrames = 0f;
+            _petMagnetCd = _petShieldCd = 0f;
             Time.timeScale = 1f;
         }
 
@@ -172,8 +180,41 @@ namespace TempleSprint
             if (_boostTimer > 0f) _boostTimer -= dt;
             if (_slowTimer > 0f) _slowTimer -= dt;
             if (_reviveIFrames > 0f) _reviveIFrames -= dt;
+            TickPetPassives(dt);
             // Never leave timeScale altered — SlowMo uses SpeedScale only
             if (Time.timeScale < 0.99f) Time.timeScale = 1f;
+        }
+
+        void TickPetPassives(float dt)
+        {
+            if (RunSession.Instance == null || !RunSession.Instance.IsAlive) return;
+
+            if (CosmeticRoster.PetPassives.MagnetPulse)
+            {
+                _petMagnetCd -= dt;
+                if (_petMagnetCd <= 0f)
+                {
+                    _petMagnetCd = CosmeticRoster.PetPassives.MagnetPulseInterval;
+                    _magnetTimer = Mathf.Max(_magnetTimer, CosmeticRoster.PetPassives.MagnetPulseDuration);
+                    MagnetRadius = 3f + _meta.MagnetRadiusBonus + CharacterRoster.PassiveMagnetBonus
+                                   + CosmeticRoster.PetPassives.MagnetPulseRadiusBonus;
+                    AudioHooks.Instance?.PlayPickup();
+                }
+            }
+
+            if (CosmeticRoster.PetPassives.ShieldChirp)
+            {
+                _petShieldCd -= dt;
+                if (_petShieldCd <= 0f)
+                {
+                    _petShieldCd = CosmeticRoster.PetPassives.ShieldChirpInterval;
+                    if (!HasShield)
+                    {
+                        HasShield = true;
+                        AudioHooks.Instance?.PlayPickup();
+                    }
+                }
+            }
         }
 
         void OnDestroy()

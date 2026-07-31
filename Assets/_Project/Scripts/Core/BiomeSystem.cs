@@ -81,10 +81,12 @@ namespace TempleSprint
         public static float RiverBias => Current == BiomeId.JungleRuins || Current == BiomeId.IceCaverns ? 1.3f : 0.85f;
         public static float IceSurfBias => Current == BiomeId.IceCaverns ? 1.9f : Current == BiomeId.CaveMines ? 0.6f : 0.85f;
         public static float SwimBias => Current == BiomeId.JungleRuins || Current == BiomeId.IceCaverns ? 1.35f : 0.9f;
-        public static float WallRunBias => Current == BiomeId.CaveMines || Current == BiomeId.JungleRuins ? 1.55f
-            : Current == BiomeId.VolcanicCrater ? 1.25f : 0.9f;
-        public static float LedgeGrabBias => Current == BiomeId.DesertTombs || Current == BiomeId.JungleRuins ? 1.5f
-            : Current == BiomeId.IceCaverns ? 1.2f : 0.85f;
+        public static float WallRunBias =>
+            (Current == BiomeId.CaveMines || Current == BiomeId.JungleRuins ? 1.55f
+                : Current == BiomeId.VolcanicCrater ? 1.25f : 0.9f) * EventService.EventStageBias(Current);
+        public static float LedgeGrabBias =>
+            (Current == BiomeId.DesertTombs || Current == BiomeId.JungleRuins ? 1.5f
+                : Current == BiomeId.IceCaverns ? 1.2f : 0.85f) * EventService.EventStageBias(Current);
 
         public static Material PathMat => BiomePalette.Path(Current);
         public static Material StoneMat => BiomePalette.Stone(Current);
@@ -324,15 +326,25 @@ namespace TempleSprint
 
         void SpawnTree(Transform parent, Vector3 localPos, float scale = 1f)
         {
+            // Distant ring matches selected biome so Desert/Ice/Cave/Volcano don't keep jungle trees.
+            Material trunkMat = BiomeSystem.Current switch
+            {
+                BiomeId.DesertTombs => BiomeSystem.FoliageMat,
+                BiomeId.IceCaverns => JunglePalette.Mat(new Color(0.75f, 0.9f, 1f), 0.6f, 0.15f),
+                BiomeId.CaveMines => BiomeSystem.StoneMat,
+                BiomeId.VolcanicCrater => JunglePalette.Charcoal,
+                _ => JunglePalette.Bark
+            };
+            Material canopyMat = BiomeSystem.FoliageMat;
+
             float trunkH = Random.Range(3.2f, 4.6f) * scale;
             var trunk = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             trunk.transform.SetParent(parent, false);
             trunk.transform.localPosition = localPos + new Vector3(0f, trunkH * 0.5f - 0.3f, 0f);
             trunk.transform.localScale = new Vector3(0.32f * scale, trunkH * 0.5f, 0.32f * scale);
-            trunk.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+            trunk.GetComponent<Renderer>().sharedMaterial = trunkMat;
             Object.Destroy(trunk.GetComponent<Collider>());
 
-            // Overlapping tiers — no gap between trunk top and canopy.
             const int tiers = 3;
             for (int i = 0; i < tiers; i++)
             {
@@ -343,10 +355,7 @@ namespace TempleSprint
                 canopy.transform.localPosition = localPos
                     + new Vector3(Random.Range(-0.2f, 0.2f), trunkH * 0.62f + i * 1.05f * scale, Random.Range(-0.2f, 0.2f));
                 canopy.transform.localScale = new Vector3(s, s * 0.88f, s);
-                canopy.GetComponent<Renderer>().sharedMaterial =
-                    i == 0 ? JunglePalette.FoliageDark
-                    : i == tiers - 1 ? JunglePalette.FoliageLight
-                    : JunglePalette.Foliage;
+                canopy.GetComponent<Renderer>().sharedMaterial = canopyMat;
                 Object.Destroy(canopy.GetComponent<Collider>());
             }
         }

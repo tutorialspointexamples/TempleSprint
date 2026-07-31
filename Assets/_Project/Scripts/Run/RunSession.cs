@@ -70,7 +70,8 @@ namespace TempleSprint
         public void AddCoins(int amount)
         {
             if (!IsAlive || amount <= 0) return;
-            float mult = _meta.CoinMultiplier * CharacterRoster.PassiveCoinMult * EventService.EventCoinBonus;
+            float mult = _meta.CoinMultiplier * CharacterRoster.PassiveCoinMult
+                         * EventService.EventCoinBonus * CosmeticRoster.PetPassives.CoinMult;
             if (PowerUpController.Instance != null)
                 mult *= PowerUpController.Instance.ScoreMultiplier;
             int gained = Mathf.Max(1, Mathf.RoundToInt(amount * mult));
@@ -173,6 +174,7 @@ namespace TempleSprint
             MissionSystem.Report(MissionType.CollectCoins, payload.coinsEarned);
             MissionSystem.Report(MissionType.RunDistance, Mathf.FloorToInt(payload.distance));
             AchievementSystem.EvaluateRun(payload);
+            ArtifactHuntSystem.ReportRun(payload);
             AnalyticsService.Track("run_end", payload.score);
             _ = CloudSaveService.PushAsync();
 

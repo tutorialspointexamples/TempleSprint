@@ -50,6 +50,10 @@ namespace TempleSprint
         public bool missionClaimed2;
         public int bestScore;
         public string ghostRunJson = "";
+        public int artifactWeekSeed;
+        public int artifactRelics;
+        public float artifactDistance;
+        public bool artifactClaimed;
     }
 
     public class MetaProgress

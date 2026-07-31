@@ -1572,7 +1572,16 @@ namespace TempleSprint
             BodyHeight = b.size.y;
         }
 
-        public void SetAccentColor(Color _) { }
+        public void SetAccentColor(Color accent)
+        {
+            // Soft roster tint on the runtime skin (locker character identity).
+            var mat = GetRuntimeSkin();
+            if (mat == null) return;
+            Color tint = Color.Lerp(new Color(1f, 0.92f, 0.75f, 1f), accent, 0.45f);
+            mat.color = tint;
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", tint);
+            ForceVisibleRenderers();
+        }
 
         public void SetPoseFlags(bool sliding, bool jumping)
         {

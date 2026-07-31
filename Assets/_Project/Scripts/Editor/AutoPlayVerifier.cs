@@ -241,7 +241,9 @@ namespace TempleSprint.EditorTools
                              || (tileSpawner != null
                                  && (tileSpawner.ZiplinesSpawnedThisRun > 0
                                      || tileSpawner.MineCartsSpawnedThisRun > 0
-                                     || tileSpawner.IceSurfsSpawnedThisRun > 0));
+                                     || tileSpawner.IceSurfsSpawnedThisRun > 0
+                                     || tileSpawner.WallRunsSpawnedThisRun > 0
+                                     || tileSpawner.LedgeGrabsSpawnedThisRun > 0));
 
             bool ok = gm != null && ui != null && kids >= 4 && explorer != null && nature != null
                       && activeTiles > 0 && rends >= 40 && framed && humanoid
@@ -499,7 +501,7 @@ namespace TempleSprint.EditorTools
         static bool CheckSpecialStagesPresent(TrackTile[] tiles)
         {
             if (tiles == null) return false;
-            bool zip = false, cart = false, ice = false;
+            bool zip = false, cart = false, ice = false, wall = false, ledge = false;
             foreach (var t in tiles)
             {
                 if (t == null) continue;
@@ -530,9 +532,27 @@ namespace TempleSprint.EditorTools
                         return false;
                     }
                 }
+                if (t.Kind == TileKind.WallRun)
+                {
+                    wall = true;
+                    if (t.GetComponent<SpecialStageMarker>() == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] WallRun at {t.PathStartDistance:0.0} missing marker");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.LedgeGrab)
+                {
+                    ledge = true;
+                    if (t.GetComponent<SpecialStageMarker>() == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] LedgeGrab at {t.PathStartDistance:0.0} missing marker");
+                        return false;
+                    }
+                }
             }
-            Debug.Log($"[VERIFY] specialStages zipline={zip} minecart={cart} icesurf={ice}");
-            return zip || cart || ice;
+            Debug.Log($"[VERIFY] specialStages zipline={zip} minecart={cart} icesurf={ice} wallrun={wall} ledge={ledge}");
+            return zip || cart || ice || wall || ledge;
         }
     }
 }

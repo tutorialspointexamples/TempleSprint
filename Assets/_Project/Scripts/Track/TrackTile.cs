@@ -470,23 +470,58 @@ namespace TempleSprint
             float slabLen = Length / slabs;
             for (int s = 0; s < slabs; s++)
             {
-                var floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                floor.name = "FloorSlab";
-                floor.transform.SetParent(transform, false);
-                floor.transform.localPosition = new Vector3(0f, -0.12f, slabLen * (s + 0.5f));
-                floor.transform.localScale = new Vector3(DeckWidth, 0.4f, slabLen * 0.95f);
-                floor.GetComponent<Renderer>().sharedMaterial = BiomeSystem.PathMat;
-                Object.Destroy(floor.GetComponent<Collider>());
+                // Split each slab into irregular paving stones for carved-path silhouette.
+                int stones = 3;
+                float stoneW = DeckWidth / stones;
+                for (int x = 0; x < stones; x++)
+                {
+                    float jitterX = Random.Range(-0.06f, 0.06f);
+                    float jitterZ = Random.Range(-0.08f, 0.08f);
+                    float chip = Random.Range(0.88f, 0.98f);
+                    var floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    floor.name = "FloorStone";
+                    floor.transform.SetParent(transform, false);
+                    floor.transform.localPosition = new Vector3(
+                        (x - (stones - 1) * 0.5f) * stoneW + jitterX,
+                        -0.12f + Random.Range(-0.02f, 0.02f),
+                        slabLen * (s + 0.5f) + jitterZ);
+                    floor.transform.localScale = new Vector3(stoneW * chip, 0.4f, slabLen * chip * 0.92f);
+                    floor.GetComponent<Renderer>().sharedMaterial = BiomeSystem.PathMat;
+                    Object.Destroy(floor.GetComponent<Collider>());
+                }
+
+                // Center crack line every other slab.
+                if (s % 2 == 0)
+                {
+                    var crack = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    crack.name = "PathCrack";
+                    crack.transform.SetParent(transform, false);
+                    crack.transform.localPosition = new Vector3(Random.Range(-0.4f, 0.4f), 0.05f, slabLen * (s + 0.5f));
+                    crack.transform.localScale = new Vector3(0.08f, 0.05f, slabLen * 0.55f);
+                    crack.GetComponent<Renderer>().sharedMaterial = BiomeSystem.StoneMat;
+                    Object.Destroy(crack.GetComponent<Collider>());
+                }
             }
 
             for (int side = -1; side <= 1; side += 2)
             {
+                var curb = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                curb.name = "PathCurb";
+                curb.transform.SetParent(transform, false);
+                curb.transform.localPosition = new Vector3(side * (DeckWidth * 0.5f + 0.08f), 0.08f, Length * 0.5f);
+                curb.transform.localScale = new Vector3(0.22f, 0.22f, Length * 0.94f);
+                curb.GetComponent<Renderer>().sharedMaterial = BiomeSystem.StoneMat;
+                Object.Destroy(curb.GetComponent<Collider>());
+
                 var moss = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 moss.name = "MossEdge";
                 moss.transform.SetParent(transform, false);
                 moss.transform.localPosition = new Vector3(side * (DeckWidth * 0.48f), 0.02f, Length * 0.5f);
                 moss.transform.localScale = new Vector3(0.28f, 0.1f, Length * 0.92f);
-                moss.GetComponent<Renderer>().sharedMaterial = JunglePalette.StoneMoss;
+                moss.GetComponent<Renderer>().sharedMaterial =
+                    BiomeSystem.Current == BiomeId.DesertTombs ? BiomeSystem.FoliageMat
+                    : BiomeSystem.Current == BiomeId.IceCaverns ? JunglePalette.Mat(new Color(0.78f, 0.9f, 0.98f), 0.4f)
+                    : JunglePalette.StoneMoss;
                 Object.Destroy(moss.GetComponent<Collider>());
             }
         }
@@ -647,6 +682,28 @@ namespace TempleSprint
 
         void SpawnForestTree(Transform parent, Vector3 basePos, float scale, bool conifer)
         {
+            // Biome props: desert cacti / ice pillars / cave spires / volcanic ash trunks.
+            if (BiomeSystem.Current == BiomeId.DesertTombs)
+            {
+                SpawnDesertCactus(parent, basePos, scale);
+                return;
+            }
+            if (BiomeSystem.Current == BiomeId.IceCaverns)
+            {
+                SpawnIcePillar(parent, basePos, scale);
+                return;
+            }
+            if (BiomeSystem.Current == BiomeId.CaveMines)
+            {
+                SpawnCaveSpire(parent, basePos, scale);
+                return;
+            }
+            if (BiomeSystem.Current == BiomeId.VolcanicCrater)
+            {
+                SpawnAshTrunk(parent, basePos, scale);
+                return;
+            }
+
             var root = new GameObject(conifer ? "Pine" : "BroadleafTree").transform;
             root.SetParent(parent, false);
             root.localPosition = basePos;
@@ -691,6 +748,94 @@ namespace TempleSprint
                     : i == tiers - 1 ? JunglePalette.FoliageLight
                     : JunglePalette.Foliage;
                 StripCollider(piece);
+            }
+        }
+
+        void SpawnDesertCactus(Transform parent, Vector3 basePos, float scale)
+        {
+            var root = new GameObject("Cactus").transform;
+            root.SetParent(parent, false);
+            root.localPosition = basePos;
+            float h = Random.Range(2.2f, 3.4f) * scale;
+            var trunk = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            trunk.transform.SetParent(root, false);
+            trunk.transform.localPosition = new Vector3(0f, h * 0.45f, 0f);
+            trunk.transform.localScale = new Vector3(0.55f * scale, h * 0.45f, 0.55f * scale);
+            trunk.GetComponent<Renderer>().sharedMaterial = BiomeSystem.FoliageMat;
+            StripCollider(trunk);
+            for (int a = 0; a < 2; a++)
+            {
+                float side = a == 0 ? -1f : 1f;
+                var arm = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                arm.transform.SetParent(root, false);
+                arm.transform.localPosition = new Vector3(side * 0.55f * scale, h * 0.55f, 0f);
+                arm.transform.localRotation = Quaternion.Euler(0f, 0f, side * -55f);
+                arm.transform.localScale = new Vector3(0.35f * scale, 0.55f * scale, 0.35f * scale);
+                arm.GetComponent<Renderer>().sharedMaterial = BiomeSystem.FoliageMat;
+                StripCollider(arm);
+            }
+        }
+
+        void SpawnIcePillar(Transform parent, Vector3 basePos, float scale)
+        {
+            var root = new GameObject("IcePillar").transform;
+            root.SetParent(parent, false);
+            root.localPosition = basePos;
+            float h = Random.Range(2.4f, 4.2f) * scale;
+            var pillar = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            pillar.transform.SetParent(root, false);
+            pillar.transform.localPosition = new Vector3(0f, h * 0.5f, 0f);
+            pillar.transform.localScale = new Vector3(0.45f * scale, h * 0.5f, 0.45f * scale);
+            pillar.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.72f, 0.88f, 0.98f), 0.65f, 0.2f);
+            StripCollider(pillar);
+            var tip = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            tip.transform.SetParent(root, false);
+            tip.transform.localPosition = new Vector3(0f, h + 0.15f * scale, 0f);
+            tip.transform.localScale = Vector3.one * (0.55f * scale);
+            tip.GetComponent<Renderer>().sharedMaterial = BiomeSystem.AccentMat;
+            StripCollider(tip);
+        }
+
+        void SpawnCaveSpire(Transform parent, Vector3 basePos, float scale)
+        {
+            var root = new GameObject("CaveSpire").transform;
+            root.SetParent(parent, false);
+            root.localPosition = basePos;
+            float h = Random.Range(2f, 3.6f) * scale;
+            var spire = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            spire.transform.SetParent(root, false);
+            spire.transform.localPosition = new Vector3(0f, h * 0.5f, 0f);
+            spire.transform.localScale = new Vector3(0.7f * scale, h * 0.5f, 0.7f * scale);
+            spire.GetComponent<Renderer>().sharedMaterial = BiomeSystem.StoneMat;
+            StripCollider(spire);
+        }
+
+        void SpawnAshTrunk(Transform parent, Vector3 basePos, float scale)
+        {
+            var root = new GameObject("AshTrunk").transform;
+            root.SetParent(parent, false);
+            root.localPosition = basePos;
+            float h = Random.Range(2.2f, 3.5f) * scale;
+            var trunk = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            trunk.transform.SetParent(root, false);
+            trunk.transform.localPosition = new Vector3(0f, h * 0.45f, 0f);
+            trunk.transform.localScale = new Vector3(0.35f * scale, h * 0.45f, 0.35f * scale);
+            trunk.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
+            StripCollider(trunk);
+            var canopy = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            canopy.transform.SetParent(root, false);
+            canopy.transform.localPosition = new Vector3(0f, h * 0.95f, 0f);
+            canopy.transform.localScale = Vector3.one * (1.4f * scale);
+            canopy.GetComponent<Renderer>().sharedMaterial = BiomeSystem.FoliageMat;
+            StripCollider(canopy);
+            if (Random.value < 0.4f)
+            {
+                var ember = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                ember.transform.SetParent(root, false);
+                ember.transform.localPosition = new Vector3(0f, 0.3f, 0f);
+                ember.transform.localScale = Vector3.one * (0.4f * scale);
+                ember.GetComponent<Renderer>().sharedMaterial = JunglePalette.Ember;
+                StripCollider(ember);
             }
         }
 
@@ -1317,6 +1462,9 @@ namespace TempleSprint
             outer.transform.localScale = new Vector3(0.95f, height * 0.55f, 0.95f);
             outer.GetComponent<Renderer>().sharedMaterial = JunglePalette.Flame;
             StripCollider(outer);
+
+            var flicker = root.gameObject.AddComponent<FlameFlicker>();
+            flicker.Configure(height);
         }
 
         void PlaceFireKillZones(float channelStart, float channelEnd)

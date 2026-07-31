@@ -118,6 +118,11 @@ namespace TempleSprint
             Btn(_missions, "CLAIM 1", new Vector2(-160, -40), () => { MissionSystem.TryClaim(0); ShowMissions(); });
             Btn(_missions, "CLAIM 2", new Vector2(160, -40), () => { MissionSystem.TryClaim(1); ShowMissions(); });
             Btn(_missions, "CLAIM 3", new Vector2(0, -120), () => { MissionSystem.TryClaim(2); ShowMissions(); });
+            Btn(_missions, "CLAIM ARTIFACT", new Vector2(0, -200), () =>
+            {
+                Toast(ArtifactHuntSystem.TryClaim() ? "Artifact claimed!" : "Hunt incomplete / claimed");
+                ShowMissions();
+            });
             Btn(_missions, "BACK", new Vector2(0, -260), () => ShowMainMenu());
 
             _settings = Panel("Settings", new Color(0.09f, 0.1f, 0.12f, 0.82f));
@@ -296,13 +301,17 @@ namespace TempleSprint
             foreach (var h in CosmeticRoster.Hats)
             {
                 if (h.id == "hat_none") continue;
+                // Hide off-season cosmetics unless already owned.
+                if (CosmeticRoster.IsSeasonal(h.id) && !CosmeticRoster.IsFeaturedThisWeek(h.id)
+                    && !MetaProgress.Ensure().HasCosmetic(h.id))
+                    continue;
                 var id = h.id;
-                var label = h.displayName;
+                var label = (CosmeticRoster.IsFeaturedThisWeek(id) ? "★ " : "") + h.displayName;
                 var cost = h.gemCost;
                 Btn(_locker, "HAT:" + label, new Vector2(-160, cy), () =>
                 {
                     if (!MetaProgress.Ensure().HasCosmetic(id))
-                        Toast(CosmeticRoster.TryUnlock(id, true) ? "Hat unlocked!" : $"Need {cost} gems");
+                        Toast(CosmeticRoster.TryUnlock(id, true) ? "Hat unlocked!" : $"Need {cost} gems / not in season");
                     else
                     {
                         CosmeticRoster.SelectHat(id);
@@ -316,13 +325,16 @@ namespace TempleSprint
             foreach (var p in CosmeticRoster.Pets)
             {
                 if (p.id == "pet_none") continue;
+                if (CosmeticRoster.IsSeasonal(p.id) && !CosmeticRoster.IsFeaturedThisWeek(p.id)
+                    && !MetaProgress.Ensure().HasCosmetic(p.id))
+                    continue;
                 var id = p.id;
-                var label = p.displayName;
+                var label = (CosmeticRoster.IsFeaturedThisWeek(id) ? "★ " : "") + p.displayName;
                 var cost = p.gemCost;
                 Btn(_locker, "PET:" + label, new Vector2(160, cy), () =>
                 {
                     if (!MetaProgress.Ensure().HasCosmetic(id))
-                        Toast(CosmeticRoster.TryUnlock(id, false) ? "Pet unlocked!" : $"Need {cost} gems");
+                        Toast(CosmeticRoster.TryUnlock(id, false) ? "Pet unlocked!" : $"Need {cost} gems / not in season");
                     else
                     {
                         CosmeticRoster.SelectPet(id);
@@ -339,8 +351,10 @@ namespace TempleSprint
         void ShowMissions()
         {
             if (_missionBody != null)
-                _missionBody.text = MissionSystem.Summary() + "\n\nAchievements:\n" + AchievementSystem.ListUnlocked() +
-                                    "\n\n" + BattlePassService.Status();
+                _missionBody.text = MissionSystem.Summary() + "\n\n" + ArtifactHuntSystem.Status() +
+                                    "\n\nAchievements:\n" + AchievementSystem.ListUnlocked() +
+                                    "\n\n" + BattlePassService.Status() +
+                                    "\n\n" + EventService.SeasonalLockerBlurb();
             ShowOnly(_missions);
         }
 

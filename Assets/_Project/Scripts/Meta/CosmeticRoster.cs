@@ -19,7 +19,11 @@ namespace TempleSprint
             new CosmeticDef { id = "hat_none", displayName = "No Hat", isHat = true, gemCost = 0, color = Color.clear },
             new CosmeticDef { id = "hat_reed_cap", displayName = "Reed Cap", isHat = true, gemCost = 40, color = new Color(0.55f, 0.35f, 0.18f) },
             new CosmeticDef { id = "hat_canopy", displayName = "Canopy Helm", isHat = true, gemCost = 90, color = new Color(0.2f, 0.55f, 0.28f) },
-            new CosmeticDef { id = "hat_ember", displayName = "Ember Band", isHat = true, gemCost = 120, color = new Color(0.95f, 0.4f, 0.15f) }
+            new CosmeticDef { id = "hat_ember", displayName = "Ember Band", isHat = true, gemCost = 120, color = new Color(0.95f, 0.4f, 0.15f) },
+            // Limited-time seasonal locker set (original; rotates via EventService week).
+            new CosmeticDef { id = "hat_lotus_crown", displayName = "Lotus Crown", isHat = true, gemCost = 80, color = new Color(0.95f, 0.75f, 0.9f) },
+            new CosmeticDef { id = "hat_sun_veil", displayName = "Sun Veil", isHat = true, gemCost = 85, color = new Color(0.95f, 0.78f, 0.25f) },
+            new CosmeticDef { id = "hat_frost_circlet", displayName = "Frost Circlet", isHat = true, gemCost = 85, color = new Color(0.7f, 0.9f, 1f) }
         };
 
         public static readonly CosmeticDef[] Pets =
@@ -27,8 +31,45 @@ namespace TempleSprint
             new CosmeticDef { id = "pet_none", displayName = "No Pet", isHat = false, gemCost = 0, color = Color.clear },
             new CosmeticDef { id = "pet_glowbug", displayName = "Glowbug", isHat = false, gemCost = 60, color = new Color(0.85f, 1f, 0.35f) },
             new CosmeticDef { id = "pet_frostpup", displayName = "Frost Pup", isHat = false, gemCost = 110, color = new Color(0.65f, 0.85f, 1f) },
-            new CosmeticDef { id = "pet_ashling", displayName = "Ashling", isHat = false, gemCost = 140, color = new Color(1f, 0.45f, 0.2f) }
+            new CosmeticDef { id = "pet_ashling", displayName = "Ashling", isHat = false, gemCost = 140, color = new Color(1f, 0.45f, 0.2f) },
+            new CosmeticDef { id = "pet_lotus_moth", displayName = "Lotus Moth", isHat = false, gemCost = 95, color = new Color(0.9f, 0.65f, 0.95f) },
+            new CosmeticDef { id = "pet_sand_skitter", displayName = "Sand Skitter", isHat = false, gemCost = 95, color = new Color(0.85f, 0.65f, 0.3f) },
+            new CosmeticDef { id = "pet_ice_wisp", displayName = "Ice Wisp", isHat = false, gemCost = 95, color = new Color(0.75f, 0.95f, 1f) }
         };
+
+        /// <summary>Seasonal cosmetics featured in the current live event week.</summary>
+        public static string[] FeaturedSeasonalIds => EventService.WeekIndex % 3 switch
+        {
+            0 => new[] { "hat_lotus_crown", "pet_lotus_moth" },
+            1 => new[] { "hat_sun_veil", "pet_sand_skitter" },
+            _ => new[] { "hat_frost_circlet", "pet_ice_wisp" }
+        };
+
+        public static bool IsSeasonal(string id)
+        {
+            return id == "hat_lotus_crown" || id == "hat_sun_veil" || id == "hat_frost_circlet"
+                   || id == "pet_lotus_moth" || id == "pet_sand_skitter" || id == "pet_ice_wisp";
+        }
+
+        public static bool IsFeaturedThisWeek(string id)
+        {
+            foreach (var f in FeaturedSeasonalIds)
+                if (f == id) return true;
+            return false;
+        }
+
+        /// <summary>Glowbug = magnet pulse, Frost Pup = shield chirp, Ashling = coin bonus; seasonals share nearest passive.</summary>
+        public static class PetPassives
+        {
+            public static bool MagnetPulse => SelectedPetId is "pet_glowbug" or "pet_lotus_moth";
+            public static bool ShieldChirp => SelectedPetId is "pet_frostpup" or "pet_ice_wisp";
+            public static bool CoinBonus => SelectedPetId is "pet_ashling" or "pet_sand_skitter";
+            public static float CoinMult => CoinBonus ? 1.12f : 1f;
+            public static float MagnetPulseInterval => 7.5f;
+            public static float MagnetPulseDuration => 2.2f;
+            public static float MagnetPulseRadiusBonus => 1.6f;
+            public static float ShieldChirpInterval => 18f;
+        }
 
         public static string SelectedHatId
         {
@@ -57,7 +98,11 @@ namespace TempleSprint
             {
                 if (c.id != id) continue;
                 if (MetaProgress.Ensure().HasCosmetic(id)) return false;
-                if (c.gemCost > 0 && !MetaProgress.Ensure().SpendGems(c.gemCost)) return false;
+                // Seasonal pieces only sell during their featured week.
+                if (IsSeasonal(id) && !IsFeaturedThisWeek(id)) return false;
+                int cost = c.gemCost;
+                if (IsFeaturedThisWeek(id)) cost = Mathf.Max(20, Mathf.RoundToInt(cost * 0.85f));
+                if (cost > 0 && !MetaProgress.Ensure().SpendGems(cost)) return false;
                 MetaProgress.Ensure().UnlockCosmetic(id);
                 return true;
             }
