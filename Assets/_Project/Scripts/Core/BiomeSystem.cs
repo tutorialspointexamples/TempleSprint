@@ -6,10 +6,12 @@ namespace TempleSprint
     {
         JungleRuins = 0,
         DesertTombs = 1,
-        IceCaverns = 2
+        IceCaverns = 2,
+        CaveMines = 3,
+        VolcanicCrater = 4
     }
 
-    /// <summary>Biome unlock + visual palette for Jungle / Desert / Ice.</summary>
+    /// <summary>Biome unlock + visual palette for Jungle / Desert / Ice / Cave / Volcano.</summary>
     public static class BiomeSystem
     {
         public static BiomeId Current { get; private set; } = BiomeId.JungleRuins;
@@ -20,6 +22,8 @@ namespace TempleSprint
             if (id == BiomeId.JungleRuins) return true;
             if (id == BiomeId.DesertTombs) return m.desertUnlocked || m.totalRuns >= 3 || m.totalDistance >= 500f;
             if (id == BiomeId.IceCaverns) return m.iceUnlocked || m.totalRuns >= 8 || m.totalDistance >= 2000f;
+            if (id == BiomeId.CaveMines) return m.caveUnlocked || m.totalRuns >= 12 || m.totalDistance >= 3500f || m.relics >= 12;
+            if (id == BiomeId.VolcanicCrater) return m.volcanoUnlocked || m.totalRuns >= 18 || m.totalDistance >= 6000f || m.relics >= 18;
             return false;
         }
 
@@ -48,6 +52,12 @@ namespace TempleSprint
                 case BiomeId.IceCaverns:
                     RenderSettings.ambientLight = new Color(0.45f, 0.58f, 0.72f);
                     break;
+                case BiomeId.CaveMines:
+                    RenderSettings.ambientLight = new Color(0.28f, 0.3f, 0.34f);
+                    break;
+                case BiomeId.VolcanicCrater:
+                    RenderSettings.ambientLight = new Color(0.62f, 0.32f, 0.18f);
+                    break;
                 default:
                     RenderSettings.ambientLight = new Color(0.42f, 0.5f, 0.42f);
                     break;
@@ -59,8 +69,16 @@ namespace TempleSprint
         {
             BiomeId.DesertTombs => "Desert Tombs",
             BiomeId.IceCaverns => "Ice Caverns",
+            BiomeId.CaveMines => "Cave Mines",
+            BiomeId.VolcanicCrater => "Volcanic Crater",
             _ => "Jungle Ruins"
         };
+
+        /// <summary>Stage bias for special crossings — cave favors carts, volcano favors fire, jungle favors river/zipline.</summary>
+        public static float MineCartBias => Current == BiomeId.CaveMines ? 1.8f : Current == BiomeId.IceCaverns ? 1.2f : 1f;
+        public static float ZiplineBias => Current == BiomeId.JungleRuins || Current == BiomeId.DesertTombs ? 1.4f : 1f;
+        public static float FireBias => Current == BiomeId.VolcanicCrater ? 1.7f : 1f;
+        public static float RiverBias => Current == BiomeId.JungleRuins || Current == BiomeId.IceCaverns ? 1.3f : 0.85f;
 
         public static Material PathMat => BiomePalette.Path(Current);
         public static Material StoneMat => BiomePalette.Stone(Current);
@@ -85,6 +103,8 @@ namespace TempleSprint
         {
             BiomeId.DesertTombs => Make(new Color(0.78f, 0.62f, 0.35f)),
             BiomeId.IceCaverns => Make(new Color(0.72f, 0.82f, 0.9f)),
+            BiomeId.CaveMines => Make(new Color(0.38f, 0.36f, 0.34f)),
+            BiomeId.VolcanicCrater => Make(new Color(0.42f, 0.28f, 0.22f)),
             _ => JunglePalette.Path
         };
 
@@ -92,6 +112,8 @@ namespace TempleSprint
         {
             BiomeId.DesertTombs => Make(new Color(0.55f, 0.4f, 0.25f)),
             BiomeId.IceCaverns => Make(new Color(0.55f, 0.65f, 0.75f)),
+            BiomeId.CaveMines => Make(new Color(0.32f, 0.34f, 0.38f)),
+            BiomeId.VolcanicCrater => Make(new Color(0.35f, 0.22f, 0.18f)),
             _ => JunglePalette.Stone
         };
 
@@ -99,6 +121,8 @@ namespace TempleSprint
         {
             BiomeId.DesertTombs => Make(new Color(0.85f, 0.45f, 0.15f)),
             BiomeId.IceCaverns => Make(new Color(0.35f, 0.7f, 0.85f)),
+            BiomeId.CaveMines => Make(new Color(0.75f, 0.55f, 0.2f)),
+            BiomeId.VolcanicCrater => Make(new Color(1f, 0.4f, 0.12f)),
             _ => JunglePalette.Accent
         };
 
@@ -106,6 +130,8 @@ namespace TempleSprint
         {
             BiomeId.DesertTombs => Make(new Color(0.65f, 0.5f, 0.2f)),
             BiomeId.IceCaverns => Make(new Color(0.85f, 0.92f, 0.98f)),
+            BiomeId.CaveMines => Make(new Color(0.22f, 0.24f, 0.28f)),
+            BiomeId.VolcanicCrater => Make(new Color(0.28f, 0.18f, 0.12f)),
             _ => JunglePalette.Foliage
         };
     }
@@ -410,6 +436,24 @@ namespace TempleSprint
                     RenderSettings.ambientSkyColor = new Color(0.65f, 0.78f, 0.95f);
                     RenderSettings.ambientEquatorColor = new Color(0.55f, 0.65f, 0.78f);
                     RenderSettings.ambientGroundColor = new Color(0.35f, 0.42f, 0.5f);
+                    break;
+                case BiomeId.CaveMines:
+                    RenderSettings.fog = true;
+                    RenderSettings.fogMode = FogMode.ExponentialSquared;
+                    RenderSettings.fogColor = new Color(0.18f, 0.2f, 0.24f);
+                    RenderSettings.fogDensity = 0.018f;
+                    RenderSettings.ambientSkyColor = new Color(0.28f, 0.32f, 0.38f);
+                    RenderSettings.ambientEquatorColor = new Color(0.22f, 0.24f, 0.28f);
+                    RenderSettings.ambientGroundColor = new Color(0.12f, 0.12f, 0.14f);
+                    break;
+                case BiomeId.VolcanicCrater:
+                    RenderSettings.fog = true;
+                    RenderSettings.fogMode = FogMode.ExponentialSquared;
+                    RenderSettings.fogColor = new Color(0.55f, 0.28f, 0.16f);
+                    RenderSettings.fogDensity = 0.014f;
+                    RenderSettings.ambientSkyColor = new Color(0.75f, 0.4f, 0.22f);
+                    RenderSettings.ambientEquatorColor = new Color(0.5f, 0.28f, 0.18f);
+                    RenderSettings.ambientGroundColor = new Color(0.22f, 0.1f, 0.08f);
                     break;
                 default:
                     RenderSettings.fog = true;

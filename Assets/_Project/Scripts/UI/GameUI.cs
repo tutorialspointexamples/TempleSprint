@@ -97,7 +97,7 @@ namespace TempleSprint
             _locker = Panel("Locker", new Color(0.08f, 0.12f, 0.14f, 0.82f));
             Title(_locker, "LOCKER", 44, 0.82f, 0.96f);
             BuildLockerButtons();
-            Btn(_locker, "BACK", new Vector2(0, -360), () => ShowMainMenu());
+            Btn(_locker, "BACK", new Vector2(0, -390), () => ShowMainMenu());
 
             _shop = Panel("Shop", new Color(0.1f, 0.1f, 0.14f, 0.82f));
             Title(_shop, "SHOP", 44, 0.82f, 0.96f);
@@ -185,6 +185,8 @@ namespace TempleSprint
                 _hudScore.text = RunSession.Instance.Score.ToString("N0");
                 _hudCoins.text = "◆  " + RunSession.Instance.CoinsThisRun;
                 string power = PowerUpController.Instance != null ? PowerUpController.Instance.ActiveLabel : "";
+                if (PowerUpController.Instance != null && PowerUpController.Instance.EnergyReady)
+                    power = "READY · " + power;
                 _hudPower.text = string.IsNullOrEmpty(power) ? diff : power;
             }
         }
@@ -264,16 +266,26 @@ namespace TempleSprint
                 });
                 y -= 70f;
             }
-            Btn(_locker, "JUNGLE BIOME", new Vector2(-180, -280), () => { BiomeSystem.Select(BiomeId.JungleRuins); Toast("Jungle"); });
-            Btn(_locker, "DESERT", new Vector2(0, -280), () =>
+            Btn(_locker, "JUNGLE", new Vector2(-220, -240), () => { BiomeSystem.Select(BiomeId.JungleRuins); Toast("Jungle Ruins"); });
+            Btn(_locker, "DESERT", new Vector2(0, -240), () =>
             {
                 if (!BiomeSystem.IsUnlocked(BiomeId.DesertTombs)) { Toast("Unlock via runs/relics/distance"); return; }
                 BiomeSystem.Select(BiomeId.DesertTombs); Toast("Desert Tombs");
             });
-            Btn(_locker, "ICE", new Vector2(180, -280), () =>
+            Btn(_locker, "ICE", new Vector2(220, -240), () =>
             {
                 if (!BiomeSystem.IsUnlocked(BiomeId.IceCaverns)) { Toast("Unlock via runs/relics/distance"); return; }
                 BiomeSystem.Select(BiomeId.IceCaverns); Toast("Ice Caverns");
+            });
+            Btn(_locker, "CAVE", new Vector2(-120, -310), () =>
+            {
+                if (!BiomeSystem.IsUnlocked(BiomeId.CaveMines)) { Toast("Unlock Cave Mines via runs/relics"); return; }
+                BiomeSystem.Select(BiomeId.CaveMines); Toast("Cave Mines");
+            });
+            Btn(_locker, "VOLCANO", new Vector2(120, -310), () =>
+            {
+                if (!BiomeSystem.IsUnlocked(BiomeId.VolcanicCrater)) { Toast("Unlock Volcano via runs/relics"); return; }
+                BiomeSystem.Select(BiomeId.VolcanicCrater); Toast("Volcanic Crater");
             });
         }
 

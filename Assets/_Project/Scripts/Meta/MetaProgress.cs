@@ -20,6 +20,8 @@ namespace TempleSprint
         public int totalObstaclesDodged;
         public bool desertUnlocked;
         public bool iceUnlocked;
+        public bool caveUnlocked;
+        public bool volcanoUnlocked;
         public string unlockedCharacters = "scout_default";
         public string selectedCharacter = "scout_default";
         public int loginStreak;
@@ -131,6 +133,8 @@ namespace TempleSprint
             Data.relics += Mathf.Max(0, amount);
             if (Data.relics >= 3) Data.desertUnlocked = true;
             if (Data.relics >= 8) Data.iceUnlocked = true;
+            if (Data.relics >= 12) Data.caveUnlocked = true;
+            if (Data.relics >= 18) Data.volcanoUnlocked = true;
             Save();
         }
 
@@ -153,6 +157,8 @@ namespace TempleSprint
             Data.totalRuns++;
             if (Data.totalRuns >= 3) Data.desertUnlocked = true;
             if (Data.totalRuns >= 8) Data.iceUnlocked = true;
+            if (Data.totalRuns >= 12) Data.caveUnlocked = true;
+            if (Data.totalRuns >= 18) Data.volcanoUnlocked = true;
             Save();
             AnalyticsService.Track("run_complete", Data.totalRuns);
         }
@@ -160,6 +166,10 @@ namespace TempleSprint
         public void AddDistance(float d)
         {
             Data.totalDistance += d;
+            if (Data.totalDistance >= 500f) Data.desertUnlocked = true;
+            if (Data.totalDistance >= 2000f) Data.iceUnlocked = true;
+            if (Data.totalDistance >= 3500f) Data.caveUnlocked = true;
+            if (Data.totalDistance >= 6000f) Data.volcanoUnlocked = true;
             Save();
         }
 
