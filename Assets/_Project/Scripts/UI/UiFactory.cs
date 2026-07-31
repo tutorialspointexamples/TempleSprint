@@ -37,11 +37,15 @@ namespace TempleSprint
         {
             if (_cachedFont != null) return _cachedFont;
 
-            // Unity 6 often has no LegacyRuntime / Arial builtins — OS fonts first on Windows
+            // Prefer carved-plaque display faces, then readable UI fonts (never depend on Inter/Roboto).
             try
             {
                 _cachedFont = Font.CreateDynamicFontFromOSFont(
-                    new[] { "Segoe UI", "Arial", "Tahoma", "Verdana", "Helvetica", "DejaVu Sans" },
+                    new[]
+                    {
+                        "Palatino Linotype", "Palatino", "Georgia", "Book Antiqua",
+                        "Segoe UI", "Tahoma", "Verdana", "Helvetica", "DejaVu Sans", "Arial"
+                    },
                     Mathf.Max(16, fontSize));
             }
             catch { /* ignore */ }
@@ -146,13 +150,13 @@ namespace TempleSprint
             return img;
         }
 
-        /// <summary>Temple Run–style ornate HUD plaque (score / coins).</summary>
+        /// <summary>Ornate carved stone HUD plaque (score / coins) — genre temple-tablet chrome.</summary>
         public static Text CreateHudPlaque(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPos, Vector2 size, string initial)
         {
             var frame = new GameObject(name + "Frame");
             frame.transform.SetParent(parent, false);
             var frameImg = frame.AddComponent<Image>();
-            frameImg.color = new Color(0.14f, 0.1f, 0.07f, 0.92f);
+            frameImg.color = new Color(0.16f, 0.12f, 0.08f, 0.94f);
             var frt = frame.GetComponent<RectTransform>();
             frt.anchorMin = anchorMin;
             frt.anchorMax = anchorMax;
@@ -160,41 +164,105 @@ namespace TempleSprint
             frt.anchoredPosition = anchoredPos;
             frt.sizeDelta = size;
 
-            var border = new GameObject("GoldBorder");
-            border.transform.SetParent(frame.transform, false);
-            var bImg = border.AddComponent<Image>();
-            bImg.color = new Color(0.9f, 0.72f, 0.28f, 1f);
-            var brt = border.GetComponent<RectTransform>();
-            brt.anchorMin = Vector2.zero;
-            brt.anchorMax = Vector2.one;
-            brt.offsetMin = new Vector2(-6f, -6f);
-            brt.offsetMax = new Vector2(6f, 6f);
-            border.transform.SetAsFirstSibling();
-
             var outer = new GameObject("StoneRim");
             outer.transform.SetParent(frame.transform, false);
             var oImg = outer.AddComponent<Image>();
-            oImg.color = new Color(0.35f, 0.28f, 0.18f, 0.95f);
+            oImg.color = new Color(0.38f, 0.3f, 0.18f, 0.98f);
             var ort = outer.GetComponent<RectTransform>();
             ort.anchorMin = Vector2.zero;
             ort.anchorMax = Vector2.one;
-            ort.offsetMin = new Vector2(-10f, -10f);
-            ort.offsetMax = new Vector2(10f, 10f);
+            ort.offsetMin = new Vector2(-12f, -12f);
+            ort.offsetMax = new Vector2(12f, 12f);
+            outer.transform.SetAsFirstSibling();
+
+            var border = new GameObject("GoldBorder");
+            border.transform.SetParent(frame.transform, false);
+            var bImg = border.AddComponent<Image>();
+            bImg.color = new Color(0.92f, 0.74f, 0.28f, 1f);
+            var brt = border.GetComponent<RectTransform>();
+            brt.anchorMin = Vector2.zero;
+            brt.anchorMax = Vector2.one;
+            brt.offsetMin = new Vector2(-7f, -7f);
+            brt.offsetMax = new Vector2(7f, 7f);
+            border.transform.SetAsFirstSibling();
             outer.transform.SetAsFirstSibling();
 
             var inner = new GameObject("Inner");
             inner.transform.SetParent(frame.transform, false);
             var iImg = inner.AddComponent<Image>();
-            iImg.color = new Color(0.1f, 0.08f, 0.06f, 0.95f);
+            iImg.color = new Color(0.09f, 0.07f, 0.05f, 0.96f);
             var irt = inner.GetComponent<RectTransform>();
             irt.anchorMin = Vector2.zero;
             irt.anchorMax = Vector2.one;
             irt.offsetMin = new Vector2(8f, 8f);
             irt.offsetMax = new Vector2(-8f, -8f);
 
+            // Carved corner gems — stone tablet silhouette without floating sticker clutter.
+            AddCornerGem(frame.transform, new Vector2(0f, 1f), new Vector2(6f, -6f));
+            AddCornerGem(frame.transform, new Vector2(1f, 1f), new Vector2(-6f, -6f));
+            AddCornerGem(frame.transform, new Vector2(0f, 0f), new Vector2(6f, 6f));
+            AddCornerGem(frame.transform, new Vector2(1f, 0f), new Vector2(-6f, 6f));
+
             var text = CreateText(inner.transform, "Value", initial, 36, TextAnchor.MiddleCenter, new Color(1f, 0.88f, 0.35f, 1f));
             text.fontStyle = FontStyle.Bold;
             return text;
+        }
+
+        static void AddCornerGem(Transform parent, Vector2 anchor, Vector2 anchoredPos)
+        {
+            var gem = new GameObject("CornerGem");
+            gem.transform.SetParent(parent, false);
+            var img = gem.AddComponent<Image>();
+            img.color = new Color(0.95f, 0.78f, 0.3f, 0.95f);
+            img.raycastTarget = false;
+            var rt = gem.GetComponent<RectTransform>();
+            rt.anchorMin = anchor;
+            rt.anchorMax = anchor;
+            rt.pivot = anchor;
+            rt.anchoredPosition = anchoredPos;
+            rt.sizeDelta = new Vector2(14f, 14f);
+        }
+
+        /// <summary>Menu / post-run stone plaque panel with gold rim.</summary>
+        public static Image CreateStonePanel(Transform parent, string name, Color fill)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            var img = go.AddComponent<Image>();
+            img.color = fill;
+            img.raycastTarget = fill.a > 0.85f;
+            var rt = img.rectTransform;
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+
+            var rim = new GameObject("TabletRim");
+            rim.transform.SetParent(go.transform, false);
+            var rimImg = rim.AddComponent<Image>();
+            rimImg.color = new Color(0.78f, 0.58f, 0.22f, 0.55f);
+            rimImg.raycastTarget = false;
+            var rrt = rim.GetComponent<RectTransform>();
+            rrt.anchorMin = new Vector2(0.04f, 0.06f);
+            rrt.anchorMax = new Vector2(0.96f, 0.94f);
+            rrt.offsetMin = Vector2.zero;
+            rrt.offsetMax = Vector2.zero;
+            // Draw behind content
+            rim.transform.SetAsFirstSibling();
+
+            var inset = new GameObject("TabletInset");
+            inset.transform.SetParent(go.transform, false);
+            var insetImg = inset.AddComponent<Image>();
+            insetImg.color = new Color(0.12f, 0.1f, 0.07f, Mathf.Clamp01(fill.a * 0.55f));
+            insetImg.raycastTarget = false;
+            var irt = inset.GetComponent<RectTransform>();
+            irt.anchorMin = new Vector2(0.06f, 0.1f);
+            irt.anchorMax = new Vector2(0.94f, 0.9f);
+            irt.offsetMin = Vector2.zero;
+            irt.offsetMax = Vector2.zero;
+            inset.transform.SetSiblingIndex(1);
+
+            return img;
         }
 
         public static Button CreateCircleButton(Transform parent, string name, string label, Vector2 anchor, Vector2 anchoredPos, float diameter, UnityEngine.Events.UnityAction onClick)
