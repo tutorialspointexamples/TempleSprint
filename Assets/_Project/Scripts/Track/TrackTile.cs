@@ -16,6 +16,8 @@ namespace TempleSprint
         Zipline,
         MineCart,
         IceSurf,
+        WallRun,
+        LedgeGrab,
         TurnLeft,
         TurnRight,
         TJunction
@@ -97,13 +99,15 @@ namespace TempleSprint
             ExitPose = entry.AdvanceStraight(Length);
 
             if (kind == TileKind.HazardGap || kind == TileKind.RiverCrossing || kind == TileKind.FireCrossing
-                || kind == TileKind.Zipline || kind == TileKind.MineCart || kind == TileKind.IceSurf)
+                || kind == TileKind.Zipline || kind == TileKind.MineCart || kind == TileKind.IceSurf
+                || kind == TileKind.WallRun || kind == TileKind.LedgeGrab)
             {
                 if (kind == TileKind.HazardGap)
                     BuildFloorWithGap();
                 else if (kind == TileKind.FireCrossing)
                     BuildFloorWithFireChannel();
-                else if (kind == TileKind.Zipline || kind == TileKind.MineCart || kind == TileKind.IceSurf)
+                else if (kind == TileKind.Zipline || kind == TileKind.MineCart || kind == TileKind.IceSurf
+                         || kind == TileKind.WallRun || kind == TileKind.LedgeGrab)
                     BuildFloorWithSpecialChannel();
                 else
                     BuildFloorWithRiverChannel();
@@ -121,7 +125,7 @@ namespace TempleSprint
                 BuildForestEdgeForRiver();
             else if (kind == TileKind.FireCrossing)
                 BuildForestEdgeForFire();
-            else if (kind == TileKind.Zipline)
+            else if (kind == TileKind.Zipline || kind == TileKind.WallRun || kind == TileKind.LedgeGrab)
                 BuildForestEdgeForSpecial();
             else if (kind == TileKind.MineCart)
                 BuildCaveTunnelShell();
@@ -183,6 +187,12 @@ namespace TempleSprint
                     break;
                 case TileKind.IceSurf:
                     BuildIceSurfStage();
+                    break;
+                case TileKind.WallRun:
+                    BuildWallRunStage();
+                    break;
+                case TileKind.LedgeGrab:
+                    BuildLedgeGrabStage();
                     break;
             }
         }
@@ -2038,6 +2048,132 @@ namespace TempleSprint
             CollectibleCoin.Create(transform, new Vector3(0f, 1.1f, channelEnd - 0.7f));
             if (_runDifficulty != RunDifficulty.Easy && Random.value < 0.4f)
                 GemPickup.Create(transform, new Vector3(-PlayerController.LaneWidth, 1.25f, mid + 0.8f));
+        }
+
+        void BuildWallRunStage()
+        {
+            GetSpecialChannel(out float channelStart, out float channelEnd, out float channelLen);
+            float mid = (channelStart + channelEnd) * 0.5f;
+
+            var marker = gameObject.AddComponent<SpecialStageMarker>();
+            marker.Configure(SpecialStageKind.WallRun, channelStart, channelEnd, PathStartDistance, _runDifficulty);
+
+            var voidBed = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            voidBed.name = "WallRunVoid";
+            voidBed.transform.SetParent(transform, false);
+            voidBed.transform.localPosition = new Vector3(0f, ForestFloorY - 1.2f, mid);
+            voidBed.transform.localScale = new Vector3(ForestOuter * 1.8f + DeckWidth, 2f, channelLen + 1.5f);
+            voidBed.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.12f, 0.14f, 0.12f), 0.2f);
+            StripCollider(voidBed);
+
+            for (int lane = 0; lane < 3; lane++)
+                GapKillZone.Create(transform, mid, lane, channelLen, "Fell during wall run");
+
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                wall.name = side < 0 ? "WallRunLeft" : "WallRunRight";
+                wall.transform.SetParent(transform, false);
+                wall.transform.localPosition = new Vector3(side * 2.55f, 1.6f, mid);
+                wall.transform.localScale = new Vector3(0.55f, 3.4f, channelLen + 0.4f);
+                wall.GetComponent<Renderer>().sharedMaterial = BiomeSystem.StoneMat;
+                StripCollider(wall);
+
+                // Climable face strip for silhouette readability.
+                var face = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                face.transform.SetParent(transform, false);
+                face.transform.localPosition = new Vector3(side * 2.2f, 1.4f, mid);
+                face.transform.localScale = new Vector3(0.12f, 2.6f, channelLen * 0.95f);
+                face.GetComponent<Renderer>().sharedMaterial = BiomeSystem.AccentMat;
+                StripCollider(face);
+            }
+
+            var mountGo = new GameObject("WallRunMount");
+            mountGo.transform.SetParent(transform, false);
+            mountGo.transform.localPosition = new Vector3(0f, 1.1f, channelStart + 0.25f);
+            var mountCol = mountGo.AddComponent<BoxCollider>();
+            mountCol.isTrigger = true;
+            mountCol.size = new Vector3(DeckWidth + 0.8f, 3f, 1.8f);
+            var mount = mountGo.AddComponent<WallRunMount>();
+            mount.Marker = marker;
+            mount.WallHeight = 1.85f;
+            mount.WallOffset = 2.2f;
+
+            int overhangs = _runDifficulty == RunDifficulty.Easy ? 1 : _runDifficulty == RunDifficulty.Hard ? 3 : 2;
+            for (int i = 0; i < overhangs; i++)
+            {
+                float z = Mathf.Lerp(channelStart + 1.3f, channelEnd - 1.3f, (i + 1f) / (overhangs + 1f));
+                int side = (i % 2 == 0) ? -1 : 1;
+                var beam = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                beam.name = "WallOverhang";
+                beam.transform.SetParent(transform, false);
+                beam.transform.localPosition = new Vector3(side * 1.6f, 2.55f, z);
+                beam.transform.localScale = new Vector3(1.8f, 0.35f, 0.55f);
+                beam.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+                StripCollider(beam);
+                Obstacle.CreateLowBeam(transform, z, side < 0 ? 0 : 2);
+            }
+
+            CollectibleCoin.Create(transform, new Vector3(-2.1f, 2.2f, channelStart + 1f));
+            CollectibleCoin.Create(transform, new Vector3(2.1f, 2.3f, mid));
+            CollectibleCoin.Create(transform, new Vector3(-2.1f, 2.2f, channelEnd - 0.8f));
+        }
+
+        void BuildLedgeGrabStage()
+        {
+            GetSpecialChannel(out float channelStart, out float channelEnd, out float channelLen);
+            float mid = (channelStart + channelEnd) * 0.5f;
+
+            var marker = gameObject.AddComponent<SpecialStageMarker>();
+            marker.Configure(SpecialStageKind.LedgeGrab, channelStart, channelEnd, PathStartDistance, _runDifficulty);
+
+            var voidBed = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            voidBed.name = "LedgeVoid";
+            voidBed.transform.SetParent(transform, false);
+            voidBed.transform.localPosition = new Vector3(0f, ForestFloorY - 1.4f, mid);
+            voidBed.transform.localScale = new Vector3(ForestOuter * 1.6f + DeckWidth, 2f, channelLen + 1.5f);
+            voidBed.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.08f, 0.1f, 0.09f), 0.15f);
+            StripCollider(voidBed);
+
+            for (int lane = 0; lane < 3; lane++)
+                GapKillZone.Create(transform, mid, lane, channelLen, "Lost grip on the ledge");
+
+            // Three staggered hang-ledges across the ravine.
+            float[] zs = { channelStart + channelLen * 0.28f, mid, channelEnd - channelLen * 0.28f };
+            float[] xs = { -PlayerController.LaneWidth, 0f, PlayerController.LaneWidth };
+            for (int i = 0; i < zs.Length; i++)
+            {
+                var ledge = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                ledge.name = "HangLedge";
+                ledge.transform.SetParent(transform, false);
+                ledge.transform.localPosition = new Vector3(xs[i], 2.05f, zs[i]);
+                ledge.transform.localScale = new Vector3(1.5f, 0.28f, 1.1f);
+                ledge.GetComponent<Renderer>().sharedMaterial = BiomeSystem.PathMat;
+                StripCollider(ledge);
+
+                var lip = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                lip.transform.SetParent(transform, false);
+                lip.transform.localPosition = new Vector3(xs[i], 1.85f, zs[i]);
+                lip.transform.localScale = new Vector3(1.55f, 0.12f, 0.25f);
+                lip.GetComponent<Renderer>().sharedMaterial = BiomeSystem.AccentMat;
+                StripCollider(lip);
+            }
+
+            var mountGo = new GameObject("LedgeGrabMount");
+            mountGo.transform.SetParent(transform, false);
+            mountGo.transform.localPosition = new Vector3(0f, 1.4f, channelStart + 0.2f);
+            var mountCol = mountGo.AddComponent<BoxCollider>();
+            mountCol.isTrigger = true;
+            mountCol.size = new Vector3(DeckWidth + 0.6f, 3.2f, 1.8f);
+            var mount = mountGo.AddComponent<LedgeGrabMount>();
+            mount.Marker = marker;
+            mount.LedgeHeight = 1.75f;
+
+            CollectibleCoin.Create(transform, new Vector3(xs[0], 2.5f, zs[0]));
+            CollectibleCoin.Create(transform, new Vector3(xs[1], 2.55f, zs[1]));
+            CollectibleCoin.Create(transform, new Vector3(xs[2], 2.5f, zs[2]));
+            if (_runDifficulty != RunDifficulty.Easy && Random.value < 0.35f)
+                RelicPickup.Create(transform, new Vector3(0f, 2.6f, mid));
         }
     }
 }

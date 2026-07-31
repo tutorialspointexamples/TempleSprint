@@ -81,6 +81,10 @@ namespace TempleSprint
         public static float RiverBias => Current == BiomeId.JungleRuins || Current == BiomeId.IceCaverns ? 1.3f : 0.85f;
         public static float IceSurfBias => Current == BiomeId.IceCaverns ? 1.9f : Current == BiomeId.CaveMines ? 0.6f : 0.85f;
         public static float SwimBias => Current == BiomeId.JungleRuins || Current == BiomeId.IceCaverns ? 1.35f : 0.9f;
+        public static float WallRunBias => Current == BiomeId.CaveMines || Current == BiomeId.JungleRuins ? 1.55f
+            : Current == BiomeId.VolcanicCrater ? 1.25f : 0.9f;
+        public static float LedgeGrabBias => Current == BiomeId.DesertTombs || Current == BiomeId.JungleRuins ? 1.5f
+            : Current == BiomeId.IceCaverns ? 1.2f : 0.85f;
 
         public static Material PathMat => BiomePalette.Path(Current);
         public static Material StoneMat => BiomePalette.Stone(Current);

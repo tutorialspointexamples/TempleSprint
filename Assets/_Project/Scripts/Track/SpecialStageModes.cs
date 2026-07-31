@@ -2,12 +2,14 @@ using UnityEngine;
 
 namespace TempleSprint
 {
-    /// <summary>Cliff zipline, cave mine-cart, and icy mountain surf special stages.</summary>
+    /// <summary>Cliff zipline, cave mine-cart, icy surf, and parkour special stages.</summary>
     public enum SpecialStageKind
     {
         Zipline = 0,
         MineCart = 1,
-        IceSurf = 2
+        IceSurf = 2,
+        WallRun = 3,
+        LedgeGrab = 4
     }
 
     public class SpecialStageMarker : MonoBehaviour
@@ -220,6 +222,51 @@ namespace TempleSprint
             if (player == null || Marker == null) return false;
             float local = player.PathDistance - Marker.PathStartDistance;
             return local >= Marker.ChannelEnd - 0.35f;
+        }
+    }
+
+    /// <summary>Auto-mount vertical wall-run at the canyon lip.</summary>
+    public class WallRunMount : MonoBehaviour
+    {
+        public SpecialStageMarker Marker;
+        public float WallHeight = 1.85f;
+        public float WallOffset = 2.35f;
+        bool _used;
+
+        void OnDisable() => _used = false;
+
+        void OnTriggerEnter(Collider other)
+        {
+            if (_used || Marker == null) return;
+            if (other.GetComponent<PlayerController>() == null
+                && other.GetComponentInParent<PlayerController>() == null)
+                return;
+            var player = PlayerController.Instance;
+            if (player == null || player.Traversal != TraversalMode.None) return;
+            _used = true;
+            player.BeginWallRun(Marker, WallHeight, WallOffset);
+        }
+    }
+
+    /// <summary>Auto-grab hanging ledge across a ravine.</summary>
+    public class LedgeGrabMount : MonoBehaviour
+    {
+        public SpecialStageMarker Marker;
+        public float LedgeHeight = 2.1f;
+        bool _used;
+
+        void OnDisable() => _used = false;
+
+        void OnTriggerEnter(Collider other)
+        {
+            if (_used || Marker == null) return;
+            if (other.GetComponent<PlayerController>() == null
+                && other.GetComponentInParent<PlayerController>() == null)
+                return;
+            var player = PlayerController.Instance;
+            if (player == null || player.Traversal != TraversalMode.None) return;
+            _used = true;
+            player.BeginLedgeGrab(Marker, LedgeHeight);
         }
     }
 }

@@ -21,6 +21,8 @@ namespace TempleSprint
         int _tilesSinceZipline;
         int _tilesSinceMineCart;
         int _tilesSinceIceSurf;
+        int _tilesSinceWallRun;
+        int _tilesSinceLedgeGrab;
         int _defaultBranchFlip;
         Transform _poolRoot;
         Transform _activeRoot;
@@ -44,6 +46,8 @@ namespace TempleSprint
         public int ZiplinesSpawnedThisRun { get; private set; }
         public int MineCartsSpawnedThisRun { get; private set; }
         public int IceSurfsSpawnedThisRun { get; private set; }
+        public int WallRunsSpawnedThisRun { get; private set; }
+        public int LedgeGrabsSpawnedThisRun { get; private set; }
 
         void Awake()
         {
@@ -78,6 +82,8 @@ namespace TempleSprint
             _tilesSinceZipline = 99;
             _tilesSinceMineCart = 99;
             _tilesSinceIceSurf = 99;
+            _tilesSinceWallRun = 99;
+            _tilesSinceLedgeGrab = 99;
             _awaitingJunctionChoice = false;
             _pendingJunction = null;
             TurnsSpawnedThisRun = 0;
@@ -88,6 +94,8 @@ namespace TempleSprint
             ZiplinesSpawnedThisRun = 0;
             MineCartsSpawnedThisRun = 0;
             IceSurfsSpawnedThisRun = 0;
+            WallRunsSpawnedThisRun = 0;
+            LedgeGrabsSpawnedThisRun = 0;
             _lastRiverMode = RiverCrossingMode.Jump;
             _lastFireMode = FireCrossingMode.Jump;
             for (int i = 0; i < preloadCount; i++)
@@ -240,6 +248,22 @@ namespace TempleSprint
             }
             else
                 _tilesSinceIceSurf++;
+
+            if (kind == TileKind.WallRun)
+            {
+                _tilesSinceWallRun = 0;
+                WallRunsSpawnedThisRun++;
+            }
+            else
+                _tilesSinceWallRun++;
+
+            if (kind == TileKind.LedgeGrab)
+            {
+                _tilesSinceLedgeGrab = 0;
+                LedgeGrabsSpawnedThisRun++;
+            }
+            else
+                _tilesSinceLedgeGrab++;
 
             if (tile.IsJunction && !tile.JunctionResolved)
             {
@@ -426,7 +450,11 @@ namespace TempleSprint
                 if (index == 19) return TileKind.MineCart;
                 if (index == 20) return TileKind.Straight;
                 if (index == 21) return TileKind.IceSurf;
-                if (index < 22) return TileKind.Straight;
+                if (index == 22) return TileKind.Straight;
+                if (index == 23) return TileKind.WallRun;
+                if (index == 24) return TileKind.Straight;
+                if (index == 25) return TileKind.LedgeGrab;
+                if (index < 26) return TileKind.Straight;
             }
 
             // Mutual one-tile buffer: turns and hazards never adjacent.
@@ -444,15 +472,21 @@ namespace TempleSprint
                 : _difficulty == RunDifficulty.Hard ? 10 : 12) / Mathf.Max(0.75f, BiomeSystem.MineCartBias));
             int iceEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 17
                 : _difficulty == RunDifficulty.Hard ? 11 : 14) / Mathf.Max(0.75f, BiomeSystem.IceSurfBias));
+            int wallEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 18
+                : _difficulty == RunDifficulty.Hard ? 12 : 15) / Mathf.Max(0.75f, BiomeSystem.WallRunBias));
+            int ledgeEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 19
+                : _difficulty == RunDifficulty.Hard ? 12 : 16) / Mathf.Max(0.75f, BiomeSystem.LedgeGrabBias));
 
             bool riverDue = allowHazard && _tilesSinceRiver >= riverEvery && index >= 5;
             bool fireDue = allowHazard && _tilesSinceFire >= fireEvery && index >= 5;
             bool zipDue = allowHazard && _tilesSinceZipline >= zipEvery && index >= 6;
             bool cartDue = allowHazard && _tilesSinceMineCart >= cartEvery && index >= 6;
             bool iceDue = allowHazard && _tilesSinceIceSurf >= iceEvery && index >= 6;
+            bool wallDue = allowHazard && _tilesSinceWallRun >= wallEvery && index >= 7;
+            bool ledgeDue = allowHazard && _tilesSinceLedgeGrab >= ledgeEvery && index >= 7;
 
             // Prefer the most overdue special stage when several are due.
-            if (riverDue || fireDue || zipDue || cartDue || iceDue)
+            if (riverDue || fireDue || zipDue || cartDue || iceDue || wallDue || ledgeDue)
             {
                 float best = -1f;
                 TileKind pick = TileKind.Straight;
@@ -467,6 +501,8 @@ namespace TempleSprint
                 Consider(zipDue, _tilesSinceZipline, zipEvery, TileKind.Zipline);
                 Consider(cartDue, _tilesSinceMineCart, cartEvery, TileKind.MineCart);
                 Consider(iceDue, _tilesSinceIceSurf, iceEvery, TileKind.IceSurf);
+                Consider(wallDue, _tilesSinceWallRun, wallEvery, TileKind.WallRun);
+                Consider(ledgeDue, _tilesSinceLedgeGrab, ledgeEvery, TileKind.LedgeGrab);
                 if (pick != TileKind.Straight) return pick;
             }
 

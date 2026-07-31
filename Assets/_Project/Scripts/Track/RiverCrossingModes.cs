@@ -20,7 +20,9 @@ namespace TempleSprint
         Zipline = 5,
         MineCart = 6,
         Swim = 7,
-        IceSurf = 8
+        IceSurf = 8,
+        WallRun = 9,
+        LedgeGrab = 10
     }
 
     /// <summary>Per-tile river crossing metadata; never destroyed while IsOccupied.</summary>
