@@ -18,6 +18,8 @@ namespace TempleSprint
         int _tilesSinceHazard;
         int _tilesSinceRiver;
         int _tilesSinceFire;
+        int _tilesSinceZipline;
+        int _tilesSinceMineCart;
         int _defaultBranchFlip;
         Transform _poolRoot;
         Transform _activeRoot;
@@ -38,6 +40,8 @@ namespace TempleSprint
         public int JunctionsResolvedThisRun { get; private set; }
         public int RiversSpawnedThisRun { get; private set; }
         public int FiresSpawnedThisRun { get; private set; }
+        public int ZiplinesSpawnedThisRun { get; private set; }
+        public int MineCartsSpawnedThisRun { get; private set; }
 
         void Awake()
         {
@@ -69,6 +73,8 @@ namespace TempleSprint
             _tilesSinceHazard = 99;
             _tilesSinceRiver = 99;
             _tilesSinceFire = 99;
+            _tilesSinceZipline = 99;
+            _tilesSinceMineCart = 99;
             _awaitingJunctionChoice = false;
             _pendingJunction = null;
             TurnsSpawnedThisRun = 0;
@@ -76,6 +82,8 @@ namespace TempleSprint
             JunctionsResolvedThisRun = 0;
             RiversSpawnedThisRun = 0;
             FiresSpawnedThisRun = 0;
+            ZiplinesSpawnedThisRun = 0;
+            MineCartsSpawnedThisRun = 0;
             _lastRiverMode = RiverCrossingMode.Jump;
             _lastFireMode = FireCrossingMode.Jump;
             for (int i = 0; i < preloadCount; i++)
@@ -150,6 +158,8 @@ namespace TempleSprint
                     if (marker != null && marker.IsOccupied) continue;
                     var fireMarker = tile.GetComponentInChildren<FireCrossingMarker>(true);
                     if (fireMarker != null && fireMarker.IsOccupied) continue;
+                    var special = tile.GetComponentInChildren<SpecialStageMarker>(true);
+                    if (special != null && special.IsOccupied) continue;
                     _active.RemoveAt(i);
                     tile.Recycle();
                     tile.transform.SetParent(_poolRoot);
@@ -202,6 +212,22 @@ namespace TempleSprint
             }
             else
                 _tilesSinceFire++;
+
+            if (kind == TileKind.Zipline)
+            {
+                _tilesSinceZipline = 0;
+                ZiplinesSpawnedThisRun++;
+            }
+            else
+                _tilesSinceZipline++;
+
+            if (kind == TileKind.MineCart)
+            {
+                _tilesSinceMineCart = 0;
+                MineCartsSpawnedThisRun++;
+            }
+            else
+                _tilesSinceMineCart++;
 
             if (tile.IsJunction && !tile.JunctionResolved)
             {
@@ -377,24 +403,49 @@ namespace TempleSprint
                 if (index == 13) return TileKind.FireCrossing;
                 if (index == 14) return TileKind.Straight;
                 if (index == 15) return TileKind.RiverCrossing;
-                if (index < 16) return TileKind.Straight;
+                if (index == 16) return TileKind.Straight;
+                if (index == 17) return TileKind.Zipline;
+                if (index == 18) return TileKind.Straight;
+                if (index == 19) return TileKind.MineCart;
+                if (index < 20) return TileKind.Straight;
             }
 
             // Mutual one-tile buffer: turns and hazards never adjacent.
             bool allowTurn = _tilesSinceTurn >= profile.TurnCooldown && index >= 4 && _tilesSinceHazard >= 1;
             bool allowHazard = _tilesSinceHazard >= profile.HazardTileCooldown && _tilesSinceTurn >= 1;
 
-            // Soft guarantees: river ~8-12 tiles, fire ~9-14 tiles (independent cadences).
-            int riverEvery = _difficulty == RunDifficulty.Easy ? 12
-                : _difficulty == RunDifficulty.Hard ? 8 : 10;
-            int fireEvery = _difficulty == RunDifficulty.Easy ? 14
-                : _difficulty == RunDifficulty.Hard ? 9 : 11;
+            // Soft guarantees for signature stages (biome-biased spacing).
+            int riverEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 12
+                : _difficulty == RunDifficulty.Hard ? 8 : 10) / Mathf.Max(0.75f, BiomeSystem.RiverBias));
+            int fireEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 14
+                : _difficulty == RunDifficulty.Hard ? 9 : 11) / Mathf.Max(0.75f, BiomeSystem.FireBias));
+            int zipEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 16
+                : _difficulty == RunDifficulty.Hard ? 11 : 13) / Mathf.Max(0.75f, BiomeSystem.ZiplineBias));
+            int cartEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 15
+                : _difficulty == RunDifficulty.Hard ? 10 : 12) / Mathf.Max(0.75f, BiomeSystem.MineCartBias));
+
             bool riverDue = allowHazard && _tilesSinceRiver >= riverEvery && index >= 5;
             bool fireDue = allowHazard && _tilesSinceFire >= fireEvery && index >= 5;
-            if (riverDue && fireDue)
-                return Random.value < 0.5f ? TileKind.RiverCrossing : TileKind.FireCrossing;
-            if (riverDue) return TileKind.RiverCrossing;
-            if (fireDue) return TileKind.FireCrossing;
+            bool zipDue = allowHazard && _tilesSinceZipline >= zipEvery && index >= 6;
+            bool cartDue = allowHazard && _tilesSinceMineCart >= cartEvery && index >= 6;
+
+            // Prefer the most overdue special stage when several are due.
+            if (riverDue || fireDue || zipDue || cartDue)
+            {
+                float best = -1f;
+                TileKind pick = TileKind.Straight;
+                void Consider(bool due, int since, int every, TileKind kind)
+                {
+                    if (!due) return;
+                    float overdue = since / (float)Mathf.Max(1, every);
+                    if (overdue > best) { best = overdue; pick = kind; }
+                }
+                Consider(riverDue, _tilesSinceRiver, riverEvery, TileKind.RiverCrossing);
+                Consider(fireDue, _tilesSinceFire, fireEvery, TileKind.FireCrossing);
+                Consider(zipDue, _tilesSinceZipline, zipEvery, TileKind.Zipline);
+                Consider(cartDue, _tilesSinceMineCart, cartEvery, TileKind.MineCart);
+                if (pick != TileKind.Straight) return pick;
+            }
 
             // Early route interest, still respecting cooldowns + adjacency buffer
             if (allowTurn && index == 4 + profile.TurnCooldown)

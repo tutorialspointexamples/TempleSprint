@@ -237,6 +237,9 @@ namespace TempleSprint.EditorTools
             bool riverModesOk = CheckRiverModesPresent(tiles);
             bool fireModesOk = CheckFireModesPresent(tiles)
                                || (tileSpawner != null && tileSpawner.FiresSpawnedThisRun > 0);
+            bool specialOk = CheckSpecialStagesPresent(tiles)
+                             || (tileSpawner != null
+                                 && (tileSpawner.ZiplinesSpawnedThisRun > 0 || tileSpawner.MineCartsSpawnedThisRun > 0));
 
             bool ok = gm != null && ui != null && kids >= 4 && explorer != null && nature != null
                       && activeTiles > 0 && rends >= 40 && framed && humanoid
@@ -245,7 +248,7 @@ namespace TempleSprint.EditorTools
                       && (gm.State == GameState.Running || gm.State == GameState.PostRun || resolved > 0);
 
             string line = ok
-                ? $"PASS kids={kids} state={gm.State} tiles={activeTiles} rends={rends} height={height:0.00} worldH={worldH:0.00} skinned={(skinned ? 1 : 0)} camDist={camDist:0.0} anim={(animOn ? 1 : 0)} audio={(audioOk ? 1 : 0)} turns={turns} junctions={junctions} resolved={resolved} hazards={hazards} riverModes={(riverModesOk ? 1 : 0)} fireModes={(fireModesOk ? 1 : 0)} firesSpawned={(tileSpawner != null ? tileSpawner.FiresSpawnedThisRun : 0)} turnClear=1 next={nextPath:0.0} path={playerPath:0.0} explorer=1 nature=1"
+                ? $"PASS kids={kids} state={gm.State} tiles={activeTiles} rends={rends} height={height:0.00} worldH={worldH:0.00} skinned={(skinned ? 1 : 0)} camDist={camDist:0.0} anim={(animOn ? 1 : 0)} audio={(audioOk ? 1 : 0)} turns={turns} junctions={junctions} resolved={resolved} hazards={hazards} riverModes={(riverModesOk ? 1 : 0)} fireModes={(fireModesOk ? 1 : 0)} special={(specialOk ? 1 : 0)} firesSpawned={(tileSpawner != null ? tileSpawner.FiresSpawnedThisRun : 0)} zipSpawned={(tileSpawner != null ? tileSpawner.ZiplinesSpawnedThisRun : 0)} cartSpawned={(tileSpawner != null ? tileSpawner.MineCartsSpawnedThisRun : 0)} turnClear=1 next={nextPath:0.0} path={playerPath:0.0} explorer=1 nature=1"
                 : $"FAIL gm={gm != null} ui={ui != null} kids={kids} state={(gm != null ? gm.State.ToString() : "?")} explorer={explorer != null} height={height:0.00} worldH={worldH:0.00} drawn={drawn} skinned={skinned} parts={explorerParts} nature={nature != null} tiles={activeTiles} rends={rends} camDist={camDist:0.0} framed={framed} turns={turns} junctions={junctions} resolved={resolved} endless={endless} profileOk={profileOk} audio={audioOk} turnClear={turnClear}";
 
             try
@@ -488,6 +491,36 @@ namespace TempleSprint.EditorTools
             }
             Debug.Log($"[VERIFY] fireModes any={anyFire} jump={jump} vine={vine} dunk={dunk}");
             return anyFire;
+        }
+
+        static bool CheckSpecialStagesPresent(TrackTile[] tiles)
+        {
+            if (tiles == null) return false;
+            bool zip = false, cart = false;
+            foreach (var t in tiles)
+            {
+                if (t == null) continue;
+                if (t.Kind == TileKind.Zipline)
+                {
+                    zip = true;
+                    if (t.GetComponent<SpecialStageMarker>() == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] Zipline at {t.PathStartDistance:0.0} missing marker");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.MineCart)
+                {
+                    cart = true;
+                    if (t.GetComponent<SpecialStageMarker>() == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] MineCart at {t.PathStartDistance:0.0} missing marker");
+                        return false;
+                    }
+                }
+            }
+            Debug.Log($"[VERIFY] specialStages zipline={zip} minecart={cart}");
+            return zip || cart;
         }
     }
 }

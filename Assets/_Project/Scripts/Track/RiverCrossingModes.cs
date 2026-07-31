@@ -15,7 +15,9 @@ namespace TempleSprint
         Boat = 1,
         Rope = 2,
         Vine = 3,
-        WaterDunk = 4
+        WaterDunk = 4,
+        Zipline = 5,
+        MineCart = 6
     }
 
     /// <summary>Per-tile river crossing metadata; never destroyed while IsOccupied.</summary>
