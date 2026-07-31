@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 96f41689c126dcb4bbb5e81e5a787690, type: 3}
+  m_Name: SdkConfig
+  m_EditorClassIdentifier: Assembly-CSharp::TempleSprint.SdkConfig
+  remoteConfigUrl: 
+  useTestAdsAndIap: 1
+  androidAppId: ca-app-pub-3940256099942544~3347511713
+  androidRewardedUnitId: ca-app-pub-3940256099942544/5224354917
+  androidInterstitialUnitId: ca-app-pub-3940256099942544/1033173712
+  iosAppId: ca-app-pub-3940256099942544~1458002511
+  iosRewardedUnitId: ca-app-pub-3940256099942544/1712485313
+  iosInterstitialUnitId: ca-app-pub-3940256099942544/4411468910
+  productGemsS: temple_sprint_gems_s
+  productGemsM: temple_sprint_gems_m
+  productGemsL: temple_sprint_gems_l
+  productRemoveAds: temple_sprint_remove_ads
+  productStarterPack: temple_sprint_starter_pack
+  productBattlePass: temple_sprint_battle_pass

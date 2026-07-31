@@ -1,0 +1,529 @@
+using UnityEngine;
+
+namespace TempleSprint
+{
+    public enum BiomeId
+    {
+        JungleRuins = 0,
+        DesertTombs = 1,
+        IceCaverns = 2
+    }
+
+    /// <summary>Biome unlock + visual palette for Jungle / Desert / Ice.</summary>
+    public static class BiomeSystem
+    {
+        public static BiomeId Current { get; private set; } = BiomeId.JungleRuins;
+
+        public static bool IsUnlocked(BiomeId id)
+        {
+            var m = MetaProgress.Ensure().Data;
+            if (id == BiomeId.JungleRuins) return true;
+            if (id == BiomeId.DesertTombs) return m.desertUnlocked || m.totalRuns >= 3 || m.totalDistance >= 500f;
+            if (id == BiomeId.IceCaverns) return m.iceUnlocked || m.totalRuns >= 8 || m.totalDistance >= 2000f;
+            return false;
+        }
+
+        public static void Select(BiomeId id)
+        {
+            if (!IsUnlocked(id)) id = BiomeId.JungleRuins;
+            Current = id;
+            PlayerPrefs.SetInt("TempleSprint.Biome", (int)id);
+            PlayerPrefs.Save();
+            ApplyLighting();
+        }
+
+        public static void LoadSaved()
+        {
+            var id = (BiomeId)PlayerPrefs.GetInt("TempleSprint.Biome", 0);
+            Select(IsUnlocked(id) ? id : BiomeId.JungleRuins);
+        }
+
+        public static void ApplyLighting()
+        {
+            switch (Current)
+            {
+                case BiomeId.DesertTombs:
+                    RenderSettings.ambientLight = new Color(0.72f, 0.58f, 0.35f);
+                    break;
+                case BiomeId.IceCaverns:
+                    RenderSettings.ambientLight = new Color(0.45f, 0.58f, 0.72f);
+                    break;
+                default:
+                    RenderSettings.ambientLight = new Color(0.42f, 0.5f, 0.42f);
+                    break;
+            }
+            NatureBackdrop.Instance?.ApplyBiomeLook();
+        }
+
+        public static string DisplayName(BiomeId id) => id switch
+        {
+            BiomeId.DesertTombs => "Desert Tombs",
+            BiomeId.IceCaverns => "Ice Caverns",
+            _ => "Jungle Ruins"
+        };
+
+        public static Material PathMat => BiomePalette.Path(Current);
+        public static Material StoneMat => BiomePalette.Stone(Current);
+        public static Material AccentMat => BiomePalette.Accent(Current);
+        public static Material FoliageMat => BiomePalette.Foliage(Current);
+    }
+
+    public static class BiomePalette
+    {
+        static Material Make(Color c)
+        {
+            var shader = Shader.Find("Universal Render Pipeline/Lit")
+                         ?? Shader.Find("Universal Render Pipeline/Simple Lit")
+                         ?? Shader.Find("Standard")
+                         ?? Shader.Find("Diffuse");
+            var m = new Material(shader) { color = c };
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+            return m;
+        }
+
+        public static Material Path(BiomeId b) => b switch
+        {
+            BiomeId.DesertTombs => Make(new Color(0.78f, 0.62f, 0.35f)),
+            BiomeId.IceCaverns => Make(new Color(0.72f, 0.82f, 0.9f)),
+            _ => JunglePalette.Path
+        };
+
+        public static Material Stone(BiomeId b) => b switch
+        {
+            BiomeId.DesertTombs => Make(new Color(0.55f, 0.4f, 0.25f)),
+            BiomeId.IceCaverns => Make(new Color(0.55f, 0.65f, 0.75f)),
+            _ => JunglePalette.Stone
+        };
+
+        public static Material Accent(BiomeId b) => b switch
+        {
+            BiomeId.DesertTombs => Make(new Color(0.85f, 0.45f, 0.15f)),
+            BiomeId.IceCaverns => Make(new Color(0.35f, 0.7f, 0.85f)),
+            _ => JunglePalette.Accent
+        };
+
+        public static Material Foliage(BiomeId b) => b switch
+        {
+            BiomeId.DesertTombs => Make(new Color(0.65f, 0.5f, 0.2f)),
+            BiomeId.IceCaverns => Make(new Color(0.85f, 0.92f, 0.98f)),
+            _ => JunglePalette.Foliage
+        };
+    }
+
+    /// <summary>Classic Temple Run swamp-temple: water under causeway, cliffs, fog, vine curtain.</summary>
+    public class NatureBackdrop : MonoBehaviour
+    {
+        public static NatureBackdrop Instance { get; private set; }
+
+        Transform _follow;
+        Transform[] _billboards;
+        Transform[] _treeClusters;
+        Transform _scenicRoot;
+        Renderer _waterRend;
+        Material _waterMatInstance;
+        Transform _vineCurtain;
+        float _treeSpacing = 16f;
+        Vector2 _waterOffset;
+
+        public static NatureBackdrop Ensure(Transform parent)
+        {
+            if (Instance != null) return Instance;
+            var go = new GameObject("NatureBackdrop");
+            go.transform.SetParent(parent, false);
+            return go.AddComponent<NatureBackdrop>();
+        }
+
+        void Awake()
+        {
+            Instance = this;
+            Build();
+            ApplyBiomeLook();
+        }
+
+        public void SetFollow(Transform follow) => _follow = follow;
+
+        void Build()
+        {
+            BuildSky();
+            BuildForestGround();
+            BuildDistantHills();
+            BuildTreeRing();
+            BuildFillLight();
+        }
+
+        void BuildSky()
+        {
+            // Panoramic skybox only — a textured sphere fought it and seamed down the meridian.
+            var skyTex = Resources.Load<Texture2D>("Nature/temple_ruins_sky")
+                         ?? Resources.Load<Texture2D>("Nature/jungle_sky");
+            if (skyTex != null)
+            {
+                var panoramic = Shader.Find("Skybox/Panoramic")
+                                ?? Shader.Find("Skybox/Cubemap")
+                                ?? Shader.Find("Skybox/6 Sided");
+                if (panoramic != null)
+                {
+                    var box = new Material(panoramic);
+                    box.SetTexture("_MainTex", skyTex);
+                    if (box.HasProperty("_Tex")) box.SetTexture("_Tex", skyTex);
+                    RenderSettings.skybox = box;
+                }
+            }
+            else
+            {
+                // Flat distant colour dome when no sky texture is available.
+                var dome = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                dome.name = "SkyColourDome";
+                dome.transform.SetParent(transform, false);
+                dome.transform.localScale = new Vector3(-280f, 280f, 280f);
+                Object.Destroy(dome.GetComponent<Collider>());
+                var rend = dome.GetComponent<Renderer>();
+                rend.sharedMaterial = UnlitMat(new Color(0.55f, 0.68f, 0.78f));
+                rend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                rend.receiveShadows = false;
+            }
+
+            DynamicGI.UpdateEnvironment();
+
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.ExponentialSquared;
+            RenderSettings.fogDensity = 0.009f;
+            RenderSettings.fogColor = new Color(0.52f, 0.62f, 0.66f);
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = new Color(0.62f, 0.72f, 0.78f);
+            RenderSettings.ambientEquatorColor = new Color(0.52f, 0.58f, 0.5f);
+            RenderSettings.ambientGroundColor = new Color(0.28f, 0.32f, 0.24f);
+        }
+
+        /// <summary>Forest floor stretching to the fog line; the causeway is raised above it.</summary>
+        void BuildForestGround()
+        {
+            var ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            ground.name = "ForestGround";
+            ground.transform.SetParent(transform, false);
+            ground.transform.localPosition = new Vector3(0f, GroundY - 1f, 0f);
+            ground.transform.localScale = new Vector3(320f, 2f, 320f);
+            ground.GetComponent<Renderer>().sharedMaterial = JunglePalette.Grass;
+            Object.Destroy(ground.GetComponent<Collider>());
+
+            // Slow-drifting mist just above the floor, reusing the scrolling water material.
+            var mist = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            mist.name = "GroundMist";
+            mist.transform.SetParent(transform, false);
+            mist.transform.localPosition = new Vector3(0f, GroundY + 0.6f, 0f);
+            mist.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            mist.transform.localScale = new Vector3(300f, 300f, 1f);
+            _waterRend = mist.GetComponent<Renderer>();
+            _waterMatInstance = new Material(JunglePalette.Water);
+            _waterMatInstance.color = new Color(0.35f, 0.42f, 0.36f, 1f);
+            _waterRend.sharedMaterial = _waterMatInstance;
+            _waterRend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            Object.Destroy(mist.GetComponent<Collider>());
+        }
+
+        void BuildDistantHills()
+        {
+            // Facing-relative distant hills — never parented to the follow-root in world Z.
+            if (_scenicRoot == null)
+            {
+                _scenicRoot = new GameObject("ForestScatter").transform;
+                _scenicRoot.SetParent(transform, false);
+            }
+
+            var hillsTex = Resources.Load<Texture2D>("Nature/jungle_hills");
+            _billboards = new Transform[4];
+            for (int i = 0; i < _billboards.Length; i++)
+            {
+                float side = (i % 2 == 0) ? -1f : 1f;
+                var board = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                board.name = "HillBillboard_" + i;
+                board.transform.SetParent(_scenicRoot, false);
+                board.transform.localScale = new Vector3(60f, 28f, 1f);
+                Object.Destroy(board.GetComponent<Collider>());
+                var mat = UnlitMat(new Color(0.3f, 0.42f, 0.28f));
+                if (hillsTex != null)
+                {
+                    mat.mainTexture = hillsTex;
+                    if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", hillsTex);
+                }
+                var r = board.GetComponent<Renderer>();
+                r.sharedMaterial = mat;
+                r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                _billboards[i] = board.transform;
+                PlaceHill(board.transform, side, 70f + (i / 2) * 40f);
+            }
+        }
+
+        // Deep-forest layer beyond the per-tile planting; kept clear of the run corridor.
+        const float RingNear = 28f;
+        const float RingFar = 52f;
+        const float CorridorClearance = 18f;
+        const float HillLateral = 48f;
+        const float GroundY = -3.8f;
+
+        void BuildTreeRing()
+        {
+            if (_scenicRoot == null)
+            {
+                _scenicRoot = new GameObject("ForestScatter").transform;
+                _scenicRoot.SetParent(transform, false);
+            }
+
+            _treeClusters = new Transform[14];
+            for (int i = 0; i < _treeClusters.Length; i++)
+            {
+                var cluster = new GameObject("TreeCluster_" + i).transform;
+                cluster.SetParent(_scenicRoot, false);
+                int count = Random.Range(2, 5);
+                for (int t = 0; t < count; t++)
+                {
+                    SpawnTree(cluster,
+                        new Vector3(Random.Range(-3.5f, 3.5f), 0f, Random.Range(-3.5f, 3.5f)),
+                        Random.Range(1.2f, 2.0f));
+                }
+                _treeClusters[i] = cluster;
+                PlaceAhead(cluster, (i % 2 == 0) ? -1f : 1f, (i / 2) * _treeSpacing);
+            }
+        }
+
+        void SpawnTree(Transform parent, Vector3 localPos, float scale = 1f)
+        {
+            float trunkH = Random.Range(3.2f, 4.6f) * scale;
+            var trunk = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            trunk.transform.SetParent(parent, false);
+            trunk.transform.localPosition = localPos + new Vector3(0f, trunkH * 0.5f - 0.3f, 0f);
+            trunk.transform.localScale = new Vector3(0.32f * scale, trunkH * 0.5f, 0.32f * scale);
+            trunk.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+            Object.Destroy(trunk.GetComponent<Collider>());
+
+            // Overlapping tiers — no gap between trunk top and canopy.
+            const int tiers = 3;
+            for (int i = 0; i < tiers; i++)
+            {
+                float t = i / (float)(tiers - 1);
+                float s = Mathf.Lerp(2.6f, 0.9f, t) * scale * Random.Range(0.92f, 1.1f);
+                var canopy = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                canopy.transform.SetParent(parent, false);
+                canopy.transform.localPosition = localPos
+                    + new Vector3(Random.Range(-0.2f, 0.2f), trunkH * 0.62f + i * 1.05f * scale, Random.Range(-0.2f, 0.2f));
+                canopy.transform.localScale = new Vector3(s, s * 0.88f, s);
+                canopy.GetComponent<Renderer>().sharedMaterial =
+                    i == 0 ? JunglePalette.FoliageDark
+                    : i == tiers - 1 ? JunglePalette.FoliageLight
+                    : JunglePalette.Foliage;
+                Object.Destroy(canopy.GetComponent<Collider>());
+            }
+        }
+
+        /// <summary>
+        /// Park a prop relative to the runner's current heading. Laying scenery out in
+        /// world Z instead put it straight across the path after every turn.
+        /// </summary>
+        void PlaceAhead(Transform prop, float side, float distanceAhead)
+        {
+            if (prop == null) return;
+            Vector3 origin = _follow != null ? _follow.position : Vector3.zero;
+            Vector3 fwd = _follow != null ? Flat(_follow.forward) : Vector3.forward;
+            Vector3 right = new Vector3(fwd.z, 0f, -fwd.x);
+
+            Vector3 world = origin
+                            + fwd * distanceAhead
+                            + right * (side * Random.Range(RingNear, RingFar));
+            world.y = GroundY;
+            prop.position = world;
+        }
+
+        void PlaceHill(Transform prop, float side, float distanceAhead)
+        {
+            if (prop == null) return;
+            Vector3 origin = _follow != null ? _follow.position : Vector3.zero;
+            Vector3 fwd = _follow != null ? Flat(_follow.forward) : Vector3.forward;
+            Vector3 right = new Vector3(fwd.z, 0f, -fwd.x);
+
+            Vector3 world = origin
+                            + fwd * distanceAhead
+                            + right * (side * HillLateral);
+            world.y = GroundY + 10f;
+            prop.position = world;
+            // Face roughly toward the path centre.
+            Vector3 look = origin + fwd * distanceAhead - world;
+            look.y = 0f;
+            if (look.sqrMagnitude > 0.01f)
+                prop.rotation = Quaternion.LookRotation(look.normalized);
+        }
+
+        static Vector3 Flat(Vector3 v)
+        {
+            v.y = 0f;
+            return v.sqrMagnitude < 0.0001f ? Vector3.forward : v.normalized;
+        }
+
+        void BuildFillLight()
+        {
+            var fill = new GameObject("FillLight");
+            fill.transform.SetParent(transform, false);
+            fill.transform.rotation = Quaternion.Euler(15f, 60f, 0f);
+            var light = fill.AddComponent<Light>();
+            light.type = LightType.Directional;
+            light.color = new Color(0.65f, 0.8f, 0.9f);
+            light.intensity = 0.4f;
+            light.shadows = LightShadows.None;
+        }
+
+        /// <summary>Near-camera vine framing like classic Temple Run screenshots.</summary>
+        public void AttachVineCurtain(Transform cameraTransform)
+        {
+            if (cameraTransform == null || _vineCurtain != null) return;
+            _vineCurtain = new GameObject("VineCurtain").transform;
+            _vineCurtain.SetParent(cameraTransform, false);
+            // Soft frame only — far corner ropes, never fill the phone Game view
+            _vineCurtain.localPosition = new Vector3(0f, 2.2f, 2.4f);
+            float[] xs = { -2.2f, 2.2f };
+            foreach (float x in xs)
+            {
+                float len = Random.Range(0.5f, 1.0f);
+                var vine = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                vine.transform.SetParent(_vineCurtain, false);
+                vine.transform.localPosition = new Vector3(x, -len * 0.25f, Random.Range(0f, 0.2f));
+                vine.transform.localRotation = Quaternion.Euler(0f, 0f, Random.Range(-6f, 6f));
+                vine.transform.localScale = new Vector3(0.03f, len * 0.4f, 0.03f);
+                vine.GetComponent<Renderer>().sharedMaterial = JunglePalette.FoliageDark;
+                vine.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                Object.Destroy(vine.GetComponent<Collider>());
+            }
+        }
+
+        public void ApplyBiomeLook()
+        {
+            switch (BiomeSystem.Current)
+            {
+                case BiomeId.DesertTombs:
+                    RenderSettings.fogColor = new Color(0.85f, 0.7f, 0.45f);
+                    RenderSettings.fogDensity = 0.009f;
+                    RenderSettings.ambientSkyColor = new Color(0.9f, 0.75f, 0.45f);
+                    RenderSettings.ambientEquatorColor = new Color(0.7f, 0.58f, 0.38f);
+                    RenderSettings.ambientGroundColor = new Color(0.4f, 0.3f, 0.18f);
+                    break;
+                case BiomeId.IceCaverns:
+                    RenderSettings.fogColor = new Color(0.7f, 0.82f, 0.92f);
+                    RenderSettings.fogDensity = 0.012f;
+                    RenderSettings.ambientSkyColor = new Color(0.65f, 0.78f, 0.95f);
+                    RenderSettings.ambientEquatorColor = new Color(0.55f, 0.65f, 0.78f);
+                    RenderSettings.ambientGroundColor = new Color(0.35f, 0.42f, 0.5f);
+                    break;
+                default:
+                    RenderSettings.fog = true;
+                    RenderSettings.fogMode = FogMode.ExponentialSquared;
+                    RenderSettings.fogColor = new Color(0.52f, 0.62f, 0.66f);
+                    RenderSettings.fogDensity = 0.009f;
+                    RenderSettings.ambientSkyColor = new Color(0.62f, 0.72f, 0.78f);
+                    RenderSettings.ambientEquatorColor = new Color(0.52f, 0.58f, 0.5f);
+                    RenderSettings.ambientGroundColor = new Color(0.28f, 0.32f, 0.24f);
+                    break;
+            }
+        }
+
+        void LateUpdate()
+        {
+            if (_follow == null && PlayerController.Instance != null)
+                _follow = PlayerController.Instance.transform;
+            if (_follow == null) return;
+
+            Vector3 p = _follow.position;
+            p.y = transform.position.y;
+            transform.position = p;
+
+            // Scroll murky water UVs (cached instance — do not use .material each frame)
+            if (_waterMatInstance != null)
+            {
+                _waterOffset.y += Time.deltaTime * 0.04f;
+                _waterOffset.x += Time.deltaTime * 0.015f;
+                _waterMatInstance.mainTextureOffset = _waterOffset;
+                if (_waterMatInstance.HasProperty("_BaseMap"))
+                    _waterMatInstance.SetTextureOffset("_BaseMap", _waterOffset);
+            }
+
+            // Forest scatter lives in stable world space so it does not ride the root.
+            if (_scenicRoot != null)
+            {
+                _scenicRoot.position = Vector3.zero;
+                _scenicRoot.rotation = Quaternion.identity;
+            }
+
+            Vector3 fwd = Flat(_follow.forward);
+            Vector3 right = new Vector3(fwd.z, 0f, -fwd.x);
+
+            if (_treeClusters != null)
+            {
+                foreach (var cluster in _treeClusters)
+                {
+                    if (cluster == null) continue;
+                    Vector3 delta = cluster.position - _follow.position;
+                    delta.y = 0f;
+                    float along = Vector3.Dot(delta, fwd);
+                    float lateral = Vector3.Dot(delta, right);
+
+                    bool behind = along < -30f;
+                    // Relocate any cluster that a turn swings into the corridor — even near ones.
+                    bool inCorridor = along > -5f && Mathf.Abs(lateral) < CorridorClearance;
+                    if (behind || inCorridor)
+                        PlaceAhead(cluster, lateral < 0f ? -1f : 1f, Random.Range(55f, 95f));
+                }
+            }
+
+            if (_billboards != null)
+            {
+                for (int i = 0; i < _billboards.Length; i++)
+                {
+                    var b = _billboards[i];
+                    if (b == null) continue;
+                    Vector3 delta = b.position - _follow.position;
+                    delta.y = 0f;
+                    float along = Vector3.Dot(delta, fwd);
+                    float lateral = Vector3.Dot(delta, right);
+                    float side = (i % 2 == 0) ? -1f : 1f;
+                    bool behind = along < -40f;
+                    bool inCorridor = along > -5f && Mathf.Abs(lateral) < CorridorClearance + 10f;
+                    if (behind || inCorridor)
+                        PlaceHill(b, side, Random.Range(75f, 120f));
+                }
+            }
+        }
+
+        static Material SkyMat(Texture2D tex, Color fallback)
+        {
+            var shader = Shader.Find("Universal Render Pipeline/Unlit")
+                         ?? Shader.Find("Unlit/Texture")
+                         ?? Shader.Find("Unlit/Color")
+                         ?? Shader.Find("Sprites/Default");
+            var m = new Material(shader);
+            if (tex != null)
+            {
+                m.mainTexture = tex;
+                if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", tex);
+                if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", Color.white);
+            }
+            else
+            {
+                m.color = fallback;
+                if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", fallback);
+            }
+            return m;
+        }
+
+        static Material UnlitMat(Color c)
+        {
+            var shader = Shader.Find("Universal Render Pipeline/Unlit")
+                         ?? Shader.Find("Unlit/Color")
+                         ?? Shader.Find("Sprites/Default");
+            var m = new Material(shader) { color = c };
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+            return m;
+        }
+
+        void OnDestroy()
+        {
+            if (Instance == this) Instance = null;
+        }
+    }
+}

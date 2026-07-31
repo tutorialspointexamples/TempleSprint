@@ -1,0 +1,182 @@
+using UnityEngine;
+
+namespace TempleSprint
+{
+    public class CollectibleCoin : MonoBehaviour
+    {
+        bool _collected;
+        float _baseY;
+        float _phase;
+
+        void Start()
+        {
+            _baseY = transform.localPosition.y;
+            _phase = Random.value * Mathf.PI * 2f;
+        }
+
+        void Update()
+        {
+            transform.Rotate(0f, 260f * Time.deltaTime, 0f, Space.World);
+            var lp = transform.localPosition;
+            lp.y = _baseY + Mathf.Sin(Time.time * 4.5f + _phase) * 0.14f;
+            transform.localPosition = lp;
+            MagnetPull();
+        }
+
+        void MagnetPull()
+        {
+            if (PowerUpController.Instance == null || !PowerUpController.Instance.MagnetActive || PlayerController.Instance == null)
+                return;
+            float r = PowerUpController.Instance.MagnetRadius;
+            Vector3 p = PlayerController.Instance.transform.position;
+            if (Vector3.Distance(transform.position, p) <= r)
+                transform.position = Vector3.MoveTowards(transform.position, p + Vector3.up, 25f * Time.deltaTime);
+        }
+
+        public void Collect()
+        {
+            if (_collected) return;
+            _collected = true;
+            RunSession.Instance?.AddCoins(1);
+            AudioHooks.Instance?.PlayCoin();
+            gameObject.SetActive(false);
+        }
+
+        public static CollectibleCoin Create(Transform parent, Vector3 localPos)
+        {
+            var root = new GameObject("Coin");
+            root.transform.SetParent(parent, false);
+            root.transform.localPosition = localPos;
+
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.name = "Diamond";
+            go.transform.SetParent(root.transform, false);
+            go.transform.localRotation = Quaternion.Euler(45f, 45f, 0f);
+            go.transform.localScale = new Vector3(0.42f, 0.42f, 0.16f);
+            go.GetComponent<Renderer>().sharedMaterial = JunglePalette.GoldBright;
+            Object.Destroy(go.GetComponent<Collider>());
+
+            var tip = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            tip.transform.SetParent(root.transform, false);
+            tip.transform.localRotation = Quaternion.Euler(45f, 0f, 45f);
+            tip.transform.localScale = new Vector3(0.26f, 0.26f, 0.1f);
+            tip.GetComponent<Renderer>().sharedMaterial = JunglePalette.Gold;
+            Object.Destroy(tip.GetComponent<Collider>());
+
+            // Soft glow shell
+            var glow = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            glow.transform.SetParent(root.transform, false);
+            glow.transform.localScale = Vector3.one * 0.55f;
+            var gr = glow.GetComponent<Renderer>();
+            gr.sharedMaterial = JunglePalette.GoldBright;
+            gr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            Object.Destroy(glow.GetComponent<Collider>());
+
+            var col = root.AddComponent<SphereCollider>();
+            col.isTrigger = true;
+            col.radius = 0.55f;
+            return root.AddComponent<CollectibleCoin>();
+        }
+    }
+
+    public class PowerUpPickup : MonoBehaviour
+    {
+        public PowerUpType Type;
+        bool _collected;
+
+        void Update() => transform.Rotate(0f, 120f * Time.deltaTime, 0f);
+
+        public void Collect()
+        {
+            if (_collected) return;
+            _collected = true;
+            PowerUpController.Instance?.Activate(Type);
+            AudioHooks.Instance?.PlayPickup();
+            gameObject.SetActive(false);
+        }
+
+        public static PowerUpPickup Create(Transform parent, Vector3 localPos, PowerUpType type)
+        {
+            PrimitiveType prim = type switch
+            {
+                PowerUpType.SpeedBoost => PrimitiveType.Capsule,
+                PowerUpType.SlowMo => PrimitiveType.Cylinder,
+                PowerUpType.Shield => PrimitiveType.Cube,
+                _ => PrimitiveType.Sphere
+            };
+            var go = GameObject.CreatePrimitive(prim);
+            go.name = "PowerUp_" + type;
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = localPos;
+            go.transform.localScale = Vector3.one * 0.7f;
+            var mat = type switch
+            {
+                PowerUpType.Magnet => JunglePalette.Accent,
+                PowerUpType.Shield => JunglePalette.Stone,
+                PowerUpType.SpeedBoost => JunglePalette.Hazard,
+                PowerUpType.SlowMo => BiomeSystem.AccentMat,
+                _ => JunglePalette.Gold
+            };
+            go.GetComponent<Renderer>().sharedMaterial = mat;
+            go.GetComponent<Collider>().isTrigger = true;
+            var p = go.AddComponent<PowerUpPickup>();
+            p.Type = type;
+            return p;
+        }
+    }
+
+    public class GemPickup : MonoBehaviour
+    {
+        bool _collected;
+        void Update() => transform.Rotate(0f, 200f * Time.deltaTime, 0f);
+
+        public void Collect()
+        {
+            if (_collected) return;
+            _collected = true;
+            RunSession.Instance?.AddGems(1);
+            AudioHooks.Instance?.PlayPickup();
+            gameObject.SetActive(false);
+        }
+
+        public static GemPickup Create(Transform parent, Vector3 localPos)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            go.name = "Gem";
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = localPos;
+            go.transform.localScale = Vector3.one * 0.55f;
+            go.GetComponent<Renderer>().sharedMaterial = JunglePalette.Accent;
+            go.GetComponent<Collider>().isTrigger = true;
+            return go.AddComponent<GemPickup>();
+        }
+    }
+
+    public class RelicPickup : MonoBehaviour
+    {
+        bool _collected;
+        void Update() => transform.Rotate(40f * Time.deltaTime, 90f * Time.deltaTime, 0f);
+
+        public void Collect()
+        {
+            if (_collected) return;
+            _collected = true;
+            RunSession.Instance?.AddRelic(1);
+            AchievementSystem.Unlock("first_relic");
+            AudioHooks.Instance?.PlayPickup();
+            gameObject.SetActive(false);
+        }
+
+        public static RelicPickup Create(Transform parent, Vector3 localPos)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.name = "Relic";
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = localPos;
+            go.transform.localScale = new Vector3(0.5f, 0.7f, 0.5f);
+            go.GetComponent<Renderer>().sharedMaterial = JunglePalette.Gold;
+            go.GetComponent<Collider>().isTrigger = true;
+            return go.AddComponent<RelicPickup>();
+        }
+    }
+}
