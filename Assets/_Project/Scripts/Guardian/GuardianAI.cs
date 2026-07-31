@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace TempleSprint
 {
-    /// <summary>Rubber-band Idol Beast pack — hunched gallop chase.</summary>
+    /// <summary>Rubber-band Idol Beast pack — hunched gallop chase with carved idol markings.</summary>
     public class GuardianAI : MonoBehaviour
     {
         public static GuardianAI Instance { get; private set; }
@@ -15,6 +15,7 @@ namespace TempleSprint
         Transform[] _pack;
         float[] _phase;
         bool _active;
+        Renderer[] _eyeGlow;
 
         void Awake()
         {
@@ -30,75 +31,129 @@ namespace TempleSprint
             _phase = new float[3];
             float[] xOff = { -0.95f, 0f, 0.95f };
             float[] zOff = { -0.55f, 0.4f, -0.7f };
+            var eyes = new System.Collections.Generic.List<Renderer>();
             for (int i = 0; i < 3; i++)
             {
-                _pack[i] = BuildBeast(root, new Vector3(xOff[i], 0f, zOff[i]), i == 1 ? 1.2f : 1.0f);
+                _pack[i] = BuildBeast(root, new Vector3(xOff[i], 0f, zOff[i]), i == 1 ? 1.25f : 1.0f, eyes);
                 _phase[i] = i * 0.7f;
             }
+            _eyeGlow = eyes.ToArray();
         }
 
-        static Transform BuildBeast(Transform parent, Vector3 localPos, float scale)
+        static Transform BuildBeast(Transform parent, Vector3 localPos, float scale,
+            System.Collections.Generic.List<Renderer> eyeCollect)
         {
             var root = new GameObject("IdolBeast").transform;
             root.SetParent(parent, false);
             root.localPosition = localPos;
             root.localScale = Vector3.one * scale;
 
-            // Hunched torso
+            // Hunched torso with gold idol breastplate
             var body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             body.name = "Body";
             body.transform.SetParent(root, false);
-            body.transform.localPosition = new Vector3(0f, 0.7f, 0.1f);
-            body.transform.localRotation = Quaternion.Euler(35f, 0f, 0f);
-            body.transform.localScale = new Vector3(0.75f, 0.7f, 0.55f);
+            body.transform.localPosition = new Vector3(0f, 0.72f, 0.12f);
+            body.transform.localRotation = Quaternion.Euler(38f, 0f, 0f);
+            body.transform.localScale = new Vector3(0.82f, 0.78f, 0.6f);
             body.GetComponent<Renderer>().sharedMaterial = JunglePalette.Guardian;
             Object.Destroy(body.GetComponent<Collider>());
+
+            var plate = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            plate.name = "IdolPlate";
+            plate.transform.SetParent(root, false);
+            plate.transform.localPosition = new Vector3(0f, 0.85f, 0.42f);
+            plate.transform.localRotation = Quaternion.Euler(25f, 0f, 0f);
+            plate.transform.localScale = new Vector3(0.55f, 0.55f, 0.12f);
+            plate.GetComponent<Renderer>().sharedMaterial = JunglePalette.Gold;
+            Object.Destroy(plate.GetComponent<Collider>());
+
+            // Carved diamond glyph on the plate
+            var glyph = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            glyph.transform.SetParent(plate.transform, false);
+            glyph.transform.localPosition = new Vector3(0f, 0f, 0.65f);
+            glyph.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+            glyph.transform.localScale = new Vector3(0.35f, 0.35f, 0.2f);
+            glyph.GetComponent<Renderer>().sharedMaterial = JunglePalette.GoldBright;
+            Object.Destroy(glyph.GetComponent<Collider>());
 
             var head = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             head.name = "Head";
             head.transform.SetParent(root, false);
-            head.transform.localPosition = new Vector3(0f, 1.15f, 0.45f);
-            head.transform.localScale = new Vector3(0.55f, 0.45f, 0.55f);
+            head.transform.localPosition = new Vector3(0f, 1.22f, 0.52f);
+            head.transform.localScale = new Vector3(0.62f, 0.5f, 0.62f);
             head.GetComponent<Renderer>().sharedMaterial = JunglePalette.Guardian;
             Object.Destroy(head.GetComponent<Collider>());
+
+            // Mane crest
+            for (int m = 0; m < 4; m++)
+            {
+                var spike = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                spike.name = "Mane_" + m;
+                spike.transform.SetParent(head.transform, false);
+                spike.transform.localPosition = new Vector3((m - 1.5f) * 0.12f, 0.35f, -0.15f + m * 0.02f);
+                spike.transform.localRotation = Quaternion.Euler(-25f - m * 8f, 0f, (m - 1.5f) * 8f);
+                spike.transform.localScale = new Vector3(0.08f, 0.35f + m * 0.04f, 0.12f);
+                spike.GetComponent<Renderer>().sharedMaterial = JunglePalette.Hazard;
+                Object.Destroy(spike.GetComponent<Collider>());
+            }
 
             // Snout
             var snout = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             snout.transform.SetParent(head.transform, false);
-            snout.transform.localPosition = new Vector3(0f, -0.1f, 0.35f);
-            snout.transform.localScale = new Vector3(0.55f, 0.4f, 0.5f);
+            snout.transform.localPosition = new Vector3(0f, -0.12f, 0.38f);
+            snout.transform.localScale = new Vector3(0.55f, 0.4f, 0.55f);
             snout.GetComponent<Renderer>().sharedMaterial = JunglePalette.Hazard;
             Object.Destroy(snout.GetComponent<Collider>());
 
-            // Glowing white eyes
-            foreach (float sx in new[] { -0.18f, 0.18f })
+            // Glowing eyes
+            foreach (float sx in new[] { -0.2f, 0.2f })
             {
                 var eye = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                 eye.transform.SetParent(head.transform, false);
-                eye.transform.localPosition = new Vector3(sx, 0.08f, 0.38f);
-                eye.transform.localScale = new Vector3(0.2f, 0.16f, 0.12f);
-                eye.GetComponent<Renderer>().sharedMaterial = JunglePalette.EyeWhite;
+                eye.transform.localPosition = new Vector3(sx, 0.1f, 0.4f);
+                eye.transform.localScale = new Vector3(0.22f, 0.18f, 0.14f);
+                var er = eye.GetComponent<Renderer>();
+                er.sharedMaterial = JunglePalette.EyeWhite;
+                eyeCollect?.Add(er);
                 Object.Destroy(eye.GetComponent<Collider>());
+
+                var pupil = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                pupil.transform.SetParent(eye.transform, false);
+                pupil.transform.localPosition = new Vector3(0f, 0f, 0.35f);
+                pupil.transform.localScale = new Vector3(0.45f, 0.55f, 0.35f);
+                pupil.GetComponent<Renderer>().sharedMaterial = JunglePalette.EyeDark;
+                Object.Destroy(pupil.GetComponent<Collider>());
             }
 
-            // Long reaching arms
+            // Long reaching arms with clawed hands
             foreach (var side in new[] { -1f, 1f })
             {
                 var arm = GameObject.CreatePrimitive(PrimitiveType.Capsule);
                 arm.name = side < 0 ? "ArmL" : "ArmR";
                 arm.transform.SetParent(root, false);
-                arm.transform.localPosition = new Vector3(side * 0.45f, 0.75f, 0.25f);
-                arm.transform.localRotation = Quaternion.Euler(55f, side * 15f, side * 35f);
-                arm.transform.localScale = new Vector3(0.18f, 0.55f, 0.18f);
+                arm.transform.localPosition = new Vector3(side * 0.5f, 0.78f, 0.28f);
+                arm.transform.localRotation = Quaternion.Euler(58f, side * 18f, side * 38f);
+                arm.transform.localScale = new Vector3(0.2f, 0.68f, 0.2f);
                 arm.GetComponent<Renderer>().sharedMaterial = JunglePalette.Guardian;
                 Object.Destroy(arm.GetComponent<Collider>());
 
                 var hand = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                 hand.transform.SetParent(arm.transform, false);
-                hand.transform.localPosition = new Vector3(0f, -0.85f, 0f);
-                hand.transform.localScale = new Vector3(1.4f, 0.9f, 1.4f);
+                hand.transform.localPosition = new Vector3(0f, -0.9f, 0f);
+                hand.transform.localScale = new Vector3(1.5f, 1.0f, 1.5f);
                 hand.GetComponent<Renderer>().sharedMaterial = JunglePalette.Hazard;
                 Object.Destroy(hand.GetComponent<Collider>());
+
+                for (int c = 0; c < 3; c++)
+                {
+                    var claw = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    claw.transform.SetParent(hand.transform, false);
+                    claw.transform.localPosition = new Vector3((c - 1) * 0.25f, -0.55f, 0.2f);
+                    claw.transform.localRotation = Quaternion.Euler(35f, 0f, 0f);
+                    claw.transform.localScale = new Vector3(0.12f, 0.45f, 0.12f);
+                    claw.GetComponent<Renderer>().sharedMaterial = JunglePalette.Gold;
+                    Object.Destroy(claw.GetComponent<Collider>());
+                }
             }
 
             // Legs
@@ -107,11 +162,20 @@ namespace TempleSprint
                 var leg = GameObject.CreatePrimitive(PrimitiveType.Capsule);
                 leg.name = side < 0 ? "LegL" : "LegR";
                 leg.transform.SetParent(root, false);
-                leg.transform.localPosition = new Vector3(side * 0.18f, 0.28f, -0.05f);
-                leg.transform.localScale = new Vector3(0.2f, 0.28f, 0.2f);
+                leg.transform.localPosition = new Vector3(side * 0.2f, 0.3f, -0.08f);
+                leg.transform.localScale = new Vector3(0.22f, 0.32f, 0.22f);
                 leg.GetComponent<Renderer>().sharedMaterial = JunglePalette.Guardian;
                 Object.Destroy(leg.GetComponent<Collider>());
             }
+
+            // Tail stump for silhouette
+            var tail = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            tail.transform.SetParent(root, false);
+            tail.transform.localPosition = new Vector3(0f, 0.55f, -0.45f);
+            tail.transform.localRotation = Quaternion.Euler(55f, 0f, 0f);
+            tail.transform.localScale = new Vector3(0.15f, 0.35f, 0.15f);
+            tail.GetComponent<Renderer>().sharedMaterial = JunglePalette.Guardian;
+            Object.Destroy(tail.GetComponent<Collider>());
 
             return root;
         }
@@ -177,7 +241,20 @@ namespace TempleSprint
                 if (armR != null) armR.localRotation = Quaternion.Euler(55f - s * 25f, 15f, 35f);
             }
 
-            // Warning growl while the pack is closing in
+            // Eyes pulse hotter as the pack closes in
+            if (_eyeGlow != null)
+            {
+                float threat = Mathf.InverseLerp(maxGap, catchDistance, _gap);
+                float pulse = 0.75f + 0.25f * Mathf.Sin(Time.time * (6f + threat * 8f));
+                Color eye = Color.Lerp(new Color(0.95f, 0.95f, 0.95f), new Color(1f, 0.55f, 0.2f), threat * pulse);
+                foreach (var r in _eyeGlow)
+                {
+                    if (r == null) continue;
+                    r.material.color = eye;
+                    if (r.material.HasProperty("_BaseColor")) r.material.SetColor("_BaseColor", eye);
+                }
+            }
+
             if (_gap <= catchDistance + 3.5f && Time.time - _lastGrowlTime > 1.4f)
             {
                 _lastGrowlTime = Time.time;

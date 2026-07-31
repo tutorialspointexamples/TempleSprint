@@ -482,7 +482,8 @@ namespace TempleSprint
 
         GameObject Panel(string name, Color c)
         {
-            return UiFactory.CreatePanel(_canvas.transform, name, c).gameObject;
+            // Stone-tablet chrome for menus; keep HUD overlay lightweight.
+            return UiFactory.CreateStonePanel(_canvas.transform, name, c).gameObject;
         }
 
         Text Title(GameObject parent, string t, int size, float amin, float amax)

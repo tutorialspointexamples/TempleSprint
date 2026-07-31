@@ -169,14 +169,53 @@ namespace TempleSprint
 
         public static RelicPickup Create(Transform parent, Vector3 localPos)
         {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.name = "Relic";
-            go.transform.SetParent(parent, false);
-            go.transform.localPosition = localPos;
-            go.transform.localScale = new Vector3(0.5f, 0.7f, 0.5f);
-            go.GetComponent<Renderer>().sharedMaterial = JunglePalette.Gold;
-            go.GetComponent<Collider>().isTrigger = true;
-            return go.AddComponent<RelicPickup>();
+            var root = new GameObject("IdolRelic");
+            root.transform.SetParent(parent, false);
+            root.transform.localPosition = localPos;
+
+            // Pedestal
+            var baseBlock = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            baseBlock.name = "Pedestal";
+            baseBlock.transform.SetParent(root.transform, false);
+            baseBlock.transform.localPosition = new Vector3(0f, -0.15f, 0f);
+            baseBlock.transform.localScale = new Vector3(0.55f, 0.12f, 0.55f);
+            baseBlock.GetComponent<Renderer>().sharedMaterial = JunglePalette.Stone;
+            Object.Destroy(baseBlock.GetComponent<Collider>());
+
+            // Carved torso
+            var torso = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            torso.name = "IdolTorso";
+            torso.transform.SetParent(root.transform, false);
+            torso.transform.localPosition = new Vector3(0f, 0.2f, 0f);
+            torso.transform.localScale = new Vector3(0.42f, 0.55f, 0.28f);
+            torso.GetComponent<Renderer>().sharedMaterial = JunglePalette.Gold;
+            Object.Destroy(torso.GetComponent<Collider>());
+
+            // Headdress / crest
+            var crest = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            crest.name = "Headdress";
+            crest.transform.SetParent(root.transform, false);
+            crest.transform.localPosition = new Vector3(0f, 0.58f, 0f);
+            crest.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+            crest.transform.localScale = new Vector3(0.28f, 0.28f, 0.12f);
+            crest.GetComponent<Renderer>().sharedMaterial = JunglePalette.GoldBright;
+            Object.Destroy(crest.GetComponent<Collider>());
+
+            // Eye gems
+            foreach (float sx in new[] { -0.1f, 0.1f })
+            {
+                var eye = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                eye.transform.SetParent(root.transform, false);
+                eye.transform.localPosition = new Vector3(sx, 0.38f, 0.16f);
+                eye.transform.localScale = Vector3.one * 0.1f;
+                eye.GetComponent<Renderer>().sharedMaterial = JunglePalette.Accent;
+                Object.Destroy(eye.GetComponent<Collider>());
+            }
+
+            var col = root.AddComponent<SphereCollider>();
+            col.isTrigger = true;
+            col.radius = 0.65f;
+            return root.AddComponent<RelicPickup>();
         }
     }
 }
