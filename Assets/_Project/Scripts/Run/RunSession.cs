@@ -36,8 +36,11 @@ namespace TempleSprint
 
         float _scoreAccumulator;
         float _comboTimer;
+        float _elapsed;
         MetaProgress _meta;
-        List<float> _ghostSamples = new List<float>();
+        readonly List<float> _ghostTimes = new List<float>();
+        readonly List<float> _ghostDistances = new List<float>();
+        readonly List<int> _ghostLanes = new List<int>();
         RunEndPayload _pending;
 
         void Awake()
@@ -58,7 +61,10 @@ namespace TempleSprint
             IsFinalized = false;
             _scoreAccumulator = 0f;
             _comboTimer = 0f;
-            _ghostSamples.Clear();
+            _elapsed = 0f;
+            _ghostTimes.Clear();
+            _ghostDistances.Clear();
+            _ghostLanes.Clear();
             _pending = null;
         }
 
@@ -66,6 +72,7 @@ namespace TempleSprint
         {
             if (!IsAlive) return;
             Distance += deltaDistance;
+            _elapsed += Time.deltaTime;
             if (_comboTimer > 0f)
             {
                 _comboTimer -= Time.deltaTime;
@@ -74,8 +81,12 @@ namespace TempleSprint
             float comboScore = ComboMultiplier;
             _scoreAccumulator += deltaDistance * (1f + speed * 0.05f) * comboScore;
             Score = Mathf.FloorToInt(_scoreAccumulator) + CoinsThisRun * 10 + GemsThisRun * 50 + RelicsThisRun * 100;
-            if (_ghostSamples.Count == 0 || Distance - _ghostSamples[_ghostSamples.Count - 1] >= 2f)
-                _ghostSamples.Add(Distance);
+            if (_ghostDistances.Count == 0 || Distance - _ghostDistances[_ghostDistances.Count - 1] >= 2f)
+            {
+                _ghostTimes.Add(_elapsed);
+                _ghostDistances.Add(Distance);
+                _ghostLanes.Add(PlayerController.Instance != null ? PlayerController.Instance.Lane : 1);
+            }
         }
 
         public void AddCoins(int amount)
@@ -114,6 +125,7 @@ namespace TempleSprint
             _comboTimer = 2.6f;
             MissionSystem.Report(MissionType.DodgeObstacles, 1);
             _meta.Data.totalObstaclesDodged++;
+            AudioHooks.Instance?.PlayNearMiss();
             GameUI.Instance?.PulseCombo(Combo, ComboMultiplier);
         }
 
@@ -182,7 +194,7 @@ namespace TempleSprint
             _meta.AddDistance(payload.distance);
             _meta.RegisterBestScore(payload.score);
             _meta.IncrementRuns();
-            GhostRunService.SaveSample(_ghostSamples, payload.score);
+            GhostRunService.SaveTimedSample(_ghostTimes, _ghostDistances, _ghostLanes, payload.score);
             LeaderboardService.Submit(payload.score, payload.distance);
             BattlePassService.AddXp(Mathf.FloorToInt(payload.distance / 10f) + payload.coinsEarned);
             // Missions: coins only here (not per-pickup) to avoid double count

@@ -19,6 +19,7 @@ namespace TempleSprint
         PowerUpController _powers;
         ChaseCamera _camera;
         EnvironmentEffects _env;
+        GhostRivalRunner _ghost;
         float _tutorialTimer;
         int _tutorialStep = -1;
         RunEndPayload _lastPayload;
@@ -107,6 +108,8 @@ namespace TempleSprint
             var guardianGo = new GameObject("Guardian");
             guardianGo.transform.SetParent(transform);
             _guardian = guardianGo.AddComponent<GuardianAI>();
+
+            _ghost = GhostRivalRunner.Ensure(transform);
 
             var nature = NatureBackdrop.Ensure(transform);
             nature.SetFollow(_player.transform);
@@ -207,6 +210,7 @@ namespace TempleSprint
             SetRunActorsVisible(true);
             _guardian?.Stop();
             if (_guardian != null) _guardian.gameObject.SetActive(false);
+            _ghost?.Stop();
             _env?.ResetEffects();
             _spawner?.ShowMenuPreview();
             _player?.ResetAtStart();
@@ -245,6 +249,7 @@ namespace TempleSprint
             _session.Begin();
             _spawner.BeginRun(tutorial, difficulty);
             _guardian.BeginRun();
+            _ghost?.BeginRun();
             _camera?.SnapNow();
             _camera?.PunchFov(3f);
             GameUI.Instance?.ShowHud();
@@ -328,6 +333,7 @@ namespace TempleSprint
             _lastPayload = payload;
             State = GameState.PostRun;
             _guardian.Stop();
+            _ghost?.Stop();
             Time.timeScale = 1f;
             _powers?.ClearTimers();
             _env?.ResetEffects();

@@ -11,6 +11,15 @@ namespace TempleSprint
         static string[] _titles = new string[3];
         static int[] _targets = new int[3];
 
+        static readonly (MissionType type, string titleFmt, int min, int max, int step)[] MissionPool =
+        {
+            (MissionType.CollectCoins, "Collect {0} coins", 150, 400, 50),
+            (MissionType.UsePowerUps, "Use {0} power-ups", 2, 6, 1),
+            (MissionType.DodgeObstacles, "Dodge {0} obstacles", 10, 30, 5),
+            (MissionType.RunDistance, "Run {0}m in a day", 300, 1200, 100),
+            (MissionType.CollectGems, "Collect {0} gems", 2, 8, 1),
+        };
+
         public static void EnsureDaily()
         {
             var meta = MetaProgress.Ensure();
@@ -23,10 +32,32 @@ namespace TempleSprint
                 m.missionClaimed0 = m.missionClaimed1 = m.missionClaimed2 = false;
                 meta.Save();
             }
-            // Fixed daily trio for clarity
-            _slotTypes[0] = MissionType.CollectCoins; _titles[0] = "Collect 200 coins"; _targets[0] = 200;
-            _slotTypes[1] = MissionType.UsePowerUps; _titles[1] = "Use 3 power-ups"; _targets[1] = 3;
-            _slotTypes[2] = MissionType.DodgeObstacles; _titles[2] = "Dodge 15 obstacles"; _targets[2] = 15;
+            // Rotating daily trio — seeded so every UTC day reshuffles types + targets.
+            var rng = new System.Random(seed ^ 0x5F3759DF);
+            var picked = new bool[MissionPool.Length];
+            for (int slot = 0; slot < 3; slot++)
+            {
+                int choice = -1;
+                for (int attempt = 0; attempt < 16; attempt++)
+                {
+                    int i = rng.Next(MissionPool.Length);
+                    if (picked[i]) continue;
+                    choice = i;
+                    break;
+                }
+                if (choice < 0)
+                {
+                    for (int i = 0; i < picked.Length; i++)
+                        if (!picked[i]) { choice = i; break; }
+                }
+                picked[choice] = true;
+                var def = MissionPool[choice];
+                int steps = Mathf.Max(1, (def.max - def.min) / def.step);
+                int target = def.min + rng.Next(steps + 1) * def.step;
+                _slotTypes[slot] = def.type;
+                _targets[slot] = target;
+                _titles[slot] = string.Format(def.titleFmt, target);
+            }
         }
 
         public static string GetTitle(int index) { EnsureDaily(); return _titles[Mathf.Clamp(index, 0, 2)]; }

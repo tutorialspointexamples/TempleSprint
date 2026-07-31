@@ -9,8 +9,8 @@ namespace TempleSprint
 
         Canvas _canvas;
         GameObject _boot, _menu, _hud, _post, _upgrade, _locker, _shop, _missions, _settings, _info, _tutorial;
-        Text _menuCurrency, _hudScore, _hudCoins, _hudPower, _hudCombo, _postSummary, _infoBody, _tutorialText, _upgradeInfo, _missionBody;
-        GameObject _hudComboFrame;
+        Text _menuCurrency, _hudScore, _hudCoins, _hudPower, _hudCombo, _hudGhost, _postSummary, _infoBody, _tutorialText, _upgradeInfo, _missionBody;
+        GameObject _hudComboFrame, _hudGhostFrame;
         Button _btnReviveAd, _btnReviveGem;
         bool _bootDone, _starterQueued;
         float _bootTimer = 0.45f;
