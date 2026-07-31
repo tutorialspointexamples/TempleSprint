@@ -2,11 +2,12 @@ using UnityEngine;
 
 namespace TempleSprint
 {
-    /// <summary>Cliff zipline and cave mine-cart special stages (genre-parity traversal).</summary>
+    /// <summary>Cliff zipline, cave mine-cart, and icy mountain surf special stages.</summary>
     public enum SpecialStageKind
     {
         Zipline = 0,
-        MineCart = 1
+        MineCart = 1,
+        IceSurf = 2
     }
 
     public class SpecialStageMarker : MonoBehaviour
@@ -141,6 +142,77 @@ namespace TempleSprint
             pos.y = DeckHeight;
             _cart.position = pos + pose.Forward * -0.15f;
             _cart.rotation = Quaternion.Euler(0f, pose.yaw, Mathf.Sin(Time.time * 9f) * 2.5f);
+        }
+
+        public bool ReachedFarBank(PlayerController player)
+        {
+            if (player == null || Marker == null) return false;
+            float local = player.PathDistance - Marker.PathStartDistance;
+            return local >= Marker.ChannelEnd - 0.35f;
+        }
+    }
+
+    /// <summary>Auto-mount ice board at the snowy slope lip.</summary>
+    public class IceSurfMount : MonoBehaviour
+    {
+        public SpecialStageMarker Marker;
+        public IceBoardRide Ride;
+        bool _used;
+
+        void OnDisable() => _used = false;
+
+        void OnTriggerEnter(Collider other)
+        {
+            if (_used || Marker == null || Ride == null) return;
+            if (other.GetComponent<PlayerController>() == null
+                && other.GetComponentInParent<PlayerController>() == null)
+                return;
+            var player = PlayerController.Instance;
+            if (player == null || player.Traversal != TraversalMode.None) return;
+            _used = true;
+            player.BeginIceSurf(Marker, Ride);
+        }
+    }
+
+    public class IceBoardRide : MonoBehaviour
+    {
+        public SpecialStageMarker Marker;
+        public float DeckHeight = 0.28f;
+        Transform _board;
+
+        public void BuildVisual(Transform parent)
+        {
+            _board = new GameObject("IceBoardBody").transform;
+            _board.SetParent(parent, false);
+
+            var plank = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            plank.name = "Board";
+            plank.transform.SetParent(_board, false);
+            plank.transform.localPosition = new Vector3(0f, 0.08f, 0f);
+            plank.transform.localScale = new Vector3(1.1f, 0.12f, 2.6f);
+            plank.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.78f, 0.88f, 0.95f), 0.15f, 0.55f);
+            Object.Destroy(plank.GetComponent<Collider>());
+
+            var tip = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            tip.transform.SetParent(_board, false);
+            tip.transform.localPosition = new Vector3(0f, 0.14f, 1.15f);
+            tip.transform.localRotation = Quaternion.Euler(-18f, 0f, 0f);
+            tip.transform.localScale = new Vector3(0.95f, 0.1f, 0.55f);
+            tip.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.65f, 0.78f, 0.9f), 0.2f, 0.4f);
+            Object.Destroy(tip.GetComponent<Collider>());
+        }
+
+        public void SyncToPlayer(PlayerController player)
+        {
+            if (player == null || Marker == null || _board == null) return;
+            var tile = GetComponentInParent<TrackTile>();
+            if (tile == null) return;
+            var pose = tile.SampleAtPathDistance(player.PathDistance);
+            Vector3 pos = pose.position + pose.Right * player.LaneOffset;
+            pos.y = DeckHeight;
+            float pitch = Mathf.Sin(Time.time * 11f) * 4f;
+            _board.position = pos + pose.Forward * -0.1f;
+            _board.rotation = Quaternion.Euler(pitch, pose.yaw, Mathf.Sin(Time.time * 8f) * 6f);
         }
 
         public bool ReachedFarBank(PlayerController player)

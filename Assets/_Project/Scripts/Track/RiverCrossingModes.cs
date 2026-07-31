@@ -6,7 +6,8 @@ namespace TempleSprint
     {
         Jump = 0,
         Boat = 1,
-        Rope = 2
+        Rope = 2,
+        Swim = 3
     }
 
     public enum TraversalMode
@@ -17,7 +18,9 @@ namespace TempleSprint
         Vine = 3,
         WaterDunk = 4,
         Zipline = 5,
-        MineCart = 6
+        MineCart = 6,
+        Swim = 7,
+        IceSurf = 8
     }
 
     /// <summary>Per-tile river crossing metadata; never destroyed while IsOccupied.</summary>
@@ -222,5 +225,27 @@ namespace TempleSprint
         }
 
         public bool InReleaseWindow(float t) => t >= ReleaseWindowStart && t <= ReleaseWindowEnd;
+    }
+
+    /// <summary>Dive into the river channel and swim under floating debris.</summary>
+    public class RiverSwimMount : MonoBehaviour
+    {
+        public RiverCrossingMarker Marker;
+        public float SwimDepth = -1.15f;
+        bool _used;
+
+        void OnDisable() => _used = false;
+
+        void OnTriggerEnter(Collider other)
+        {
+            if (_used || Marker == null) return;
+            if (other.GetComponent<PlayerController>() == null
+                && other.GetComponentInParent<PlayerController>() == null)
+                return;
+            var player = PlayerController.Instance;
+            if (player == null || player.Traversal != TraversalMode.None) return;
+            _used = true;
+            player.BeginSwim(Marker, SwimDepth);
+        }
     }
 }

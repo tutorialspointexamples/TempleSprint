@@ -33,8 +33,9 @@ WASD / arrows — lanes, jump, slide. Space — equipped power-up (needs full en
 
 ## Biomes & stages
 
-Jungle Ruins, Desert Tombs, Ice Caverns, Cave Mines, Volcanic Crater.
-Special crossings: river (boat/rope/jump), fire (jump/vine/dunk), zipline, mine cart.
+Jungle Ruins, Desert Tombs, Ice Caverns, Cave Mines, Volcanic Crater — each with distinct fog, ground, and mist tint.
+Special crossings: river (boat/rope/jump/swim), fire (jump/vine/dunk), zipline, mine cart, ice surf.
+Locker: original characters plus hats & pets. Upgrades include energy fill and power durations.
 
 ## Optional (cloud / store)
 

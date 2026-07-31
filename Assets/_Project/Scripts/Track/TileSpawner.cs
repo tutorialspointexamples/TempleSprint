@@ -20,6 +20,7 @@ namespace TempleSprint
         int _tilesSinceFire;
         int _tilesSinceZipline;
         int _tilesSinceMineCart;
+        int _tilesSinceIceSurf;
         int _defaultBranchFlip;
         Transform _poolRoot;
         Transform _activeRoot;
@@ -42,6 +43,7 @@ namespace TempleSprint
         public int FiresSpawnedThisRun { get; private set; }
         public int ZiplinesSpawnedThisRun { get; private set; }
         public int MineCartsSpawnedThisRun { get; private set; }
+        public int IceSurfsSpawnedThisRun { get; private set; }
 
         void Awake()
         {
@@ -75,6 +77,7 @@ namespace TempleSprint
             _tilesSinceFire = 99;
             _tilesSinceZipline = 99;
             _tilesSinceMineCart = 99;
+            _tilesSinceIceSurf = 99;
             _awaitingJunctionChoice = false;
             _pendingJunction = null;
             TurnsSpawnedThisRun = 0;
@@ -84,6 +87,7 @@ namespace TempleSprint
             FiresSpawnedThisRun = 0;
             ZiplinesSpawnedThisRun = 0;
             MineCartsSpawnedThisRun = 0;
+            IceSurfsSpawnedThisRun = 0;
             _lastRiverMode = RiverCrossingMode.Jump;
             _lastFireMode = FireCrossingMode.Jump;
             for (int i = 0; i < preloadCount; i++)
@@ -229,6 +233,14 @@ namespace TempleSprint
             else
                 _tilesSinceMineCart++;
 
+            if (kind == TileKind.IceSurf)
+            {
+                _tilesSinceIceSurf = 0;
+                IceSurfsSpawnedThisRun++;
+            }
+            else
+                _tilesSinceIceSurf++;
+
             if (tile.IsJunction && !tile.JunctionResolved)
             {
                 _awaitingJunctionChoice = true;
@@ -258,32 +270,37 @@ namespace TempleSprint
 
         public RiverCrossingMode PickRiverMode(RunDifficulty difficulty)
         {
-            float boat, rope, jump;
+            float boat, rope, jump, swim;
+            float swimBias = BiomeSystem.SwimBias;
             switch (difficulty)
             {
                 case RunDifficulty.Easy:
-                    boat = 0.45f; rope = 0.20f; jump = 0.35f;
+                    boat = 0.35f; rope = 0.18f; jump = 0.27f; swim = 0.20f * swimBias;
                     break;
                 case RunDifficulty.Hard:
-                    boat = 0.30f; rope = 0.45f; jump = 0.25f;
+                    boat = 0.22f; rope = 0.32f; jump = 0.18f; swim = 0.28f * swimBias;
                     break;
                 default:
-                    boat = 0.40f; rope = 0.35f; jump = 0.25f;
+                    boat = 0.30f; rope = 0.26f; jump = 0.20f; swim = 0.24f * swimBias;
                     break;
             }
 
-            // Soft anti-repeat so modes feel varied across a run.
+            float total = boat + rope + jump + swim;
             RiverCrossingMode mode;
-            float r = Random.value;
+            float r = Random.value * total;
             if (r < boat) mode = RiverCrossingMode.Boat;
             else if (r < boat + rope) mode = RiverCrossingMode.Rope;
-            else mode = RiverCrossingMode.Jump;
+            else if (r < boat + rope + jump) mode = RiverCrossingMode.Jump;
+            else mode = RiverCrossingMode.Swim;
 
             if (mode == _lastRiverMode && Random.value < 0.55f)
             {
-                if (mode == RiverCrossingMode.Boat) mode = Random.value < 0.5f ? RiverCrossingMode.Rope : RiverCrossingMode.Jump;
-                else if (mode == RiverCrossingMode.Rope) mode = Random.value < 0.5f ? RiverCrossingMode.Boat : RiverCrossingMode.Jump;
-                else mode = Random.value < 0.5f ? RiverCrossingMode.Boat : RiverCrossingMode.Rope;
+                var alts = new[]
+                {
+                    RiverCrossingMode.Boat, RiverCrossingMode.Rope,
+                    RiverCrossingMode.Jump, RiverCrossingMode.Swim
+                };
+                mode = alts[Random.Range(0, alts.Length)];
             }
             _lastRiverMode = mode;
             return mode;
@@ -407,7 +424,9 @@ namespace TempleSprint
                 if (index == 17) return TileKind.Zipline;
                 if (index == 18) return TileKind.Straight;
                 if (index == 19) return TileKind.MineCart;
-                if (index < 20) return TileKind.Straight;
+                if (index == 20) return TileKind.Straight;
+                if (index == 21) return TileKind.IceSurf;
+                if (index < 22) return TileKind.Straight;
             }
 
             // Mutual one-tile buffer: turns and hazards never adjacent.
@@ -423,14 +442,17 @@ namespace TempleSprint
                 : _difficulty == RunDifficulty.Hard ? 11 : 13) / Mathf.Max(0.75f, BiomeSystem.ZiplineBias));
             int cartEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 15
                 : _difficulty == RunDifficulty.Hard ? 10 : 12) / Mathf.Max(0.75f, BiomeSystem.MineCartBias));
+            int iceEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 17
+                : _difficulty == RunDifficulty.Hard ? 11 : 14) / Mathf.Max(0.75f, BiomeSystem.IceSurfBias));
 
             bool riverDue = allowHazard && _tilesSinceRiver >= riverEvery && index >= 5;
             bool fireDue = allowHazard && _tilesSinceFire >= fireEvery && index >= 5;
             bool zipDue = allowHazard && _tilesSinceZipline >= zipEvery && index >= 6;
             bool cartDue = allowHazard && _tilesSinceMineCart >= cartEvery && index >= 6;
+            bool iceDue = allowHazard && _tilesSinceIceSurf >= iceEvery && index >= 6;
 
             // Prefer the most overdue special stage when several are due.
-            if (riverDue || fireDue || zipDue || cartDue)
+            if (riverDue || fireDue || zipDue || cartDue || iceDue)
             {
                 float best = -1f;
                 TileKind pick = TileKind.Straight;
@@ -444,6 +466,7 @@ namespace TempleSprint
                 Consider(fireDue, _tilesSinceFire, fireEvery, TileKind.FireCrossing);
                 Consider(zipDue, _tilesSinceZipline, zipEvery, TileKind.Zipline);
                 Consider(cartDue, _tilesSinceMineCart, cartEvery, TileKind.MineCart);
+                Consider(iceDue, _tilesSinceIceSurf, iceEvery, TileKind.IceSurf);
                 if (pick != TileKind.Straight) return pick;
             }
 

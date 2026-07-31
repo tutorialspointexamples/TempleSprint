@@ -79,6 +79,8 @@ namespace TempleSprint
         public static float ZiplineBias => Current == BiomeId.JungleRuins || Current == BiomeId.DesertTombs ? 1.4f : 1f;
         public static float FireBias => Current == BiomeId.VolcanicCrater ? 1.7f : 1f;
         public static float RiverBias => Current == BiomeId.JungleRuins || Current == BiomeId.IceCaverns ? 1.3f : 0.85f;
+        public static float IceSurfBias => Current == BiomeId.IceCaverns ? 1.9f : Current == BiomeId.CaveMines ? 0.6f : 0.85f;
+        public static float SwimBias => Current == BiomeId.JungleRuins || Current == BiomeId.IceCaverns ? 1.35f : 0.9f;
 
         public static Material PathMat => BiomePalette.Path(Current);
         public static Material StoneMat => BiomePalette.Stone(Current);
@@ -146,7 +148,9 @@ namespace TempleSprint
         Transform[] _treeClusters;
         Transform _scenicRoot;
         Renderer _waterRend;
+        Renderer _groundRend;
         Material _waterMatInstance;
+        Material _groundMatInstance;
         Transform _vineCurtain;
         float _treeSpacing = 16f;
         Vector2 _waterOffset;
@@ -229,7 +233,9 @@ namespace TempleSprint
             ground.transform.SetParent(transform, false);
             ground.transform.localPosition = new Vector3(0f, GroundY - 1f, 0f);
             ground.transform.localScale = new Vector3(320f, 2f, 320f);
-            ground.GetComponent<Renderer>().sharedMaterial = JunglePalette.Grass;
+            _groundRend = ground.GetComponent<Renderer>();
+            _groundMatInstance = new Material(JunglePalette.Grass);
+            _groundRend.sharedMaterial = _groundMatInstance;
             Object.Destroy(ground.GetComponent<Collider>());
 
             // Slow-drifting mist just above the floor, reusing the scrolling water material.
@@ -421,6 +427,9 @@ namespace TempleSprint
 
         public void ApplyBiomeLook()
         {
+            Color ground;
+            Color mist;
+            Color skyTint;
             switch (BiomeSystem.Current)
             {
                 case BiomeId.DesertTombs:
@@ -429,6 +438,9 @@ namespace TempleSprint
                     RenderSettings.ambientSkyColor = new Color(0.9f, 0.75f, 0.45f);
                     RenderSettings.ambientEquatorColor = new Color(0.7f, 0.58f, 0.38f);
                     RenderSettings.ambientGroundColor = new Color(0.4f, 0.3f, 0.18f);
+                    ground = new Color(0.62f, 0.48f, 0.28f);
+                    mist = new Color(0.72f, 0.58f, 0.32f, 1f);
+                    skyTint = new Color(1f, 0.92f, 0.7f);
                     break;
                 case BiomeId.IceCaverns:
                     RenderSettings.fogColor = new Color(0.7f, 0.82f, 0.92f);
@@ -436,6 +448,9 @@ namespace TempleSprint
                     RenderSettings.ambientSkyColor = new Color(0.65f, 0.78f, 0.95f);
                     RenderSettings.ambientEquatorColor = new Color(0.55f, 0.65f, 0.78f);
                     RenderSettings.ambientGroundColor = new Color(0.35f, 0.42f, 0.5f);
+                    ground = new Color(0.72f, 0.84f, 0.92f);
+                    mist = new Color(0.78f, 0.9f, 0.98f, 1f);
+                    skyTint = new Color(0.75f, 0.88f, 1f);
                     break;
                 case BiomeId.CaveMines:
                     RenderSettings.fog = true;
@@ -445,6 +460,9 @@ namespace TempleSprint
                     RenderSettings.ambientSkyColor = new Color(0.28f, 0.32f, 0.38f);
                     RenderSettings.ambientEquatorColor = new Color(0.22f, 0.24f, 0.28f);
                     RenderSettings.ambientGroundColor = new Color(0.12f, 0.12f, 0.14f);
+                    ground = new Color(0.22f, 0.22f, 0.24f);
+                    mist = new Color(0.16f, 0.18f, 0.22f, 1f);
+                    skyTint = new Color(0.35f, 0.38f, 0.45f);
                     break;
                 case BiomeId.VolcanicCrater:
                     RenderSettings.fog = true;
@@ -454,6 +472,9 @@ namespace TempleSprint
                     RenderSettings.ambientSkyColor = new Color(0.75f, 0.4f, 0.22f);
                     RenderSettings.ambientEquatorColor = new Color(0.5f, 0.28f, 0.18f);
                     RenderSettings.ambientGroundColor = new Color(0.22f, 0.1f, 0.08f);
+                    ground = new Color(0.28f, 0.14f, 0.1f);
+                    mist = new Color(0.45f, 0.18f, 0.1f, 1f);
+                    skyTint = new Color(0.95f, 0.55f, 0.3f);
                     break;
                 default:
                     RenderSettings.fog = true;
@@ -463,8 +484,28 @@ namespace TempleSprint
                     RenderSettings.ambientSkyColor = new Color(0.62f, 0.72f, 0.78f);
                     RenderSettings.ambientEquatorColor = new Color(0.52f, 0.58f, 0.5f);
                     RenderSettings.ambientGroundColor = new Color(0.28f, 0.32f, 0.24f);
+                    ground = new Color(0.22f, 0.42f, 0.18f);
+                    mist = new Color(0.35f, 0.42f, 0.36f, 1f);
+                    skyTint = new Color(0.85f, 0.92f, 0.95f);
                     break;
             }
+
+            if (_groundMatInstance != null)
+            {
+                _groundMatInstance.color = ground;
+                if (_groundMatInstance.HasProperty("_BaseColor"))
+                    _groundMatInstance.SetColor("_BaseColor", ground);
+            }
+            if (_waterMatInstance != null)
+            {
+                _waterMatInstance.color = mist;
+                if (_waterMatInstance.HasProperty("_BaseColor"))
+                    _waterMatInstance.SetColor("_BaseColor", mist);
+            }
+            if (RenderSettings.skybox != null && RenderSettings.skybox.HasProperty("_Tint"))
+                RenderSettings.skybox.SetColor("_Tint", skyTint);
+            else if (RenderSettings.skybox != null && RenderSettings.skybox.HasProperty("_SkyTint"))
+                RenderSettings.skybox.SetColor("_SkyTint", skyTint);
         }
 
         void LateUpdate()
