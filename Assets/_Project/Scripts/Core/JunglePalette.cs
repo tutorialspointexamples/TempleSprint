@@ -25,7 +25,7 @@ namespace TempleSprint
         public static Material Player => _player ??= Mat(new Color(0.78f, 0.58f, 0.35f));
         public static Material Guardian => _guardian ??= Mat(new Color(0.12f, 0.08f, 0.1f), 0.4f);
         public static Material Accent => _accent ??= Mat(new Color(0.22f, 0.42f, 0.36f));
-        // Guy Dangerous cartoon palette — saturated so he reads on the stone bridge
+        // Cartoon explorer palette — saturated so the runner reads on the stone bridge
         public static Material Skin => _skin ??= Mat(new Color(0.92f, 0.72f, 0.55f), 0.5f);
         public static Material Shirt => _shirt ??= Mat(new Color(0.92f, 0.82f, 0.45f), 0.4f); // pale yellow/tan
         public static Material Pants => _pants ??= Mat(new Color(0.18f, 0.38f, 0.18f), 0.35f); // forest green
