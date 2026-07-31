@@ -28,6 +28,7 @@ namespace TempleSprint
 
         float _verticalVel;
         bool _grounded = true;
+        bool _airHopUsed;
         float _slideTimer;
         float _stumbleTimer;
         float _laneOffset;
@@ -118,6 +119,7 @@ namespace TempleSprint
             transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
             _verticalVel = 0f;
             _grounded = true;
+            _airHopUsed = false;
             IsSliding = false;
             _slideTimer = 0f;
             _stumbleTimer = 0f;
@@ -127,6 +129,7 @@ namespace TempleSprint
             RestoreCollider();
             _explorer?.ResetPose();
             _explorer?.SetPoseFlags(false, false);
+            _explorer?.ApplyCharacterKit(CharacterRoster.GetSelected().id, CharacterRoster.GetSelected().color);
         }
 
         /// <summary>Place the runner back on the deck, further along the path, after a revive.</summary>
@@ -138,6 +141,7 @@ namespace TempleSprint
             PathDistance += Mathf.Max(0f, meters);
             _verticalVel = 0f;
             _grounded = true;
+            _airHopUsed = false;
             IsSliding = false;
             _slideTimer = 0f;
             var p = transform.position;
@@ -550,8 +554,22 @@ namespace TempleSprint
                 && Traversal != TraversalMode.Swim)
                 return;
             if (Traversal == TraversalMode.Swim) return;
-            if (!_grounded || IsSliding) return;
+            if (IsSliding) return;
+
+            // Mid-air hop for gap recovery (genre staple).
+            if (!_grounded)
+            {
+                if (_airHopUsed || Traversal == TraversalMode.WaterDunk) return;
+                _airHopUsed = true;
+                _verticalVel = jumpVelocity * 0.72f;
+                AudioHooks.Instance?.PlayJump();
+                _explorer?.TriggerJump();
+                ChaseCamera.Instance?.PunchFov(1.6f);
+                return;
+            }
+
             _grounded = false;
+            _airHopUsed = false;
             _verticalVel = jumpVelocity;
             AudioHooks.Instance?.PlayJump();
             _explorer?.TriggerJump();
@@ -822,8 +840,13 @@ namespace TempleSprint
                     p.y = 0f;
                     _verticalVel = 0f;
                     _grounded = true;
+                    _airHopUsed = false;
                 }
                 transform.position = p;
+            }
+            else if (Traversal == TraversalMode.None && _grounded)
+            {
+                _airHopUsed = false;
             }
 
             if (IsSliding)
@@ -1294,16 +1317,19 @@ namespace TempleSprint
                 if (obstacle.RequiresSlide && IsSliding)
                 {
                     RunSession.Instance.RegisterNearMiss();
+                    ChaseCamera.Instance?.PunchFov(1.2f);
                     return;
                 }
                 if (obstacle.RequiresJump && IsJumping)
                 {
                     RunSession.Instance.RegisterNearMiss();
+                    ChaseCamera.Instance?.PunchFov(1.2f);
                     return;
                 }
                 if (PowerUpController.Instance != null && PowerUpController.Instance.TryAbsorbHit())
                 {
                     AudioHooks.Instance?.PlayHit();
+                    RunSession.Instance.RegisterNearMiss();
                     obstacle.Consume();
                     return;
                 }
@@ -1374,6 +1400,7 @@ namespace TempleSprint
             if (_explorer == null) return;
             var c = CharacterRoster.GetSelected();
             _explorer.SetAccentColor(c.color);
+            _explorer.ApplyCharacterKit(c.id, c.color);
             CosmeticRoster.ApplyToRunner(_explorer.transform);
         }
 
@@ -1398,7 +1425,9 @@ namespace TempleSprint
 
         Animator _anim;
         Transform _model;
+        Transform _kitRoot;
         float _laneLean;
+        string _kitId;
         static readonly int RunningHash = Animator.StringToHash("Running");
         static readonly int JumpHash = Animator.StringToHash("Jump");
         static readonly int SlideHash = Animator.StringToHash("Slide");
@@ -1606,6 +1635,75 @@ namespace TempleSprint
             ForceVisibleRenderers();
         }
 
+        /// <summary>Original per-character silhouette accents (scarf / pack / wraps / cuffs).</summary>
+        public void ApplyCharacterKit(string characterId, Color accent)
+        {
+            if (_kitRoot != null && _kitId == characterId) return;
+            if (_kitRoot != null) Destroy(_kitRoot.gameObject);
+            _kitId = characterId ?? "scout_default";
+            _kitRoot = new GameObject("CharacterKit").transform;
+            _kitRoot.SetParent(transform, false);
+
+            void Prim(PrimitiveType p, string name, Vector3 pos, Vector3 scale, Color c, Vector3? euler = null)
+            {
+                var go = GameObject.CreatePrimitive(p);
+                go.name = name;
+                go.transform.SetParent(_kitRoot, false);
+                go.transform.localPosition = pos;
+                go.transform.localScale = scale;
+                if (euler.HasValue) go.transform.localRotation = Quaternion.Euler(euler.Value);
+                go.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(c, 0.25f);
+                Object.Destroy(go.GetComponent<Collider>());
+            }
+
+            switch (_kitId)
+            {
+                case "desert_runner":
+                    Prim(PrimitiveType.Cube, "Scarf", new Vector3(0f, 1.55f, -0.05f), new Vector3(0.55f, 0.12f, 0.35f), accent);
+                    Prim(PrimitiveType.Cube, "ScarfTail", new Vector3(0.12f, 1.25f, -0.28f), new Vector3(0.12f, 0.55f, 0.08f),
+                        Color.Lerp(accent, Color.white, 0.15f), new Vector3(18f, 0f, 12f));
+                    Prim(PrimitiveType.Cube, "BootL", new Vector3(-0.18f, 0.12f, 0.05f), new Vector3(0.22f, 0.18f, 0.32f),
+                        new Color(0.45f, 0.28f, 0.14f));
+                    Prim(PrimitiveType.Cube, "BootR", new Vector3(0.18f, 0.12f, 0.05f), new Vector3(0.22f, 0.18f, 0.32f),
+                        new Color(0.45f, 0.28f, 0.14f));
+                    break;
+                case "ice_wraith":
+                    Prim(PrimitiveType.Cube, "Cloak", new Vector3(0f, 1.15f, -0.22f), new Vector3(0.7f, 0.9f, 0.12f),
+                        Color.Lerp(accent, Color.white, 0.35f));
+                    Prim(PrimitiveType.Sphere, "FrostOrb", new Vector3(0.38f, 1.35f, 0.05f), Vector3.one * 0.18f, accent);
+                    break;
+                case "jungle_ace":
+                    Prim(PrimitiveType.Cube, "ArmWrapL", new Vector3(-0.42f, 1.15f, 0f), new Vector3(0.14f, 0.35f, 0.14f),
+                        new Color(0.35f, 0.5f, 0.28f));
+                    Prim(PrimitiveType.Cube, "ArmWrapR", new Vector3(0.42f, 1.15f, 0f), new Vector3(0.14f, 0.35f, 0.14f),
+                        new Color(0.35f, 0.5f, 0.28f));
+                    Prim(PrimitiveType.Cube, "LeafBand", new Vector3(0f, 1.72f, 0f), new Vector3(0.42f, 0.1f, 0.42f), accent);
+                    break;
+                case "cave_miner":
+                    Prim(PrimitiveType.Cube, "Pack", new Vector3(0f, 1.2f, -0.32f), new Vector3(0.55f, 0.55f, 0.28f),
+                        new Color(0.4f, 0.32f, 0.22f));
+                    Prim(PrimitiveType.Cylinder, "Pick", new Vector3(0.45f, 1.1f, -0.1f), new Vector3(0.08f, 0.55f, 0.08f),
+                        new Color(0.45f, 0.42f, 0.38f), new Vector3(0f, 0f, 35f));
+                    Prim(PrimitiveType.Cube, "Lamp", new Vector3(-0.35f, 1.45f, 0.15f), new Vector3(0.16f, 0.2f, 0.16f),
+                        new Color(1f, 0.85f, 0.4f));
+                    break;
+                case "ember_scout":
+                    Prim(PrimitiveType.Cube, "Sash", new Vector3(0f, 1.05f, 0.05f), new Vector3(0.65f, 0.14f, 0.35f), accent);
+                    Prim(PrimitiveType.Sphere, "Ember", new Vector3(0f, 1.55f, 0.28f), Vector3.one * 0.16f,
+                        new Color(1f, 0.45f, 0.15f));
+                    Prim(PrimitiveType.Cube, "CuffL", new Vector3(-0.38f, 0.55f, 0.05f), new Vector3(0.18f, 0.12f, 0.22f),
+                        new Color(0.25f, 0.15f, 0.12f));
+                    Prim(PrimitiveType.Cube, "CuffR", new Vector3(0.38f, 0.55f, 0.05f), new Vector3(0.18f, 0.12f, 0.22f),
+                        new Color(0.25f, 0.15f, 0.12f));
+                    break;
+                default:
+                    Prim(PrimitiveType.Cube, "Bandana", new Vector3(0f, 1.68f, 0.05f), new Vector3(0.38f, 0.1f, 0.38f), accent);
+                    Prim(PrimitiveType.Cube, "Satchel", new Vector3(0.32f, 1.05f, -0.05f), new Vector3(0.22f, 0.28f, 0.18f),
+                        new Color(0.42f, 0.3f, 0.18f));
+                    break;
+            }
+        }
+
         public void SetPoseFlags(bool sliding, bool jumping)
         {
             if (_anim == null) return;
@@ -1671,25 +1769,76 @@ namespace TempleSprint
                 _model.localPosition = lp;
             }
 
-            bool sliding = PlayerController.Instance != null && PlayerController.Instance.IsSliding;
+            ApplyTraversalPose(running);
+        }
+
+        void ApplyTraversalPose(bool running)
+        {
+            var player = PlayerController.Instance;
+            bool sliding = player != null && player.IsSliding;
+            var mode = player != null ? player.Traversal : TraversalMode.None;
+
+            Vector3 targetPos = Vector3.zero;
+            Quaternion targetRot = Quaternion.identity;
+            float posLerp = 10f;
+            float rotLerp = 8f;
+
             if (sliding)
             {
-                // Dive-crouch pose — keep distinct from jump/run lean.
-                transform.localPosition = Vector3.Lerp(transform.localPosition, new Vector3(0f, -0.42f, 0.35f),
-                    1f - Mathf.Exp(-12f * Time.deltaTime));
-                transform.localRotation = Quaternion.Slerp(transform.localRotation, Quaternion.Euler(62f, 0f, 0f),
-                    1f - Mathf.Exp(-12f * Time.deltaTime));
+                targetPos = new Vector3(0f, -0.42f, 0.35f);
+                targetRot = Quaternion.Euler(62f, 0f, 0f);
+                posLerp = 12f;
+                rotLerp = 12f;
+            }
+            else if (mode == TraversalMode.Zipline)
+            {
+                targetPos = new Vector3(0f, -0.15f, 0.1f);
+                targetRot = Quaternion.Euler(-8f, 0f, _laneLean * -6f);
+                float sway = Mathf.Sin(Time.time * 7f) * 4f;
+                targetRot *= Quaternion.Euler(0f, 0f, sway);
+            }
+            else if (mode == TraversalMode.Swim)
+            {
+                float stroke = Mathf.Sin(Time.time * 8f) * 12f;
+                targetPos = new Vector3(0f, -0.55f, 0.2f);
+                targetRot = Quaternion.Euler(70f + stroke * 0.15f, 0f, stroke * 0.35f);
+                posLerp = 8f;
+            }
+            else if (mode == TraversalMode.WallRun)
+            {
+                float side = player != null && player.Lane >= 2 ? 1f : -1f;
+                targetPos = new Vector3(side * 0.15f, 0.05f, 0f);
+                targetRot = Quaternion.Euler(8f, 0f, side * -55f);
+                posLerp = 14f;
+                rotLerp = 14f;
+            }
+            else if (mode == TraversalMode.LedgeGrab)
+            {
+                targetPos = new Vector3(0f, -0.25f, 0.15f);
+                targetRot = Quaternion.Euler(-25f, 0f, _laneLean * -8f);
+                float hang = Mathf.Sin(Time.time * 5f) * 3f;
+                targetRot *= Quaternion.Euler(hang, 0f, 0f);
+            }
+            else if (mode == TraversalMode.MineCart || mode == TraversalMode.IceSurf || mode == TraversalMode.Boat)
+            {
+                targetPos = new Vector3(0f, 0.05f, 0f);
+                targetRot = Quaternion.Euler(6f, 0f, _laneLean * -8f);
+            }
+            else if (mode == TraversalMode.Rope || mode == TraversalMode.Vine)
+            {
+                targetPos = new Vector3(0f, -0.1f, 0.05f);
+                targetRot = Quaternion.Euler(-15f, 0f, Mathf.Sin(Time.time * 6f) * 10f);
             }
             else
             {
-                transform.localPosition = Vector3.Lerp(transform.localPosition, Vector3.zero,
-                    1f - Mathf.Exp(-10f * Time.deltaTime));
                 float leanZ = _laneLean * -10f;
-                transform.localRotation = Quaternion.Slerp(
-                    transform.localRotation,
-                    Quaternion.Euler(0f, 0f, leanZ),
-                    1f - Mathf.Exp(-8f * Time.deltaTime));
+                targetRot = Quaternion.Euler(running && player != null && player.IsJumping ? -12f : 0f, 0f, leanZ);
             }
+
+            transform.localPosition = Vector3.Lerp(transform.localPosition, targetPos,
+                1f - Mathf.Exp(-posLerp * Time.deltaTime));
+            transform.localRotation = Quaternion.Slerp(transform.localRotation, targetRot,
+                1f - Mathf.Exp(-rotLerp * Time.deltaTime));
         }
 
         float _groundY;
