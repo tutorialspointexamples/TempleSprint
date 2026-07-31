@@ -70,6 +70,12 @@ namespace TempleSprint
                 new Vector2(0f, -36f), new Vector2(220f, 64f), "");
             _hudComboFrame = _hudCombo != null ? _hudCombo.transform.parent.parent.gameObject : null;
             if (_hudComboFrame != null) _hudComboFrame.SetActive(false);
+            _hudGhost = UiFactory.CreateHudPlaque(
+                _hud.transform, "Ghost",
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -110f), new Vector2(280f, 56f), "");
+            _hudGhostFrame = _hudGhost != null ? _hudGhost.transform.parent.parent.gameObject : null;
+            if (_hudGhostFrame != null) _hudGhostFrame.SetActive(false);
             UiFactory.CreateCircleButton(
                 _hud.transform, "Pause", "Ⅱ",
                 new Vector2(1f, 0f), new Vector2(-40f, 40f), 96f,
@@ -228,6 +234,18 @@ namespace TempleSprint
                         var rt = _hudComboFrame.GetComponent<RectTransform>();
                         if (rt != null) rt.localScale = Vector3.one;
                     }
+                }
+
+                if (_hudGhost != null && _hudGhostFrame != null)
+                {
+                    var ghost = GhostRivalRunner.Instance;
+                    if (ghost != null && ghost.IsRacing && !string.IsNullOrEmpty(ghost.HudLabel))
+                    {
+                        _hudGhostFrame.SetActive(true);
+                        _hudGhost.text = ghost.HudLabel;
+                    }
+                    else
+                        _hudGhostFrame.SetActive(false);
                 }
             }
         }

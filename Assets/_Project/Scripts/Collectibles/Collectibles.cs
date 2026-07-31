@@ -91,7 +91,7 @@ namespace TempleSprint
             if (_collected) return;
             _collected = true;
             PowerUpController.Instance?.Activate(Type);
-            AudioHooks.Instance?.PlayPickup();
+            AudioHooks.Instance?.PlayPower();
             gameObject.SetActive(false);
         }
 
@@ -135,7 +135,7 @@ namespace TempleSprint
             if (_collected) return;
             _collected = true;
             RunSession.Instance?.AddGems(1);
-            AudioHooks.Instance?.PlayPickup();
+            AudioHooks.Instance?.PlayGem();
             gameObject.SetActive(false);
         }
 

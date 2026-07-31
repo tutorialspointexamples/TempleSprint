@@ -62,6 +62,9 @@ namespace TempleSprint
         float _wallRunOffset;
         int _wallSide = -1;
         float _ledgeHeight;
+        float _canopyRopeHeight;
+        float _waterfallDiveHeight;
+        float _waterfallPoolDepth;
 
         public bool IsStumbling => _stumbleTimer > 0f;
 
@@ -174,6 +177,9 @@ namespace TempleSprint
             _wallRunOffset = 0f;
             _wallSide = -1;
             _ledgeHeight = 0f;
+            _canopyRopeHeight = 0f;
+            _waterfallDiveHeight = 0f;
+            _waterfallPoolDepth = 0f;
             if (_dunkSteam != null)
             {
                 Destroy(_dunkSteam.gameObject);
@@ -361,6 +367,42 @@ namespace TempleSprint
             ChaseCamera.Instance?.SetTraversalBias(0.4f, 4.5f);
         }
 
+        public void BeginCanopyRope(SpecialStageMarker marker, float rideHeight)
+        {
+            if (marker == null || Traversal != TraversalMode.None) return;
+            Traversal = TraversalMode.CanopyRope;
+            _specialMarker = marker;
+            marker.SetOccupied(true);
+            _canopyRopeHeight = rideHeight;
+            Lane = 1;
+            _laneOffset = 0f;
+            _grounded = false;
+            _verticalVel = 0f;
+            IsSliding = false;
+            RestoreCollider();
+            AudioHooks.Instance?.PlayRopeGrab();
+            ChaseCamera.Instance?.SetTraversalBias(0.55f, 6f);
+        }
+
+        public void BeginWaterfallPlunge(SpecialStageMarker marker, float diveHeight, float poolDepth)
+        {
+            if (marker == null || Traversal != TraversalMode.None) return;
+            Traversal = TraversalMode.WaterfallPlunge;
+            _specialMarker = marker;
+            marker.SetOccupied(true);
+            _waterfallDiveHeight = diveHeight;
+            _waterfallPoolDepth = poolDepth;
+            Lane = 1;
+            _laneOffset = 0f;
+            _grounded = false;
+            _verticalVel = 0f;
+            IsSliding = false;
+            RestoreCollider();
+            EnsureSwimBubbles();
+            AudioHooks.Instance?.PlaySplash();
+            ChaseCamera.Instance?.SetTraversalBias(0.7f, 8f);
+        }
+
         void EnsureSwimBubbles()
         {
             if (_swimBubbles != null) return;
@@ -443,10 +485,19 @@ namespace TempleSprint
                 return;
             }
 
-            if (Traversal == TraversalMode.Zipline)
+            if (Traversal == TraversalMode.Zipline || Traversal == TraversalMode.CanopyRope)
             {
                 if (dir == SwipeDirection.Left) Lane = Mathf.Max(0, Lane - 1);
                 else if (dir == SwipeDirection.Right) Lane = Mathf.Min(LaneCount - 1, Lane + 1);
+                else if (dir == SwipeDirection.Down) TrySlide();
+                return;
+            }
+
+            if (Traversal == TraversalMode.WaterfallPlunge)
+            {
+                if (dir == SwipeDirection.Left) Lane = Mathf.Max(0, Lane - 1);
+                else if (dir == SwipeDirection.Right) Lane = Mathf.Min(LaneCount - 1, Lane + 1);
+                else if (dir == SwipeDirection.Up) TryJump();
                 else if (dir == SwipeDirection.Down) TrySlide();
                 return;
             }
@@ -551,7 +602,7 @@ namespace TempleSprint
                 return;
             }
             if (Traversal != TraversalMode.None && Traversal != TraversalMode.WaterDunk
-                && Traversal != TraversalMode.Swim)
+                && Traversal != TraversalMode.Swim && Traversal != TraversalMode.WaterfallPlunge)
                 return;
             if (Traversal == TraversalMode.Swim) return;
             if (IsSliding) return;
@@ -579,11 +630,14 @@ namespace TempleSprint
         {
             if (Traversal != TraversalMode.None
                 && Traversal != TraversalMode.Zipline
+                && Traversal != TraversalMode.CanopyRope
                 && Traversal != TraversalMode.MineCart
                 && Traversal != TraversalMode.IceSurf
                 && Traversal != TraversalMode.Swim
+                && Traversal != TraversalMode.WaterfallPlunge
                 && Traversal != TraversalMode.WallRun) return;
-            if (!_grounded && Traversal != TraversalMode.Zipline && Traversal != TraversalMode.Swim
+            if (!_grounded && Traversal != TraversalMode.Zipline && Traversal != TraversalMode.CanopyRope
+                && Traversal != TraversalMode.Swim && Traversal != TraversalMode.WaterfallPlunge
                 && Traversal != TraversalMode.WallRun) return;
             IsSliding = true;
             _slideTimer = slideDuration;
@@ -591,6 +645,7 @@ namespace TempleSprint
             _col.center = new Vector3(0f, _col.height * 0.5f, 0f);
             _explorer?.SetPoseFlags(true, false);
             ApplySlideVisual(true);
+            AudioHooks.Instance?.PlaySlide();
         }
 
         void ApplySlideVisual(bool sliding)
@@ -727,9 +782,11 @@ namespace TempleSprint
             float effectiveSpeed = (IsStumbling ? speed * 0.55f : speed) * powerScale * rainFactor;
             if (Traversal == TraversalMode.Boat) effectiveSpeed *= 1.05f;
             if (Traversal == TraversalMode.Zipline) effectiveSpeed *= 1.2f;
+            if (Traversal == TraversalMode.CanopyRope) effectiveSpeed *= 1.15f;
             if (Traversal == TraversalMode.MineCart) effectiveSpeed *= 1.15f;
             if (Traversal == TraversalMode.IceSurf) effectiveSpeed *= 1.28f;
             if (Traversal == TraversalMode.Swim) effectiveSpeed *= 0.88f;
+            if (Traversal == TraversalMode.WaterfallPlunge) effectiveSpeed *= 1.05f;
             if (Traversal == TraversalMode.WallRun) effectiveSpeed *= 1.12f;
             if (Traversal == TraversalMode.LedgeGrab) effectiveSpeed *= 0.82f;
             float dz = effectiveSpeed * Time.deltaTime;
@@ -801,9 +858,17 @@ namespace TempleSprint
             {
                 TickZipline();
             }
+            else if (Traversal == TraversalMode.CanopyRope)
+            {
+                TickCanopyRope();
+            }
             else if (Traversal == TraversalMode.Swim)
             {
                 TickSwim();
+            }
+            else if (Traversal == TraversalMode.WaterfallPlunge)
+            {
+                TickWaterfallPlunge();
             }
             else if (Traversal == TraversalMode.WallRun)
             {
@@ -1288,6 +1353,128 @@ namespace TempleSprint
             ApplyPathPose();
         }
 
+        void TickCanopyRope()
+        {
+            if (_specialMarker == null)
+            {
+                ClearTraversal();
+                ApplyPathPose();
+                return;
+            }
+
+            float local = PathDistance - _specialMarker.PathStartDistance;
+            if (local >= _specialMarker.ChannelEnd - 0.25f)
+            {
+                EndCanopyRope(true);
+                return;
+            }
+
+            var pos = transform.position;
+            float sway = Mathf.Sin(Time.time * 8f) * 0.1f;
+            pos.y = _canopyRopeHeight + sway;
+            transform.position = pos;
+            _grounded = false;
+        }
+
+        void EndCanopyRope(bool success)
+        {
+            if (_specialMarker != null)
+            {
+                if (success)
+                {
+                    PathDistance = Mathf.Max(PathDistance, _specialMarker.PathStartDistance + _specialMarker.ChannelEnd + 0.2f);
+                    _specialMarker.MarkCompleted();
+                }
+                else
+                    _specialMarker.SetOccupied(false);
+            }
+            Traversal = TraversalMode.None;
+            _specialMarker = null;
+            _canopyRopeHeight = 0f;
+            _grounded = true;
+            _verticalVel = 0f;
+            var p = transform.position;
+            p.y = 0f;
+            transform.position = p;
+            ChaseCamera.Instance?.SetTraversalBias(0f, 0f);
+            ApplyPathPose();
+        }
+
+        void TickWaterfallPlunge()
+        {
+            if (_specialMarker == null)
+            {
+                ClearTraversal();
+                ApplyPathPose();
+                return;
+            }
+
+            float local = PathDistance - _specialMarker.PathStartDistance;
+            float start = _specialMarker.ChannelStart;
+            float end = _specialMarker.ChannelEnd;
+            float len = Mathf.Max(0.1f, end - start);
+            float u = Mathf.Clamp01((local - start) / len);
+
+            if (local >= end - 0.25f)
+            {
+                EndWaterfallPlunge(true);
+                return;
+            }
+
+            // Dive from the lip, then settle into the plunge pool.
+            float height;
+            if (u < 0.35f)
+            {
+                float diveT = u / 0.35f;
+                height = Mathf.Lerp(_waterfallDiveHeight, _waterfallPoolDepth, diveT * diveT);
+            }
+            else
+            {
+                float bob = Mathf.Sin(Time.time * 7f) * 0.1f;
+                height = _waterfallPoolDepth + bob;
+            }
+
+            var pos = transform.position;
+            pos.y = height;
+            transform.position = pos;
+            _grounded = false;
+            if (_swimBubbles != null && u >= 0.3f)
+            {
+                float pulse = 0.9f + Mathf.Sin(Time.time * 10f) * 0.2f;
+                _swimBubbles.localScale = Vector3.one * pulse;
+            }
+        }
+
+        void EndWaterfallPlunge(bool success)
+        {
+            if (_specialMarker != null)
+            {
+                if (success)
+                {
+                    PathDistance = Mathf.Max(PathDistance, _specialMarker.PathStartDistance + _specialMarker.ChannelEnd + 0.15f);
+                    _specialMarker.MarkCompleted();
+                }
+                else
+                    _specialMarker.SetOccupied(false);
+            }
+            Traversal = TraversalMode.None;
+            _specialMarker = null;
+            _waterfallDiveHeight = 0f;
+            _waterfallPoolDepth = 0f;
+            if (_swimBubbles != null)
+            {
+                Destroy(_swimBubbles.gameObject);
+                _swimBubbles = null;
+            }
+            _grounded = true;
+            _verticalVel = 0f;
+            var p = transform.position;
+            p.y = 0f;
+            transform.position = p;
+            ChaseCamera.Instance?.SetTraversalBias(0f, 0f);
+            ApplyPathPose();
+        }
+
         float _pathBank;
 
         void ApplyPathPose()
@@ -1380,8 +1567,10 @@ namespace TempleSprint
                     || Traversal == TraversalMode.Vine
                     || Traversal == TraversalMode.WaterDunk
                     || Traversal == TraversalMode.Zipline
+                    || Traversal == TraversalMode.CanopyRope
                     || Traversal == TraversalMode.MineCart
                     || Traversal == TraversalMode.Swim
+                    || Traversal == TraversalMode.WaterfallPlunge
                     || Traversal == TraversalMode.IceSurf
                     || Traversal == TraversalMode.WallRun
                     || Traversal == TraversalMode.LedgeGrab)
@@ -1790,18 +1979,25 @@ namespace TempleSprint
                 posLerp = 12f;
                 rotLerp = 12f;
             }
-            else if (mode == TraversalMode.Zipline)
+            else if (mode == TraversalMode.Zipline || mode == TraversalMode.CanopyRope)
             {
                 targetPos = new Vector3(0f, -0.15f, 0.1f);
                 targetRot = Quaternion.Euler(-8f, 0f, _laneLean * -6f);
                 float sway = Mathf.Sin(Time.time * 7f) * 4f;
                 targetRot *= Quaternion.Euler(0f, 0f, sway);
             }
-            else if (mode == TraversalMode.Swim)
+            else if (mode == TraversalMode.Swim || mode == TraversalMode.WaterfallPlunge)
             {
                 float stroke = Mathf.Sin(Time.time * 8f) * 12f;
-                targetPos = new Vector3(0f, -0.55f, 0.2f);
-                targetRot = Quaternion.Euler(70f + stroke * 0.15f, 0f, stroke * 0.35f);
+                bool diving = mode == TraversalMode.WaterfallPlunge
+                              && player != null
+                              && player.transform.position.y > 1.2f;
+                targetPos = diving
+                    ? new Vector3(0f, -0.1f, 0.15f)
+                    : new Vector3(0f, -0.55f, 0.2f);
+                targetRot = diving
+                    ? Quaternion.Euler(35f + stroke * 0.1f, 0f, stroke * 0.2f)
+                    : Quaternion.Euler(70f + stroke * 0.15f, 0f, stroke * 0.35f);
                 posLerp = 8f;
             }
             else if (mode == TraversalMode.WallRun)

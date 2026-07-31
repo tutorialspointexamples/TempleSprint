@@ -22,7 +22,9 @@ namespace TempleSprint
         Swim = 7,
         IceSurf = 8,
         WallRun = 9,
-        LedgeGrab = 10
+        LedgeGrab = 10,
+        CanopyRope = 11,
+        WaterfallPlunge = 12
     }
 
     /// <summary>Per-tile river crossing metadata; never destroyed while IsOccupied.</summary>

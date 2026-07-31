@@ -19,6 +19,8 @@ namespace TempleSprint
         WallRun,
         LedgeGrab,
         TreeBridge,
+        CanopyRope,
+        WaterfallPlunge,
         TurnLeft,
         TurnRight,
         TJunction
@@ -107,14 +109,16 @@ namespace TempleSprint
 
             if (kind == TileKind.HazardGap || kind == TileKind.RiverCrossing || kind == TileKind.FireCrossing
                 || kind == TileKind.Zipline || kind == TileKind.MineCart || kind == TileKind.IceSurf
-                || kind == TileKind.WallRun || kind == TileKind.LedgeGrab || kind == TileKind.TreeBridge)
+                || kind == TileKind.WallRun || kind == TileKind.LedgeGrab || kind == TileKind.TreeBridge
+                || kind == TileKind.CanopyRope || kind == TileKind.WaterfallPlunge)
             {
                 if (kind == TileKind.HazardGap)
                     BuildFloorWithGap();
                 else if (kind == TileKind.FireCrossing)
                     BuildFloorWithFireChannel();
                 else if (kind == TileKind.Zipline || kind == TileKind.MineCart || kind == TileKind.IceSurf
-                         || kind == TileKind.WallRun || kind == TileKind.LedgeGrab || kind == TileKind.TreeBridge)
+                         || kind == TileKind.WallRun || kind == TileKind.LedgeGrab || kind == TileKind.TreeBridge
+                         || kind == TileKind.CanopyRope || kind == TileKind.WaterfallPlunge)
                     BuildFloorWithSpecialChannel();
                 else
                     BuildFloorWithRiverChannel();
@@ -133,8 +137,10 @@ namespace TempleSprint
             else if (kind == TileKind.FireCrossing)
                 BuildForestEdgeForFire();
             else if (kind == TileKind.Zipline || kind == TileKind.WallRun || kind == TileKind.LedgeGrab
-                     || kind == TileKind.TreeBridge)
+                     || kind == TileKind.TreeBridge || kind == TileKind.CanopyRope)
                 BuildForestEdgeForSpecial();
+            else if (kind == TileKind.WaterfallPlunge)
+                BuildForestEdgeForRiver();
             else if (kind == TileKind.MineCart)
                 BuildCaveTunnelShell();
             else if (kind == TileKind.IceSurf)
@@ -204,6 +210,12 @@ namespace TempleSprint
                     break;
                 case TileKind.TreeBridge:
                     BuildTreeBridgeStage();
+                    break;
+                case TileKind.CanopyRope:
+                    BuildCanopyRopeStage();
+                    break;
+                case TileKind.WaterfallPlunge:
+                    BuildWaterfallPlungeStage();
                     break;
             }
         }
@@ -2521,6 +2533,169 @@ namespace TempleSprint
             CollectibleCoin.Create(transform, new Vector3(sx, 1.2f, channelEnd - 0.7f));
             if (_runDifficulty != RunDifficulty.Easy && Random.value < 0.4f)
                 GemPickup.Create(transform, new Vector3(sx, 1.35f, mid + 1f));
+        }
+
+        void BuildCanopyRopeStage()
+        {
+            GetSpecialChannel(out float channelStart, out float channelEnd, out float channelLen);
+            float mid = (channelStart + channelEnd) * 0.5f;
+
+            var marker = gameObject.AddComponent<SpecialStageMarker>();
+            marker.Configure(SpecialStageKind.CanopyRope, channelStart, channelEnd, PathStartDistance, _runDifficulty);
+
+            var voidBed = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            voidBed.name = "CanopyVoid";
+            voidBed.transform.SetParent(transform, false);
+            voidBed.transform.localPosition = new Vector3(0f, ForestFloorY - 1.4f, mid);
+            voidBed.transform.localScale = new Vector3(ForestOuter * 2f + DeckWidth, 2f, channelLen + 2f);
+            voidBed.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.08f, 0.14f, 0.1f), 0.15f);
+            StripCollider(voidBed);
+
+            for (int lane = 0; lane < 3; lane++)
+                GapKillZone.Create(transform, mid, lane, channelLen, "Fell from the canopy rope");
+
+            // Twin canopy trunks + thick rope.
+            for (int side = 0; side < 2; side++)
+            {
+                float z = side == 0 ? channelStart : channelEnd;
+                var trunk = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                trunk.transform.SetParent(transform, false);
+                trunk.transform.localPosition = new Vector3(0f, 2.4f, z);
+                trunk.transform.localScale = new Vector3(0.55f, 2.5f, 0.55f);
+                trunk.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+                StripCollider(trunk);
+
+                var crown = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                crown.transform.SetParent(transform, false);
+                crown.transform.localPosition = new Vector3(0f, 4.6f, z);
+                crown.transform.localScale = Vector3.one * 2.2f;
+                crown.GetComponent<Renderer>().sharedMaterial = BiomeSystem.FoliageMat;
+                StripCollider(crown);
+            }
+
+            var rope = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            rope.name = "CanopyRope";
+            rope.transform.SetParent(transform, false);
+            rope.transform.localPosition = new Vector3(0f, 3.55f, mid);
+            rope.transform.localScale = new Vector3(0.12f, 0.12f, channelLen);
+            rope.GetComponent<Renderer>().sharedMaterial = JunglePalette.Rope;
+            StripCollider(rope);
+
+            // Hanging vine fringe for a denser canopy read.
+            int vines = _runDifficulty == RunDifficulty.Easy ? 3 : 5;
+            for (int i = 0; i < vines; i++)
+            {
+                float z = Mathf.Lerp(channelStart + 0.8f, channelEnd - 0.8f, (i + 0.5f) / vines);
+                float x = ((i % 3) - 1) * 0.7f;
+                var vine = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                vine.transform.SetParent(transform, false);
+                vine.transform.localPosition = new Vector3(x, 2.6f, z);
+                vine.transform.localScale = new Vector3(0.08f, 0.9f + (i % 2) * 0.35f, 0.08f);
+                vine.GetComponent<Renderer>().sharedMaterial = JunglePalette.FoliageDark;
+                StripCollider(vine);
+            }
+
+            var mountGo = new GameObject("CanopyRopeMount");
+            mountGo.transform.SetParent(transform, false);
+            mountGo.transform.localPosition = new Vector3(0f, 1.2f, channelStart + 0.25f);
+            var mountCol = mountGo.AddComponent<BoxCollider>();
+            mountCol.isTrigger = true;
+            mountCol.size = new Vector3(DeckWidth + 0.6f, 3f, 1.8f);
+            var mount = mountGo.AddComponent<CanopyRopeMount>();
+            mount.Marker = marker;
+            mount.RideHeight = 2.35f;
+
+            int beams = _runDifficulty == RunDifficulty.Easy ? 1 : _runDifficulty == RunDifficulty.Hard ? 3 : 2;
+            for (int i = 0; i < beams; i++)
+            {
+                float z = Mathf.Lerp(channelStart + 1.5f, channelEnd - 1.5f, (i + 1f) / (beams + 1f));
+                Obstacle.CreateLowBeam(transform, z, 1);
+            }
+
+            CollectibleCoin.Create(transform, new Vector3(0f, 2.6f, channelStart + 1f));
+            CollectibleCoin.Create(transform, new Vector3(0f, 2.7f, mid));
+            CollectibleCoin.Create(transform, new Vector3(0f, 2.6f, channelEnd - 0.8f));
+            if (_runDifficulty != RunDifficulty.Easy && Random.value < 0.35f)
+                GemPickup.Create(transform, new Vector3(0f, 2.9f, mid + 0.6f));
+        }
+
+        void BuildWaterfallPlungeStage()
+        {
+            GetSpecialChannel(out float channelStart, out float channelEnd, out float channelLen);
+            float mid = (channelStart + channelEnd) * 0.5f;
+
+            var marker = gameObject.AddComponent<SpecialStageMarker>();
+            marker.Configure(SpecialStageKind.WaterfallPlunge, channelStart, channelEnd, PathStartDistance, _runDifficulty);
+
+            // Plunge pool under the sheet.
+            var pool = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            pool.name = "PlungePool";
+            pool.transform.SetParent(transform, false);
+            pool.transform.localPosition = new Vector3(0f, ForestFloorY + 0.15f, mid);
+            pool.transform.localScale = new Vector3(ForestOuter * 1.6f + DeckWidth, 0.35f, channelLen + 1.5f);
+            pool.GetComponent<Renderer>().sharedMaterial = JunglePalette.Water;
+            StripCollider(pool);
+            pool.AddComponent<RiverSurfaceScroll>();
+
+            for (int lane = 0; lane < 3; lane++)
+                GapKillZone.Create(transform, mid, lane, channelLen, "Swept over the waterfall");
+
+            // Tall cascading sheets framing the plunge curtain.
+            float sheetZ = channelStart + channelLen * 0.35f;
+            SpawnWaterfall(transform, new Vector3(-DeckWidth * 0.55f, ForestFloorY, sheetZ), 5.5f, -1);
+            SpawnWaterfall(transform, new Vector3(DeckWidth * 0.55f, ForestFloorY, sheetZ), 5.5f, 1);
+
+            var sheet = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            sheet.name = "WaterfallSheet";
+            sheet.transform.SetParent(transform, false);
+            sheet.transform.localPosition = new Vector3(0f, 2.4f, channelStart + channelLen * 0.32f);
+            sheet.transform.localScale = new Vector3(DeckWidth + 1.8f, 4.6f, 0.55f);
+            sheet.GetComponent<Renderer>().sharedMaterial = JunglePalette.Water;
+            StripCollider(sheet);
+            sheet.AddComponent<RiverSurfaceScroll>();
+
+            // Plunge foam + mist.
+            var foam = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            foam.name = "PlungeFoam";
+            foam.transform.SetParent(transform, false);
+            foam.transform.localPosition = new Vector3(0f, 0.35f, mid);
+            foam.transform.localScale = new Vector3(DeckWidth + 2.5f, 0.25f, channelLen * 0.55f);
+            foam.GetComponent<Renderer>().sharedMaterial = JunglePalette.Foam;
+            StripCollider(foam);
+
+            var mist = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            mist.name = "PlungeMist";
+            mist.transform.SetParent(transform, false);
+            mist.transform.localPosition = new Vector3(0f, 1.4f, mid);
+            mist.transform.localScale = new Vector3(DeckWidth + 3f, 1.8f, channelLen * 0.7f);
+            mist.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.7f, 0.85f, 0.9f, 0.28f), 0.05f);
+            StripCollider(mist);
+
+            var mountGo = new GameObject("WaterfallPlungeMount");
+            mountGo.transform.SetParent(transform, false);
+            mountGo.transform.localPosition = new Vector3(0f, 1.4f, channelStart + 0.2f);
+            var mountCol = mountGo.AddComponent<BoxCollider>();
+            mountCol.isTrigger = true;
+            mountCol.size = new Vector3(DeckWidth + 0.8f, 3.5f, 2f);
+            var mount = mountGo.AddComponent<WaterfallPlungeMount>();
+            mount.Marker = marker;
+            mount.DiveHeight = 3.6f;
+            mount.PoolDepth = -0.35f;
+
+            // Surface rocks after the plunge require a late jump/lane weave.
+            int rocks = _runDifficulty == RunDifficulty.Easy ? 1 : 2;
+            for (int i = 0; i < rocks; i++)
+            {
+                float z = Mathf.Lerp(mid + 0.5f, channelEnd - 1f, (i + 1f) / (rocks + 1f));
+                int lane = (i + (_runDifficulty == RunDifficulty.Hard ? 0 : 1)) % 3;
+                Obstacle.CreateBoatDebris(transform, z, lane);
+            }
+
+            CollectibleCoin.Create(transform, new Vector3(0f, 3.2f, channelStart + 0.8f));
+            CollectibleCoin.Create(transform, new Vector3(0f, 0.9f, mid));
+            CollectibleCoin.Create(transform, new Vector3(0f, 1.1f, channelEnd - 0.7f));
+            if (Random.value < 0.45f)
+                GemPickup.Create(transform, new Vector3(PlayerController.LaneWidth, 1.2f, mid + 0.8f));
         }
     }
 }

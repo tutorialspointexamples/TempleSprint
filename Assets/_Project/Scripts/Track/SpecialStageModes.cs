@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace TempleSprint
 {
-    /// <summary>Cliff zipline, cave mine-cart, icy surf, and parkour special stages.</summary>
+    /// <summary>Cliff zipline, cave mine-cart, icy surf, parkour, canopy, and waterfall stages.</summary>
     public enum SpecialStageKind
     {
         Zipline = 0,
@@ -10,7 +10,9 @@ namespace TempleSprint
         IceSurf = 2,
         WallRun = 3,
         LedgeGrab = 4,
-        TreeBridge = 5
+        TreeBridge = 5,
+        CanopyRope = 6,
+        WaterfallPlunge = 7
     }
 
     public class SpecialStageMarker : MonoBehaviour
@@ -268,6 +270,51 @@ namespace TempleSprint
             if (player == null || player.Traversal != TraversalMode.None) return;
             _used = true;
             player.BeginLedgeGrab(Marker, LedgeHeight);
+        }
+    }
+
+    /// <summary>Auto-grab canopy rope swing across the jungle void.</summary>
+    public class CanopyRopeMount : MonoBehaviour
+    {
+        public SpecialStageMarker Marker;
+        public float RideHeight = 2.35f;
+        bool _used;
+
+        void OnDisable() => _used = false;
+
+        void OnTriggerEnter(Collider other)
+        {
+            if (_used || Marker == null) return;
+            if (other.GetComponent<PlayerController>() == null
+                && other.GetComponentInParent<PlayerController>() == null)
+                return;
+            var player = PlayerController.Instance;
+            if (player == null || player.Traversal != TraversalMode.None) return;
+            _used = true;
+            player.BeginCanopyRope(Marker, RideHeight);
+        }
+    }
+
+    /// <summary>Auto-trigger waterfall plunge into the pool below.</summary>
+    public class WaterfallPlungeMount : MonoBehaviour
+    {
+        public SpecialStageMarker Marker;
+        public float DiveHeight = 3.6f;
+        public float PoolDepth = -0.35f;
+        bool _used;
+
+        void OnDisable() => _used = false;
+
+        void OnTriggerEnter(Collider other)
+        {
+            if (_used || Marker == null) return;
+            if (other.GetComponent<PlayerController>() == null
+                && other.GetComponentInParent<PlayerController>() == null)
+                return;
+            var player = PlayerController.Instance;
+            if (player == null || player.Traversal != TraversalMode.None) return;
+            _used = true;
+            player.BeginWaterfallPlunge(Marker, DiveHeight, PoolDepth);
         }
     }
 }
