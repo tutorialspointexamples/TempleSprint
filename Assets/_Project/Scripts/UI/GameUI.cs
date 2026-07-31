@@ -9,10 +9,12 @@ namespace TempleSprint
 
         Canvas _canvas;
         GameObject _boot, _menu, _hud, _post, _upgrade, _locker, _shop, _missions, _settings, _info, _tutorial;
-        Text _menuCurrency, _hudScore, _hudCoins, _hudPower, _postSummary, _infoBody, _tutorialText, _upgradeInfo, _missionBody;
+        Text _menuCurrency, _hudScore, _hudCoins, _hudPower, _hudCombo, _postSummary, _infoBody, _tutorialText, _upgradeInfo, _missionBody;
+        GameObject _hudComboFrame;
         Button _btnReviveAd, _btnReviveGem;
         bool _bootDone, _starterQueued;
         float _bootTimer = 0.45f;
+        float _comboPulse;
 
         void Awake()
         {
@@ -62,6 +64,12 @@ namespace TempleSprint
                 _hud.transform, "Power",
                 new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(36f, -36f), new Vector2(200f, 88f), "");
+            _hudCombo = UiFactory.CreateHudPlaque(
+                _hud.transform, "Combo",
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -36f), new Vector2(220f, 64f), "");
+            _hudComboFrame = _hudCombo != null ? _hudCombo.transform.parent.parent.gameObject : null;
+            if (_hudComboFrame != null) _hudComboFrame.SetActive(false);
             UiFactory.CreateCircleButton(
                 _hud.transform, "Pause", "Ⅱ",
                 new Vector2(1f, 0f), new Vector2(-40f, 40f), 96f,
@@ -196,7 +204,40 @@ namespace TempleSprint
                 if (PowerUpController.Instance != null && PowerUpController.Instance.EnergyReady)
                     power = "READY · " + power;
                 _hudPower.text = string.IsNullOrEmpty(power) ? diff : power;
+
+                if (_hudCombo != null && _hudComboFrame != null)
+                {
+                    int combo = RunSession.Instance.Combo;
+                    if (combo > 0)
+                    {
+                        _hudComboFrame.SetActive(true);
+                        _hudCombo.text = $"COMBO x{RunSession.Instance.ComboMultiplier:0.0}";
+                        var rt = _hudComboFrame.GetComponent<RectTransform>();
+                        if (_comboPulse > 0f)
+                        {
+                            _comboPulse -= Time.unscaledDeltaTime;
+                            float s = 1f + _comboPulse * 0.35f;
+                            if (rt != null) rt.localScale = new Vector3(s, s, 1f);
+                        }
+                        else if (rt != null)
+                            rt.localScale = Vector3.one;
+                    }
+                    else
+                    {
+                        _hudComboFrame.SetActive(false);
+                        var rt = _hudComboFrame.GetComponent<RectTransform>();
+                        if (rt != null) rt.localScale = Vector3.one;
+                    }
+                }
             }
+        }
+
+        public void PulseCombo(int combo, float mult)
+        {
+            if (_hudCombo == null || _hudComboFrame == null) return;
+            _comboPulse = 0.35f;
+            _hudComboFrame.SetActive(combo > 0);
+            _hudCombo.text = $"COMBO x{mult:0.0}";
         }
 
         public void QueueStarterPackOffer() => _starterQueued = true;
