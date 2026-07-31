@@ -29,13 +29,14 @@ In Unity: wait for compile → press the Editor **Play** button → click **PLAY
 
 ## Controls
 
-WASD / arrows — lanes, jump, slide. Space — equipped power-up (needs full energy). Mouse drag — swipe. Coins fill the power meter.
+WASD / arrows — lanes, jump (air hop), slide. Space — equipped power-up (needs full energy). Mouse drag — swipe. Coins fill the power meter.
 
 ## Biomes & stages
 
 Jungle Ruins, Desert Tombs, Ice Caverns, Cave Mines, Volcanic Crater — each with distinct fog, ground, mist, textured path/stone, and roadside props.
-Turns are banked quarter-circle curves (not sharp L corners). Special crossings: river (boat/rope/jump/swim + shore foam), fire (jump/vine/dunk), zipline, mine cart, ice surf, wall run, ledge grab.
-Chase pack: Idol Beast with carved idol plate. Relics are multi-part idols.
+Turns are banked quarter-circle curves (not sharp L corners). Special crossings: river (boat/rope/jump/swim + shore foam), fire (jump/vine/dunk), zipline, mine cart, ice surf, wall run, ledge grab, jungle tree bridge.
+Chase pack: Idol Beast with carved idol plate; rolling boulders in cave/volcano/desert. Near-misses build a combo score multiplier.
+Characters have original silhouette kits + traversal poses (swim, zipline hang, wall lean, ledge hang). Relics and gems are multi-part idols.
 Locker: original characters, hats & pets (with pet passives), plus rotating seasonal cosmetics.
 Live ops: weekly event biome bias, artifact hunt, mission claims. HUD uses carved stone-tablet plaques.
 

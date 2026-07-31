@@ -18,6 +18,7 @@ namespace TempleSprint
         IceSurf,
         WallRun,
         LedgeGrab,
+        TreeBridge,
         TurnLeft,
         TurnRight,
         TJunction
@@ -106,14 +107,14 @@ namespace TempleSprint
 
             if (kind == TileKind.HazardGap || kind == TileKind.RiverCrossing || kind == TileKind.FireCrossing
                 || kind == TileKind.Zipline || kind == TileKind.MineCart || kind == TileKind.IceSurf
-                || kind == TileKind.WallRun || kind == TileKind.LedgeGrab)
+                || kind == TileKind.WallRun || kind == TileKind.LedgeGrab || kind == TileKind.TreeBridge)
             {
                 if (kind == TileKind.HazardGap)
                     BuildFloorWithGap();
                 else if (kind == TileKind.FireCrossing)
                     BuildFloorWithFireChannel();
                 else if (kind == TileKind.Zipline || kind == TileKind.MineCart || kind == TileKind.IceSurf
-                         || kind == TileKind.WallRun || kind == TileKind.LedgeGrab)
+                         || kind == TileKind.WallRun || kind == TileKind.LedgeGrab || kind == TileKind.TreeBridge)
                     BuildFloorWithSpecialChannel();
                 else
                     BuildFloorWithRiverChannel();
@@ -131,7 +132,8 @@ namespace TempleSprint
                 BuildForestEdgeForRiver();
             else if (kind == TileKind.FireCrossing)
                 BuildForestEdgeForFire();
-            else if (kind == TileKind.Zipline || kind == TileKind.WallRun || kind == TileKind.LedgeGrab)
+            else if (kind == TileKind.Zipline || kind == TileKind.WallRun || kind == TileKind.LedgeGrab
+                     || kind == TileKind.TreeBridge)
                 BuildForestEdgeForSpecial();
             else if (kind == TileKind.MineCart)
                 BuildCaveTunnelShell();
@@ -199,6 +201,9 @@ namespace TempleSprint
                     break;
                 case TileKind.LedgeGrab:
                     BuildLedgeGrabStage();
+                    break;
+                case TileKind.TreeBridge:
+                    BuildTreeBridgeStage();
                     break;
             }
         }
@@ -1858,12 +1863,25 @@ namespace TempleSprint
 
         void SpawnDynamic(int tier)
         {
-            int roll = Random.Range(0, _runDifficulty == RunDifficulty.Easy ? 2 : 5);
+            // Cave / volcano bias rolling boulders.
+            bool boulderBiome = BiomeSystem.Current == BiomeId.CaveMines
+                                || BiomeSystem.Current == BiomeId.VolcanicCrater
+                                || BiomeSystem.Current == BiomeId.DesertTombs;
+            if (boulderBiome && Random.value < (_runDifficulty == RunDifficulty.Easy ? 0.28f : 0.42f))
+            {
+                DynamicHazard.CreateRollingBoulder(transform, Length * 0.85f, Random.Range(0, 3));
+                if (_runDifficulty == RunDifficulty.Hard && Random.value < 0.3f)
+                    DynamicHazard.CreateRollingBoulder(transform, Length * 0.95f, Random.Range(0, 3));
+                return;
+            }
+
+            int roll = Random.Range(0, _runDifficulty == RunDifficulty.Easy ? 3 : 6);
             if (roll == 0) DynamicHazard.CreatePendulum(transform, Length * 0.5f, 1);
             else if (roll == 1) DynamicHazard.CreateArrow(transform, Length * 0.3f, Random.Range(0, 3));
             else if (roll == 2) DynamicHazard.CreateGate(transform, Length * 0.55f);
             else if (roll == 3) Obstacle.CreateBlockingWall(transform, Length * 0.55f);
-            else DynamicHazard.CreateCrumbling(transform, Length * 0.5f, Random.Range(0, 3));
+            else if (roll == 4) DynamicHazard.CreateCrumbling(transform, Length * 0.5f, Random.Range(0, 3));
+            else DynamicHazard.CreateRollingBoulder(transform, Length * 0.88f, Random.Range(0, 3));
 
             if (_runDifficulty == RunDifficulty.Hard && tier >= 2 && Random.value < 0.35f)
                 Obstacle.CreateSpike(transform, Length * 0.75f, Random.Range(0, 3));
@@ -2408,6 +2426,101 @@ namespace TempleSprint
             CollectibleCoin.Create(transform, new Vector3(xs[2], 2.5f, zs[2]));
             if (_runDifficulty != RunDifficulty.Easy && Random.value < 0.35f)
                 RelicPickup.Create(transform, new Vector3(0f, 2.6f, mid));
+        }
+
+        void BuildTreeBridgeStage()
+        {
+            GetSpecialChannel(out float channelStart, out float channelEnd, out float channelLen);
+            float mid = (channelStart + channelEnd) * 0.5f;
+
+            var marker = gameObject.AddComponent<SpecialStageMarker>();
+            marker.Configure(SpecialStageKind.TreeBridge, channelStart, channelEnd, PathStartDistance, _runDifficulty);
+
+            var voidBed = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            voidBed.name = "TreeBridgeVoid";
+            voidBed.transform.SetParent(transform, false);
+            voidBed.transform.localPosition = new Vector3(0f, ForestFloorY - 1.3f, mid);
+            voidBed.transform.localScale = new Vector3(ForestOuter * 1.7f + DeckWidth, 2f, channelLen + 1.8f);
+            voidBed.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.1f, 0.16f, 0.1f), 0.15f);
+            StripCollider(voidBed);
+
+            // Mist under the canopy crossing.
+            var mist = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            mist.name = "CanopyMist";
+            mist.transform.SetParent(transform, false);
+            mist.transform.localPosition = new Vector3(0f, ForestFloorY + 0.6f, mid);
+            mist.transform.localScale = new Vector3(DeckWidth + 6f, 0.4f, channelLen * 0.9f);
+            mist.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.55f, 0.7f, 0.5f, 0.35f), 0.1f);
+            StripCollider(mist);
+
+            int safeLaneA = Random.Range(0, 3);
+            int safeLaneB = _runDifficulty == RunDifficulty.Hard ? safeLaneA : (safeLaneA + 1 + Random.Range(0, 2)) % 3;
+
+            for (int lane = 0; lane < 3; lane++)
+            {
+                bool safe = lane == safeLaneA || lane == safeLaneB;
+                if (!safe)
+                {
+                    GapKillZone.Create(transform, mid, lane, channelLen, "Fell from the tree bridge");
+                    continue;
+                }
+
+                // Multi-log causeway segments.
+                int segs = _runDifficulty == RunDifficulty.Easy ? 3 : 4;
+                for (int s = 0; s < segs; s++)
+                {
+                    float z = Mathf.Lerp(channelStart + 0.6f, channelEnd - 0.6f, (s + 0.5f) / segs);
+                    float x = (lane - 1) * PlayerController.LaneWidth;
+                    var log = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                    log.name = "BridgeLog";
+                    log.transform.SetParent(transform, false);
+                    log.transform.localPosition = new Vector3(x, 0.28f, z);
+                    log.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+                    log.transform.localScale = new Vector3(0.55f, 0.95f, 0.55f);
+                    log.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+                    StripCollider(log);
+
+                    var plank = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    plank.transform.SetParent(transform, false);
+                    plank.transform.localPosition = new Vector3(x, 0.12f, z);
+                    plank.transform.localScale = new Vector3(1.55f, 0.18f, channelLen / segs * 0.85f);
+                    plank.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.45f, 0.32f, 0.18f), 0.25f);
+                    StripCollider(plank);
+
+                    // Hard: some mid segments crumble underfoot.
+                    if (_runDifficulty == RunDifficulty.Hard && s > 0 && s < segs - 1 && Random.value < 0.35f)
+                        Obstacle.CreateCollapsingBridge(transform, z, lane);
+                }
+            }
+
+            // Support trunks at the banks.
+            for (int side = 0; side < 2; side++)
+            {
+                float z = side == 0 ? channelStart : channelEnd;
+                for (int i = -1; i <= 1; i++)
+                {
+                    var trunk = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                    trunk.transform.SetParent(transform, false);
+                    trunk.transform.localPosition = new Vector3(i * 1.4f, 1.1f, z);
+                    trunk.transform.localScale = new Vector3(0.45f, 1.2f, 0.45f);
+                    trunk.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+                    StripCollider(trunk);
+                }
+            }
+
+            int vines = _runDifficulty == RunDifficulty.Easy ? 1 : 2;
+            for (int i = 0; i < vines; i++)
+            {
+                float z = Mathf.Lerp(channelStart + 1.2f, channelEnd - 1.2f, (i + 1f) / (vines + 1f));
+                Obstacle.CreateLowBeam(transform, z, safeLaneA);
+            }
+
+            float sx = (safeLaneA - 1) * PlayerController.LaneWidth;
+            CollectibleCoin.Create(transform, new Vector3(sx, 1.2f, channelStart + 0.9f));
+            CollectibleCoin.Create(transform, new Vector3(sx, 1.25f, mid));
+            CollectibleCoin.Create(transform, new Vector3(sx, 1.2f, channelEnd - 0.7f));
+            if (_runDifficulty != RunDifficulty.Easy && Random.value < 0.4f)
+                GemPickup.Create(transform, new Vector3(sx, 1.35f, mid + 1f));
         }
     }
 }

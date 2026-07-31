@@ -23,6 +23,7 @@ namespace TempleSprint
         int _tilesSinceIceSurf;
         int _tilesSinceWallRun;
         int _tilesSinceLedgeGrab;
+        int _tilesSinceTreeBridge;
         int _defaultBranchFlip;
         Transform _poolRoot;
         Transform _activeRoot;
@@ -48,6 +49,7 @@ namespace TempleSprint
         public int IceSurfsSpawnedThisRun { get; private set; }
         public int WallRunsSpawnedThisRun { get; private set; }
         public int LedgeGrabsSpawnedThisRun { get; private set; }
+        public int TreeBridgesSpawnedThisRun { get; private set; }
 
         void Awake()
         {
@@ -84,6 +86,7 @@ namespace TempleSprint
             _tilesSinceIceSurf = 99;
             _tilesSinceWallRun = 99;
             _tilesSinceLedgeGrab = 99;
+            _tilesSinceTreeBridge = 99;
             _awaitingJunctionChoice = false;
             _pendingJunction = null;
             TurnsSpawnedThisRun = 0;
@@ -96,6 +99,7 @@ namespace TempleSprint
             IceSurfsSpawnedThisRun = 0;
             WallRunsSpawnedThisRun = 0;
             LedgeGrabsSpawnedThisRun = 0;
+            TreeBridgesSpawnedThisRun = 0;
             _lastRiverMode = RiverCrossingMode.Jump;
             _lastFireMode = FireCrossingMode.Jump;
             for (int i = 0; i < preloadCount; i++)
@@ -264,6 +268,14 @@ namespace TempleSprint
             }
             else
                 _tilesSinceLedgeGrab++;
+
+            if (kind == TileKind.TreeBridge)
+            {
+                _tilesSinceTreeBridge = 0;
+                TreeBridgesSpawnedThisRun++;
+            }
+            else
+                _tilesSinceTreeBridge++;
 
             if (tile.IsJunction && !tile.JunctionResolved)
             {
@@ -454,7 +466,9 @@ namespace TempleSprint
                 if (index == 23) return TileKind.WallRun;
                 if (index == 24) return TileKind.Straight;
                 if (index == 25) return TileKind.LedgeGrab;
-                if (index < 26) return TileKind.Straight;
+                if (index == 26) return TileKind.Straight;
+                if (index == 27) return TileKind.TreeBridge;
+                if (index < 28) return TileKind.Straight;
             }
 
             // Mutual one-tile buffer: turns and hazards never adjacent.
@@ -476,6 +490,8 @@ namespace TempleSprint
                 : _difficulty == RunDifficulty.Hard ? 12 : 15) / Mathf.Max(0.75f, BiomeSystem.WallRunBias));
             int ledgeEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 19
                 : _difficulty == RunDifficulty.Hard ? 12 : 16) / Mathf.Max(0.75f, BiomeSystem.LedgeGrabBias));
+            int treeEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 16
+                : _difficulty == RunDifficulty.Hard ? 11 : 13) / Mathf.Max(0.75f, BiomeSystem.TreeBridgeBias));
 
             bool riverDue = allowHazard && _tilesSinceRiver >= riverEvery && index >= 5;
             bool fireDue = allowHazard && _tilesSinceFire >= fireEvery && index >= 5;
@@ -484,9 +500,10 @@ namespace TempleSprint
             bool iceDue = allowHazard && _tilesSinceIceSurf >= iceEvery && index >= 6;
             bool wallDue = allowHazard && _tilesSinceWallRun >= wallEvery && index >= 7;
             bool ledgeDue = allowHazard && _tilesSinceLedgeGrab >= ledgeEvery && index >= 7;
+            bool treeDue = allowHazard && _tilesSinceTreeBridge >= treeEvery && index >= 7;
 
             // Prefer the most overdue special stage when several are due.
-            if (riverDue || fireDue || zipDue || cartDue || iceDue || wallDue || ledgeDue)
+            if (riverDue || fireDue || zipDue || cartDue || iceDue || wallDue || ledgeDue || treeDue)
             {
                 float best = -1f;
                 TileKind pick = TileKind.Straight;
@@ -503,6 +520,7 @@ namespace TempleSprint
                 Consider(iceDue, _tilesSinceIceSurf, iceEvery, TileKind.IceSurf);
                 Consider(wallDue, _tilesSinceWallRun, wallEvery, TileKind.WallRun);
                 Consider(ledgeDue, _tilesSinceLedgeGrab, ledgeEvery, TileKind.LedgeGrab);
+                Consider(treeDue, _tilesSinceTreeBridge, treeEvery, TileKind.TreeBridge);
                 if (pick != TileKind.Straight) return pick;
             }
 

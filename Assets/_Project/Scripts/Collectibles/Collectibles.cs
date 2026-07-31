@@ -141,14 +141,38 @@ namespace TempleSprint
 
         public static GemPickup Create(Transform parent, Vector3 localPos)
         {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            go.name = "Gem";
-            go.transform.SetParent(parent, false);
-            go.transform.localPosition = localPos;
-            go.transform.localScale = Vector3.one * 0.55f;
-            go.GetComponent<Renderer>().sharedMaterial = JunglePalette.Accent;
-            go.GetComponent<Collider>().isTrigger = true;
-            return go.AddComponent<GemPickup>();
+            var root = new GameObject("GemIdol");
+            root.transform.SetParent(parent, false);
+            root.transform.localPosition = localPos;
+
+            var crystal = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            crystal.name = "Crystal";
+            crystal.transform.SetParent(root.transform, false);
+            crystal.transform.localRotation = Quaternion.Euler(45f, 35f, 20f);
+            crystal.transform.localScale = new Vector3(0.38f, 0.55f, 0.38f);
+            crystal.GetComponent<Renderer>().sharedMaterial = JunglePalette.Accent;
+            Object.Destroy(crystal.GetComponent<Collider>());
+
+            var tip = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            tip.transform.SetParent(root.transform, false);
+            tip.transform.localPosition = new Vector3(0f, 0.32f, 0f);
+            tip.transform.localRotation = Quaternion.Euler(45f, 0f, 45f);
+            tip.transform.localScale = new Vector3(0.22f, 0.22f, 0.22f);
+            tip.GetComponent<Renderer>().sharedMaterial = JunglePalette.GoldBright;
+            Object.Destroy(tip.GetComponent<Collider>());
+
+            var glow = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            glow.transform.SetParent(root.transform, false);
+            glow.transform.localScale = Vector3.one * 0.7f;
+            var gr = glow.GetComponent<Renderer>();
+            gr.sharedMaterial = JunglePalette.Accent;
+            gr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            Object.Destroy(glow.GetComponent<Collider>());
+
+            var col = root.AddComponent<SphereCollider>();
+            col.isTrigger = true;
+            col.radius = 0.6f;
+            return root.AddComponent<GemPickup>();
         }
     }
 

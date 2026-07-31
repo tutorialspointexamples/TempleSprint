@@ -87,6 +87,10 @@ namespace TempleSprint
         public static float LedgeGrabBias =>
             (Current == BiomeId.DesertTombs || Current == BiomeId.JungleRuins ? 1.5f
                 : Current == BiomeId.IceCaverns ? 1.2f : 0.85f) * EventService.EventStageBias(Current);
+        public static float TreeBridgeBias =>
+            (Current == BiomeId.JungleRuins ? 1.85f
+                : Current == BiomeId.DesertTombs ? 1.15f
+                : Current == BiomeId.CaveMines ? 0.7f : 0.9f) * EventService.EventStageBias(Current);
 
         public static Material PathMat => BiomePalette.Path(Current);
         public static Material StoneMat => BiomePalette.Stone(Current);

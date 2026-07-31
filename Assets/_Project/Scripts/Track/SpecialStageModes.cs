@@ -9,7 +9,8 @@ namespace TempleSprint
         MineCart = 1,
         IceSurf = 2,
         WallRun = 3,
-        LedgeGrab = 4
+        LedgeGrab = 4,
+        TreeBridge = 5
     }
 
     public class SpecialStageMarker : MonoBehaviour

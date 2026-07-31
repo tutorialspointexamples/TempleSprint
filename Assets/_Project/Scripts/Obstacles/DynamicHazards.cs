@@ -4,7 +4,7 @@ namespace TempleSprint
 {
     public class DynamicHazard : MonoBehaviour
     {
-        public enum Kind { Pendulum, CrumblingFloor, ArrowTrap, ClosingGate, CollapsingBridge }
+        public enum Kind { Pendulum, CrumblingFloor, ArrowTrap, ClosingGate, CollapsingBridge, RollingBoulder }
 
         public Kind HazardKind;
         public bool RequiresJump;
@@ -52,6 +52,29 @@ namespace TempleSprint
                         transform.localPosition += Vector3.down * (4f * Time.deltaTime);
                     }
                     break;
+                case Kind.RollingBoulder:
+                    // Rolls toward the runner along the tile (negative local Z).
+                    transform.localPosition += Vector3.back * (7.5f * Time.deltaTime);
+                    transform.Rotate(420f * Time.deltaTime, 0f, 0f, Space.Self);
+                    if (transform.localPosition.z < -2f) gameObject.SetActive(false);
+                    TryBoulderNearMiss();
+                    break;
+            }
+        }
+
+        void TryBoulderNearMiss()
+        {
+            var player = PlayerController.Instance;
+            if (player == null || RunSession.Instance == null || !RunSession.Instance.IsAlive) return;
+            float dx = Mathf.Abs(transform.position.x - player.transform.position.x);
+            float dz = Vector3.Dot(transform.position - player.transform.position,
+                Quaternion.Euler(0f, player.FacingYaw, 0f) * Vector3.forward);
+            // Same corridor, adjacent lane dodge counted as near-miss once.
+            if (!_triggered && dz > -1.2f && dz < 2.2f && dx > 1.1f && dx < 3.2f)
+            {
+                _triggered = true;
+                RunSession.Instance.RegisterNearMiss();
+                ChaseCamera.Instance?.PunchFov(1.4f);
             }
         }
 
@@ -137,6 +160,38 @@ namespace TempleSprint
             var trigger = go.AddComponent<CrumbleTrigger>();
             trigger.lane = lane;
             trigger.localZ = localZ;
+            return h;
+        }
+
+        public static DynamicHazard CreateRollingBoulder(Transform parent, float localZ, int lane)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            go.name = "RollingBoulder";
+            go.transform.SetParent(parent, false);
+            float x = (lane - 1) * PlayerController.LaneWidth;
+            go.transform.localPosition = new Vector3(x, 0.85f, localZ);
+            go.transform.localScale = Vector3.one * 1.55f;
+            go.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.42f, 0.36f, 0.3f), 0.2f);
+            go.GetComponent<Collider>().isTrigger = true;
+
+            // Cracks for silhouette readability (colorblind-safe shape cue: big sphere).
+            for (int i = 0; i < 3; i++)
+            {
+                var crack = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                crack.transform.SetParent(go.transform, false);
+                crack.transform.localPosition = new Vector3(
+                    Mathf.Cos(i * 2.1f) * 0.15f, Mathf.Sin(i * 1.7f) * 0.15f, 0.42f);
+                crack.transform.localScale = new Vector3(0.55f, 0.06f, 0.08f);
+                crack.transform.localRotation = Quaternion.Euler(0f, 0f, i * 40f);
+                crack.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
+                Object.Destroy(crack.GetComponent<Collider>());
+            }
+
+            var h = go.AddComponent<DynamicHazard>();
+            h.HazardKind = Kind.RollingBoulder;
+            h.DeathMessage = "Crushed by a rolling boulder";
+            var obs = go.AddComponent<Obstacle>();
+            obs.DeathMessage = h.DeathMessage;
             return h;
         }
     }
