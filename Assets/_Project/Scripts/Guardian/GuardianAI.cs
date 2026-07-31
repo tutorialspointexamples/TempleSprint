@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace TempleSprint
 {
-    /// <summary>Rubber-band Demon Monkey pack — hunched gallop chase.</summary>
+    /// <summary>Rubber-band Idol Beast pack — hunched gallop chase.</summary>
     public class GuardianAI : MonoBehaviour
     {
         public static GuardianAI Instance { get; private set; }
@@ -24,7 +24,7 @@ namespace TempleSprint
 
         void BuildVisual()
         {
-            var root = new GameObject("DemonPack").transform;
+            var root = new GameObject("IdolBeastPack").transform;
             root.SetParent(transform, false);
             _pack = new Transform[3];
             _phase = new float[3];
@@ -32,14 +32,14 @@ namespace TempleSprint
             float[] zOff = { -0.55f, 0.4f, -0.7f };
             for (int i = 0; i < 3; i++)
             {
-                _pack[i] = BuildMonkey(root, new Vector3(xOff[i], 0f, zOff[i]), i == 1 ? 1.2f : 1.0f);
+                _pack[i] = BuildBeast(root, new Vector3(xOff[i], 0f, zOff[i]), i == 1 ? 1.2f : 1.0f);
                 _phase[i] = i * 0.7f;
             }
         }
 
-        static Transform BuildMonkey(Transform parent, Vector3 localPos, float scale)
+        static Transform BuildBeast(Transform parent, Vector3 localPos, float scale)
         {
-            var root = new GameObject("DemonMonkey").transform;
+            var root = new GameObject("IdolBeast").transform;
             root.SetParent(parent, false);
             root.localPosition = localPos;
             root.localScale = Vector3.one * scale;
@@ -185,7 +185,7 @@ namespace TempleSprint
             }
 
             if (_gap <= catchDistance)
-                RunSession.Instance.EndRun("Caught by Demon Monkeys");
+                RunSession.Instance.EndRun("Caught by the Idol Beast");
         }
 
         void OnDestroy()

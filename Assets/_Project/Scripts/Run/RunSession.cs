@@ -76,6 +76,7 @@ namespace TempleSprint
             int gained = Mathf.Max(1, Mathf.RoundToInt(amount * mult));
             CoinsThisRun += gained;
             Score += gained * 10;
+            PowerUpController.Instance?.AddEnergyFromCoins(gained);
         }
 
         public void AddGems(int amount)
