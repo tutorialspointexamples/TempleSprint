@@ -137,14 +137,15 @@ namespace TempleSprint
 
     public static class EventService
     {
+        public static int WeekIndex => DateTime.UtcNow.DayOfYear / 7;
+
         public static string CurrentEventName
         {
             get
             {
                 var cfg = RemoteConfigService.GetString("event_name", "");
                 if (!string.IsNullOrEmpty(cfg)) return cfg;
-                int week = DateTime.UtcNow.DayOfYear / 7;
-                return (week % 3) switch
+                return (WeekIndex % 3) switch
                 {
                     0 => "Jungle Festival",
                     1 => "Desert Gold Rush",
@@ -153,10 +154,101 @@ namespace TempleSprint
             }
         }
 
-        public static float EventCoinBonus => RemoteConfigService.GetFloat("event_coin_bonus", 1.1f);
+        /// <summary>Weekly event biases a biome look + stage mix without replacing unlock progression.</summary>
+        public static BiomeId FeaturedBiome => (WeekIndex % 3) switch
+        {
+            0 => BiomeId.JungleRuins,
+            1 => BiomeId.DesertTombs,
+            _ => BiomeId.IceCaverns
+        };
+
+        public static float EventCoinBonus => RemoteConfigService.GetFloat("event_coin_bonus", 1.15f);
+
+        public static float EventStageBias(BiomeId id) =>
+            id == FeaturedBiome ? 1.25f : 1f;
+
+        public static string SeasonalLockerBlurb()
+        {
+            var ids = CosmeticRoster.FeaturedSeasonalIds;
+            string a = CosmeticRoster.GetHat(ids[0]).displayName;
+            string b = CosmeticRoster.GetPet(ids[1]).displayName;
+            return $"Seasonal locker: {a} + {b} (discounted this week)";
+        }
 
         public static string Status() =>
-            $"Live Event: {CurrentEventName}\nCoin bonus x{EventCoinBonus:0.00}\nEvent leaderboard resets weekly.";
+            $"Live Event: {CurrentEventName}\nFeatured biome: {BiomeSystem.DisplayName(FeaturedBiome)}\n" +
+            $"Coin bonus x{EventCoinBonus:0.00}\n{SeasonalLockerBlurb()}\n" +
+            ArtifactHuntSystem.Status() + "\nEvent leaderboard resets weekly.";
+    }
+
+    /// <summary>Weekly global artifact hunt — gather relics/distance toward a shared-style personal goal.</summary>
+    public static class ArtifactHuntSystem
+    {
+        public static int WeekSeed => DateTime.UtcNow.Year * 100 + EventService.WeekIndex;
+
+        public static string ArtifactName => (EventService.WeekIndex % 3) switch
+        {
+            0 => "Jade Serpent Idol",
+            1 => "Sunstone Scarab",
+            _ => "Frozen Heart Reliquary"
+        };
+
+        public static int RelicTarget => 3 + (EventService.WeekIndex % 3);
+        public static int DistanceTarget => 800 + (EventService.WeekIndex % 4) * 200;
+
+        public static void EnsureWeek()
+        {
+            var meta = MetaProgress.Ensure();
+            var m = meta.Data;
+            if (m.artifactWeekSeed == WeekSeed) return;
+            m.artifactWeekSeed = WeekSeed;
+            m.artifactRelics = 0;
+            m.artifactDistance = 0f;
+            m.artifactClaimed = false;
+            meta.Save();
+        }
+
+        public static void ReportRun(RunEndPayload p)
+        {
+            if (p == null) return;
+            EnsureWeek();
+            var meta = MetaProgress.Ensure();
+            meta.Data.artifactRelics += Mathf.Max(0, p.relicsEarned);
+            meta.Data.artifactDistance += Mathf.Max(0f, p.distance);
+            meta.Save();
+        }
+
+        public static bool IsComplete
+        {
+            get
+            {
+                EnsureWeek();
+                var m = MetaProgress.Ensure().Data;
+                return m.artifactRelics >= RelicTarget && m.artifactDistance >= DistanceTarget;
+            }
+        }
+
+        public static bool TryClaim()
+        {
+            EnsureWeek();
+            var meta = MetaProgress.Ensure();
+            if (meta.Data.artifactClaimed || !IsComplete) return false;
+            meta.Data.artifactClaimed = true;
+            meta.BankCoins(120);
+            meta.AddGems(4);
+            meta.AddRelics(1);
+            AchievementSystem.Unlock("artifact_hunt");
+            return true;
+        }
+
+        public static string Status()
+        {
+            EnsureWeek();
+            var m = MetaProgress.Ensure().Data;
+            string claim = m.artifactClaimed ? " (claimed)" : IsComplete ? " — READY" : "";
+            return $"Artifact Hunt: {ArtifactName}{claim}\n" +
+                   $"Relics {m.artifactRelics}/{RelicTarget} · Distance {m.artifactDistance:0}/{DistanceTarget}m";
+        }
     }
 
     public static class BattlePassService

@@ -51,6 +51,17 @@ namespace TempleSprint
         float _dunkSafeTimer;
         Transform _dunkSteam;
 
+        SpecialStageMarker _specialMarker;
+        MineCartRide _mineCartRide;
+        IceBoardRide _iceBoardRide;
+        float _ziplineHeight;
+        float _swimDepth;
+        Transform _swimBubbles;
+        float _wallRunHeight;
+        float _wallRunOffset;
+        int _wallSide = -1;
+        float _ledgeHeight;
+
         public bool IsStumbling => _stumbleTimer > 0f;
 
         void Awake()
@@ -140,6 +151,7 @@ namespace TempleSprint
         {
             if (_riverMarker != null) _riverMarker.SetOccupied(false);
             if (_fireMarker != null) _fireMarker.SetOccupied(false);
+            if (_specialMarker != null) _specialMarker.SetOccupied(false);
             Traversal = TraversalMode.None;
             _riverMarker = null;
             _boatRide = null;
@@ -149,10 +161,24 @@ namespace TempleSprint
             _fireMarker = null;
             _vineSwing = null;
             _dunkSafeTimer = 0f;
+            _specialMarker = null;
+            _mineCartRide = null;
+            _iceBoardRide = null;
+            _ziplineHeight = 0f;
+            _swimDepth = 0f;
+            _wallRunHeight = 0f;
+            _wallRunOffset = 0f;
+            _wallSide = -1;
+            _ledgeHeight = 0f;
             if (_dunkSteam != null)
             {
                 Destroy(_dunkSteam.gameObject);
                 _dunkSteam = null;
+            }
+            if (_swimBubbles != null)
+            {
+                Destroy(_swimBubbles.gameObject);
+                _swimBubbles = null;
             }
             ChaseCamera.Instance?.SetTraversalBias(0f, 0f);
         }
@@ -228,6 +254,129 @@ namespace TempleSprint
             ChaseCamera.Instance?.SetTraversalBias(0.25f, 3f);
         }
 
+        public void BeginZipline(SpecialStageMarker marker, float rideHeight)
+        {
+            if (marker == null || Traversal != TraversalMode.None) return;
+            Traversal = TraversalMode.Zipline;
+            _specialMarker = marker;
+            marker.SetOccupied(true);
+            _ziplineHeight = rideHeight;
+            Lane = 1;
+            _laneOffset = 0f;
+            _grounded = false;
+            _verticalVel = 0f;
+            IsSliding = false;
+            RestoreCollider();
+            AudioHooks.Instance?.PlayRopeGrab();
+            ChaseCamera.Instance?.SetTraversalBias(0.65f, 7f);
+        }
+
+        public void BeginMineCart(SpecialStageMarker marker, MineCartRide ride)
+        {
+            if (marker == null || ride == null || Traversal != TraversalMode.None) return;
+            Traversal = TraversalMode.MineCart;
+            _specialMarker = marker;
+            _mineCartRide = ride;
+            marker.SetOccupied(true);
+            Lane = 1;
+            _laneOffset = 0f;
+            _grounded = true;
+            _verticalVel = 0f;
+            IsSliding = false;
+            RestoreCollider();
+            AudioHooks.Instance?.PlayBoatMount();
+            ChaseCamera.Instance?.SetTraversalBias(0.4f, 5f);
+        }
+
+        public void BeginSwim(RiverCrossingMarker marker, float swimDepth)
+        {
+            if (marker == null || Traversal != TraversalMode.None) return;
+            Traversal = TraversalMode.Swim;
+            _riverMarker = marker;
+            marker.SetOccupied(true);
+            _swimDepth = swimDepth;
+            _grounded = false;
+            _verticalVel = 0f;
+            IsSliding = false;
+            RestoreCollider();
+            EnsureSwimBubbles();
+            AudioHooks.Instance?.PlaySplash();
+            ChaseCamera.Instance?.SetTraversalBias(0.35f, 4f);
+        }
+
+        public void BeginIceSurf(SpecialStageMarker marker, IceBoardRide ride)
+        {
+            if (marker == null || ride == null || Traversal != TraversalMode.None) return;
+            Traversal = TraversalMode.IceSurf;
+            _specialMarker = marker;
+            _iceBoardRide = ride;
+            marker.SetOccupied(true);
+            Lane = 1;
+            _laneOffset = 0f;
+            _grounded = true;
+            _verticalVel = 0f;
+            IsSliding = false;
+            RestoreCollider();
+            AudioHooks.Instance?.PlayBoatMount();
+            ChaseCamera.Instance?.SetTraversalBias(0.5f, 6f);
+        }
+
+        public void BeginWallRun(SpecialStageMarker marker, float wallHeight, float wallOffset)
+        {
+            if (marker == null || Traversal != TraversalMode.None) return;
+            Traversal = TraversalMode.WallRun;
+            _specialMarker = marker;
+            marker.SetOccupied(true);
+            _wallRunHeight = wallHeight;
+            _wallRunOffset = wallOffset;
+            _wallSide = Lane <= 1 ? -1 : 1;
+            Lane = _wallSide < 0 ? 0 : 2;
+            _laneOffset = _wallSide * _wallRunOffset;
+            _grounded = false;
+            _verticalVel = 0f;
+            IsSliding = false;
+            RestoreCollider();
+            AudioHooks.Instance?.PlayJump();
+            ChaseCamera.Instance?.SetTraversalBias(0.45f, 5f);
+        }
+
+        public void BeginLedgeGrab(SpecialStageMarker marker, float ledgeHeight)
+        {
+            if (marker == null || Traversal != TraversalMode.None) return;
+            Traversal = TraversalMode.LedgeGrab;
+            _specialMarker = marker;
+            marker.SetOccupied(true);
+            _ledgeHeight = ledgeHeight;
+            Lane = 1;
+            _laneOffset = 0f;
+            _grounded = false;
+            _verticalVel = 0f;
+            IsSliding = false;
+            RestoreCollider();
+            AudioHooks.Instance?.PlayRopeGrab();
+            ChaseCamera.Instance?.SetTraversalBias(0.4f, 4.5f);
+        }
+
+        void EnsureSwimBubbles()
+        {
+            if (_swimBubbles != null) return;
+            var go = new GameObject("SwimBubbles");
+            go.transform.SetParent(transform, false);
+            go.transform.localPosition = new Vector3(0f, 0.4f, 0f);
+            _swimBubbles = go.transform;
+            for (int i = 0; i < 4; i++)
+            {
+                var puff = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                puff.transform.SetParent(_swimBubbles, false);
+                puff.transform.localPosition = new Vector3(
+                    Random.Range(-0.3f, 0.3f), 0.2f + i * 0.25f, Random.Range(-0.15f, 0.15f));
+                float s = Random.Range(0.2f, 0.4f);
+                puff.transform.localScale = new Vector3(s, s, s);
+                puff.GetComponent<Renderer>().sharedMaterial = JunglePalette.Foam;
+                Object.Destroy(puff.GetComponent<Collider>());
+            }
+        }
+
         void EnsureDunkSteam()
         {
             if (_dunkSteam != null) return;
@@ -279,18 +428,65 @@ namespace TempleSprint
                 return;
             }
 
-            if (Traversal == TraversalMode.Boat)
+            if (Traversal == TraversalMode.Boat || Traversal == TraversalMode.MineCart
+                || Traversal == TraversalMode.IceSurf)
             {
                 if (dir == SwipeDirection.Left) Lane = Mathf.Max(0, Lane - 1);
                 else if (dir == SwipeDirection.Right) Lane = Mathf.Min(LaneCount - 1, Lane + 1);
+                else if ((Traversal == TraversalMode.MineCart || Traversal == TraversalMode.IceSurf)
+                         && dir == SwipeDirection.Down)
+                    TrySlide();
                 return;
             }
 
-            if (Traversal == TraversalMode.WaterDunk)
+            if (Traversal == TraversalMode.Zipline)
             {
                 if (dir == SwipeDirection.Left) Lane = Mathf.Max(0, Lane - 1);
                 else if (dir == SwipeDirection.Right) Lane = Mathf.Min(LaneCount - 1, Lane + 1);
+                else if (dir == SwipeDirection.Down) TrySlide();
+                return;
+            }
+
+            if (Traversal == TraversalMode.WallRun)
+            {
+                if (dir == SwipeDirection.Left)
+                {
+                    _wallSide = -1;
+                    Lane = 0;
+                }
+                else if (dir == SwipeDirection.Right)
+                {
+                    _wallSide = 1;
+                    Lane = 2;
+                }
+                else if (dir == SwipeDirection.Down) TrySlide();
                 else if (dir == SwipeDirection.Up) TryJump();
+                return;
+            }
+
+            if (Traversal == TraversalMode.LedgeGrab)
+            {
+                if (dir == SwipeDirection.Left) Lane = Mathf.Max(0, Lane - 1);
+                else if (dir == SwipeDirection.Right) Lane = Mathf.Min(LaneCount - 1, Lane + 1);
+                else if (dir == SwipeDirection.Up)
+                {
+                    // Vault early onto the far bank if past mid-channel.
+                    if (_specialMarker != null)
+                    {
+                        float local = PathDistance - _specialMarker.PathStartDistance;
+                        float mid = (_specialMarker.ChannelStart + _specialMarker.ChannelEnd) * 0.5f;
+                        if (local >= mid) EndLedgeGrab(true);
+                    }
+                }
+                return;
+            }
+
+            if (Traversal == TraversalMode.WaterDunk || Traversal == TraversalMode.Swim)
+            {
+                if (dir == SwipeDirection.Left) Lane = Mathf.Max(0, Lane - 1);
+                else if (dir == SwipeDirection.Right) Lane = Mathf.Min(LaneCount - 1, Lane + 1);
+                else if (dir == SwipeDirection.Up && Traversal == TraversalMode.WaterDunk) TryJump();
+                else if (dir == SwipeDirection.Down && Traversal == TraversalMode.Swim) TrySlide();
                 return;
             }
 
@@ -341,7 +537,19 @@ namespace TempleSprint
 
         void TryJump()
         {
-            if (Traversal != TraversalMode.None && Traversal != TraversalMode.WaterDunk) return;
+            if (Traversal == TraversalMode.WallRun)
+            {
+                // Hop to the opposite wall face.
+                _wallSide = -_wallSide;
+                Lane = _wallSide < 0 ? 0 : 2;
+                AudioHooks.Instance?.PlayJump();
+                _explorer?.TriggerJump();
+                return;
+            }
+            if (Traversal != TraversalMode.None && Traversal != TraversalMode.WaterDunk
+                && Traversal != TraversalMode.Swim)
+                return;
+            if (Traversal == TraversalMode.Swim) return;
             if (!_grounded || IsSliding) return;
             _grounded = false;
             _verticalVel = jumpVelocity;
@@ -351,8 +559,14 @@ namespace TempleSprint
 
         void TrySlide()
         {
-            if (Traversal != TraversalMode.None) return;
-            if (!_grounded) return;
+            if (Traversal != TraversalMode.None
+                && Traversal != TraversalMode.Zipline
+                && Traversal != TraversalMode.MineCart
+                && Traversal != TraversalMode.IceSurf
+                && Traversal != TraversalMode.Swim
+                && Traversal != TraversalMode.WallRun) return;
+            if (!_grounded && Traversal != TraversalMode.Zipline && Traversal != TraversalMode.Swim
+                && Traversal != TraversalMode.WallRun) return;
             IsSliding = true;
             _slideTimer = slideDuration;
             _col.height = _baseColHeight * 0.45f;
@@ -477,10 +691,21 @@ namespace TempleSprint
             float rainFactor = EnvironmentEffects.Instance != null && EnvironmentEffects.Instance.RainActive ? 0.88f : 1f;
             float effectiveSpeed = (IsStumbling ? speed * 0.55f : speed) * powerScale * rainFactor;
             if (Traversal == TraversalMode.Boat) effectiveSpeed *= 1.05f;
+            if (Traversal == TraversalMode.Zipline) effectiveSpeed *= 1.2f;
+            if (Traversal == TraversalMode.MineCart) effectiveSpeed *= 1.15f;
+            if (Traversal == TraversalMode.IceSurf) effectiveSpeed *= 1.28f;
+            if (Traversal == TraversalMode.Swim) effectiveSpeed *= 0.88f;
+            if (Traversal == TraversalMode.WallRun) effectiveSpeed *= 1.12f;
+            if (Traversal == TraversalMode.LedgeGrab) effectiveSpeed *= 0.82f;
             float dz = effectiveSpeed * Time.deltaTime;
 
             float targetLane = (Lane - 1) * LaneWidth;
-            if (Traversal != TraversalMode.Rope && Traversal != TraversalMode.Vine)
+            if (Traversal == TraversalMode.WallRun)
+            {
+                float wallTarget = _wallSide * _wallRunOffset;
+                _laneOffset = Mathf.Lerp(_laneOffset, wallTarget, 1f - Mathf.Exp(-16f * Time.deltaTime));
+            }
+            else if (Traversal != TraversalMode.Rope && Traversal != TraversalMode.Vine)
             {
                 if (SwipeInput.Instance != null && SwipeInput.Instance.TiltEnabled && Traversal == TraversalMode.None)
                 {
@@ -516,6 +741,42 @@ namespace TempleSprint
                 _grounded = true;
                 if (_boatRide != null && _boatRide.ReachedFarBank(this))
                     EndBoatRide();
+            }
+            else if (Traversal == TraversalMode.MineCart)
+            {
+                _mineCartRide?.SyncToPlayer(this);
+                var p = transform.position;
+                p.y = _mineCartRide != null ? _mineCartRide.DeckHeight : 0.55f;
+                transform.position = p;
+                _grounded = true;
+                if (_mineCartRide != null && _mineCartRide.ReachedFarBank(this))
+                    EndMineCartRide();
+            }
+            else if (Traversal == TraversalMode.IceSurf)
+            {
+                _iceBoardRide?.SyncToPlayer(this);
+                var p = transform.position;
+                p.y = _iceBoardRide != null ? _iceBoardRide.DeckHeight : 0.28f;
+                transform.position = p;
+                _grounded = true;
+                if (_iceBoardRide != null && _iceBoardRide.ReachedFarBank(this))
+                    EndIceSurf();
+            }
+            else if (Traversal == TraversalMode.Zipline)
+            {
+                TickZipline();
+            }
+            else if (Traversal == TraversalMode.Swim)
+            {
+                TickSwim();
+            }
+            else if (Traversal == TraversalMode.WallRun)
+            {
+                TickWallRun();
+            }
+            else if (Traversal == TraversalMode.LedgeGrab)
+            {
+                TickLedgeGrab();
             }
             else if (Traversal == TraversalMode.WaterDunk)
             {
@@ -739,6 +1000,252 @@ namespace TempleSprint
             ApplyPathPose();
         }
 
+        void TickZipline()
+        {
+            if (_specialMarker == null)
+            {
+                ClearTraversal();
+                ApplyPathPose();
+                return;
+            }
+
+            float local = PathDistance - _specialMarker.PathStartDistance;
+            if (local >= _specialMarker.ChannelEnd - 0.25f)
+            {
+                EndZipline(true);
+                return;
+            }
+
+            var pos = transform.position;
+            pos.y = _ziplineHeight;
+            transform.position = pos;
+            _grounded = false;
+        }
+
+        void EndZipline(bool success)
+        {
+            if (_specialMarker != null)
+            {
+                if (success)
+                {
+                    PathDistance = Mathf.Max(PathDistance, _specialMarker.PathStartDistance + _specialMarker.ChannelEnd + 0.2f);
+                    _specialMarker.MarkCompleted();
+                }
+                else
+                    _specialMarker.SetOccupied(false);
+            }
+            Traversal = TraversalMode.None;
+            _specialMarker = null;
+            _ziplineHeight = 0f;
+            _grounded = true;
+            _verticalVel = 0f;
+            var p = transform.position;
+            p.y = 0f;
+            transform.position = p;
+            ChaseCamera.Instance?.SetTraversalBias(0f, 0f);
+            ApplyPathPose();
+        }
+
+        void EndMineCartRide()
+        {
+            if (_specialMarker != null)
+            {
+                PathDistance = Mathf.Max(PathDistance, _specialMarker.PathStartDistance + _specialMarker.ChannelEnd + 0.15f);
+                _specialMarker.MarkCompleted();
+            }
+            Traversal = TraversalMode.None;
+            _mineCartRide = null;
+            _specialMarker = null;
+            _grounded = true;
+            var p = transform.position;
+            p.y = 0f;
+            transform.position = p;
+            ChaseCamera.Instance?.SetTraversalBias(0f, 0f);
+            ApplyPathPose();
+        }
+
+        void TickSwim()
+        {
+            if (_riverMarker == null)
+            {
+                ClearTraversal();
+                ApplyPathPose();
+                return;
+            }
+
+            float local = PathDistance - _riverMarker.PathStartDistance;
+            if (local >= _riverMarker.ChannelEnd - 0.25f)
+            {
+                EndSwim(true);
+                return;
+            }
+
+            var pos = transform.position;
+            float bob = Mathf.Sin(Time.time * 7f) * 0.12f;
+            pos.y = _swimDepth + bob;
+            transform.position = pos;
+            _grounded = false;
+            if (_swimBubbles != null)
+            {
+                float pulse = 0.9f + Mathf.Sin(Time.time * 9f) * 0.15f;
+                _swimBubbles.localScale = Vector3.one * pulse;
+            }
+        }
+
+        void EndSwim(bool success)
+        {
+            if (_riverMarker != null)
+            {
+                if (success)
+                {
+                    PathDistance = Mathf.Max(PathDistance, _riverMarker.PathStartDistance + _riverMarker.ChannelEnd + 0.15f);
+                    _riverMarker.MarkCompleted();
+                }
+                else
+                    _riverMarker.SetOccupied(false);
+            }
+            Traversal = TraversalMode.None;
+            _riverMarker = null;
+            _swimDepth = 0f;
+            if (_swimBubbles != null)
+            {
+                Destroy(_swimBubbles.gameObject);
+                _swimBubbles = null;
+            }
+            _grounded = true;
+            _verticalVel = 0f;
+            var p = transform.position;
+            p.y = 0f;
+            transform.position = p;
+            ChaseCamera.Instance?.SetTraversalBias(0f, 0f);
+            ApplyPathPose();
+        }
+
+        void EndIceSurf()
+        {
+            if (_specialMarker != null)
+            {
+                PathDistance = Mathf.Max(PathDistance, _specialMarker.PathStartDistance + _specialMarker.ChannelEnd + 0.15f);
+                _specialMarker.MarkCompleted();
+            }
+            Traversal = TraversalMode.None;
+            _iceBoardRide = null;
+            _specialMarker = null;
+            _grounded = true;
+            var p = transform.position;
+            p.y = 0f;
+            transform.position = p;
+            ChaseCamera.Instance?.SetTraversalBias(0f, 0f);
+            ApplyPathPose();
+        }
+
+        void TickWallRun()
+        {
+            if (_specialMarker == null)
+            {
+                ClearTraversal();
+                ApplyPathPose();
+                return;
+            }
+
+            float local = PathDistance - _specialMarker.PathStartDistance;
+            if (local >= _specialMarker.ChannelEnd - 0.25f)
+            {
+                EndWallRun(true);
+                return;
+            }
+
+            var pos = transform.position;
+            float bob = Mathf.Sin(Time.time * 14f) * 0.06f;
+            pos.y = _wallRunHeight + bob;
+            transform.position = pos;
+            _grounded = false;
+            // Lean into the wall for silhouette readability.
+            if (Visual != null)
+            {
+                float lean = _wallSide * -18f;
+                Visual.localRotation = Quaternion.Euler(0f, 0f, lean);
+            }
+        }
+
+        void EndWallRun(bool success)
+        {
+            if (_specialMarker != null)
+            {
+                if (success)
+                {
+                    PathDistance = Mathf.Max(PathDistance, _specialMarker.PathStartDistance + _specialMarker.ChannelEnd + 0.2f);
+                    _specialMarker.MarkCompleted();
+                }
+                else
+                    _specialMarker.SetOccupied(false);
+            }
+            Traversal = TraversalMode.None;
+            _specialMarker = null;
+            _wallRunHeight = 0f;
+            _wallRunOffset = 0f;
+            _wallSide = -1;
+            _grounded = true;
+            _verticalVel = 0f;
+            if (Visual != null) Visual.localRotation = Quaternion.identity;
+            var p = transform.position;
+            p.y = 0f;
+            transform.position = p;
+            Lane = 1;
+            ChaseCamera.Instance?.SetTraversalBias(0f, 0f);
+            ApplyPathPose();
+        }
+
+        void TickLedgeGrab()
+        {
+            if (_specialMarker == null)
+            {
+                ClearTraversal();
+                ApplyPathPose();
+                return;
+            }
+
+            float local = PathDistance - _specialMarker.PathStartDistance;
+            if (local >= _specialMarker.ChannelEnd - 0.25f)
+            {
+                EndLedgeGrab(true);
+                return;
+            }
+
+            var pos = transform.position;
+            float sway = Mathf.Sin(Time.time * 5f) * 0.08f;
+            pos.y = _ledgeHeight + sway;
+            transform.position = pos;
+            _grounded = false;
+            if (Visual != null)
+                Visual.localRotation = Quaternion.Euler(-12f, 0f, 0f);
+        }
+
+        void EndLedgeGrab(bool success)
+        {
+            if (_specialMarker != null)
+            {
+                if (success)
+                {
+                    PathDistance = Mathf.Max(PathDistance, _specialMarker.PathStartDistance + _specialMarker.ChannelEnd + 0.2f);
+                    _specialMarker.MarkCompleted();
+                }
+                else
+                    _specialMarker.SetOccupied(false);
+            }
+            Traversal = TraversalMode.None;
+            _specialMarker = null;
+            _ledgeHeight = 0f;
+            _grounded = true;
+            _verticalVel = 0f;
+            if (Visual != null) Visual.localRotation = Quaternion.identity;
+            var p = transform.position;
+            p.y = 0f;
+            transform.position = p;
+            ChaseCamera.Instance?.SetTraversalBias(0f, 0f);
+            ApplyPathPose();
+        }
+
         void ApplyPathPose()
         {
             PathPose pose = new PathPose(transform.position, FacingYaw, PathDistance);
@@ -822,7 +1329,13 @@ namespace TempleSprint
                 if (Traversal == TraversalMode.Boat
                     || Traversal == TraversalMode.Rope
                     || Traversal == TraversalMode.Vine
-                    || Traversal == TraversalMode.WaterDunk)
+                    || Traversal == TraversalMode.WaterDunk
+                    || Traversal == TraversalMode.Zipline
+                    || Traversal == TraversalMode.MineCart
+                    || Traversal == TraversalMode.Swim
+                    || Traversal == TraversalMode.IceSurf
+                    || Traversal == TraversalMode.WallRun
+                    || Traversal == TraversalMode.LedgeGrab)
                     return;
                 if (PowerUpController.Instance != null && PowerUpController.Instance.TryAbsorbHit()) return;
                 if (IsJumping && transform.position.y > 0.4f) return;
@@ -838,6 +1351,7 @@ namespace TempleSprint
             if (_explorer == null) return;
             var c = CharacterRoster.GetSelected();
             _explorer.SetAccentColor(c.color);
+            CosmeticRoster.ApplyToRunner(_explorer.transform);
         }
 
         void OnDestroy()
@@ -1058,7 +1572,16 @@ namespace TempleSprint
             BodyHeight = b.size.y;
         }
 
-        public void SetAccentColor(Color _) { }
+        public void SetAccentColor(Color accent)
+        {
+            // Soft roster tint on the runtime skin (locker character identity).
+            var mat = GetRuntimeSkin();
+            if (mat == null) return;
+            Color tint = Color.Lerp(new Color(1f, 0.92f, 0.75f, 1f), accent, 0.45f);
+            mat.color = tint;
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", tint);
+            ForceVisibleRenderers();
+        }
 
         public void SetPoseFlags(bool sliding, bool jumping)
         {

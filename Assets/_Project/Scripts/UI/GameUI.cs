@@ -89,15 +89,18 @@ namespace TempleSprint
             _upgrade = Panel("Upgrades", new Color(0.07f, 0.12f, 0.1f, 0.82f));
             Title(_upgrade, "UPGRADES", 44, 0.82f, 0.96f);
             _upgradeInfo = Sub(_upgrade, "", 22, 0.55f, 0.8f);
-            Btn(_upgrade, "MAGNET RADIUS", new Vector2(0, 40), () => { MetaProgress.Ensure().TryBuyMagnet(); RefreshUpgrade(); });
-            Btn(_upgrade, "COIN MULTIPLIER", new Vector2(0, -50), () => { MetaProgress.Ensure().TryBuyCoinMultiplier(); RefreshUpgrade(); });
-            Btn(_upgrade, "STARTING SHIELD", new Vector2(0, -140), () => { MetaProgress.Ensure().TryBuyRevive(); RefreshUpgrade(); });
-            Btn(_upgrade, "BACK", new Vector2(0, -260), BackToMenuOrPost);
+            Btn(_upgrade, "MAGNET RADIUS", new Vector2(-160, 80), () => { MetaProgress.Ensure().TryBuyMagnet(); RefreshUpgrade(); });
+            Btn(_upgrade, "COIN MULTIPLIER", new Vector2(160, 80), () => { MetaProgress.Ensure().TryBuyCoinMultiplier(); RefreshUpgrade(); });
+            Btn(_upgrade, "STARTING SHIELD", new Vector2(-160, -10), () => { MetaProgress.Ensure().TryBuyRevive(); RefreshUpgrade(); });
+            Btn(_upgrade, "ENERGY FILL", new Vector2(160, -10), () => { MetaProgress.Ensure().TryBuyEnergyFill(); RefreshUpgrade(); });
+            Btn(_upgrade, "MAGNET TIME", new Vector2(-160, -100), () => { MetaProgress.Ensure().TryBuyMagnetDuration(); RefreshUpgrade(); });
+            Btn(_upgrade, "BOOST TIME", new Vector2(160, -100), () => { MetaProgress.Ensure().TryBuyBoostDuration(); RefreshUpgrade(); });
+            Btn(_upgrade, "BACK", new Vector2(0, -220), BackToMenuOrPost);
 
             _locker = Panel("Locker", new Color(0.08f, 0.12f, 0.14f, 0.82f));
             Title(_locker, "LOCKER", 44, 0.82f, 0.96f);
             BuildLockerButtons();
-            Btn(_locker, "BACK", new Vector2(0, -360), () => ShowMainMenu());
+            Btn(_locker, "BACK", new Vector2(0, -390), () => ShowMainMenu());
 
             _shop = Panel("Shop", new Color(0.1f, 0.1f, 0.14f, 0.82f));
             Title(_shop, "SHOP", 44, 0.82f, 0.96f);
@@ -115,6 +118,11 @@ namespace TempleSprint
             Btn(_missions, "CLAIM 1", new Vector2(-160, -40), () => { MissionSystem.TryClaim(0); ShowMissions(); });
             Btn(_missions, "CLAIM 2", new Vector2(160, -40), () => { MissionSystem.TryClaim(1); ShowMissions(); });
             Btn(_missions, "CLAIM 3", new Vector2(0, -120), () => { MissionSystem.TryClaim(2); ShowMissions(); });
+            Btn(_missions, "CLAIM ARTIFACT", new Vector2(0, -200), () =>
+            {
+                Toast(ArtifactHuntSystem.TryClaim() ? "Artifact claimed!" : "Hunt incomplete / claimed");
+                ShowMissions();
+            });
             Btn(_missions, "BACK", new Vector2(0, -260), () => ShowMainMenu());
 
             _settings = Panel("Settings", new Color(0.09f, 0.1f, 0.12f, 0.82f));
@@ -185,6 +193,8 @@ namespace TempleSprint
                 _hudScore.text = RunSession.Instance.Score.ToString("N0");
                 _hudCoins.text = "◆  " + RunSession.Instance.CoinsThisRun;
                 string power = PowerUpController.Instance != null ? PowerUpController.Instance.ActiveLabel : "";
+                if (PowerUpController.Instance != null && PowerUpController.Instance.EnergyReady)
+                    power = "READY · " + power;
                 _hudPower.text = string.IsNullOrEmpty(power) ? diff : power;
             }
         }
@@ -236,8 +246,9 @@ namespace TempleSprint
         {
             var m = MetaProgress.Ensure();
             string revive = m.Data.reviveLevel >= 1 ? "OWNED" : m.ReviveUpgradeCost + " coins";
-            _upgradeInfo.text = $"Bank {m.Data.bankedCoins}\nMagnet Lv {m.Data.magnetRadiusLevel} ({m.MagnetUpgradeCost})\n" +
-                                $"Coin Mult Lv {m.Data.coinMultiplierLevel} x{m.CoinMultiplier:0.00} ({m.CoinUpgradeCost})\nShield start: {revive}";
+            _upgradeInfo.text = $"Bank {m.Data.bankedCoins}\nMagnet Lv {m.Data.magnetRadiusLevel} ({m.MagnetUpgradeCost}) · Time Lv {m.Data.magnetDurationLevel}\n" +
+                                $"Coin Mult Lv {m.Data.coinMultiplierLevel} x{m.CoinMultiplier:0.00} ({m.CoinUpgradeCost})\n" +
+                                $"Energy Fill Lv {m.Data.energyFillLevel} · Boost Time Lv {m.Data.boostDurationLevel}\nShield start: {revive}";
         }
 
         void ShowLocker()
@@ -264,17 +275,75 @@ namespace TempleSprint
                 });
                 y -= 70f;
             }
-            Btn(_locker, "JUNGLE BIOME", new Vector2(-180, -280), () => { BiomeSystem.Select(BiomeId.JungleRuins); Toast("Jungle"); });
-            Btn(_locker, "DESERT", new Vector2(0, -280), () =>
+            Btn(_locker, "JUNGLE", new Vector2(-220, -240), () => { BiomeSystem.Select(BiomeId.JungleRuins); Toast("Jungle Ruins"); });
+            Btn(_locker, "DESERT", new Vector2(0, -240), () =>
             {
                 if (!BiomeSystem.IsUnlocked(BiomeId.DesertTombs)) { Toast("Unlock via runs/relics/distance"); return; }
                 BiomeSystem.Select(BiomeId.DesertTombs); Toast("Desert Tombs");
             });
-            Btn(_locker, "ICE", new Vector2(180, -280), () =>
+            Btn(_locker, "ICE", new Vector2(220, -240), () =>
             {
                 if (!BiomeSystem.IsUnlocked(BiomeId.IceCaverns)) { Toast("Unlock via runs/relics/distance"); return; }
                 BiomeSystem.Select(BiomeId.IceCaverns); Toast("Ice Caverns");
             });
+            Btn(_locker, "CAVE", new Vector2(-120, -310), () =>
+            {
+                if (!BiomeSystem.IsUnlocked(BiomeId.CaveMines)) { Toast("Unlock Cave Mines via runs/relics"); return; }
+                BiomeSystem.Select(BiomeId.CaveMines); Toast("Cave Mines");
+            });
+            Btn(_locker, "VOLCANO", new Vector2(120, -310), () =>
+            {
+                if (!BiomeSystem.IsUnlocked(BiomeId.VolcanicCrater)) { Toast("Unlock Volcano via runs/relics"); return; }
+                BiomeSystem.Select(BiomeId.VolcanicCrater); Toast("Volcanic Crater");
+            });
+
+            float cy = -370f;
+            foreach (var h in CosmeticRoster.Hats)
+            {
+                if (h.id == "hat_none") continue;
+                // Hide off-season cosmetics unless already owned.
+                if (CosmeticRoster.IsSeasonal(h.id) && !CosmeticRoster.IsFeaturedThisWeek(h.id)
+                    && !MetaProgress.Ensure().HasCosmetic(h.id))
+                    continue;
+                var id = h.id;
+                var label = (CosmeticRoster.IsFeaturedThisWeek(id) ? "★ " : "") + h.displayName;
+                var cost = h.gemCost;
+                Btn(_locker, "HAT:" + label, new Vector2(-160, cy), () =>
+                {
+                    if (!MetaProgress.Ensure().HasCosmetic(id))
+                        Toast(CosmeticRoster.TryUnlock(id, true) ? "Hat unlocked!" : $"Need {cost} gems / not in season");
+                    else
+                    {
+                        CosmeticRoster.SelectHat(id);
+                        PlayerController.Instance?.ApplyCharacterColors();
+                        Toast("Hat: " + label);
+                    }
+                });
+                cy -= 55f;
+            }
+            cy = -370f;
+            foreach (var p in CosmeticRoster.Pets)
+            {
+                if (p.id == "pet_none") continue;
+                if (CosmeticRoster.IsSeasonal(p.id) && !CosmeticRoster.IsFeaturedThisWeek(p.id)
+                    && !MetaProgress.Ensure().HasCosmetic(p.id))
+                    continue;
+                var id = p.id;
+                var label = (CosmeticRoster.IsFeaturedThisWeek(id) ? "★ " : "") + p.displayName;
+                var cost = p.gemCost;
+                Btn(_locker, "PET:" + label, new Vector2(160, cy), () =>
+                {
+                    if (!MetaProgress.Ensure().HasCosmetic(id))
+                        Toast(CosmeticRoster.TryUnlock(id, false) ? "Pet unlocked!" : $"Need {cost} gems / not in season");
+                    else
+                    {
+                        CosmeticRoster.SelectPet(id);
+                        PlayerController.Instance?.ApplyCharacterColors();
+                        Toast("Pet: " + label);
+                    }
+                });
+                cy -= 55f;
+            }
         }
 
         void ShowShop() => ShowOnly(_shop);
@@ -282,8 +351,10 @@ namespace TempleSprint
         void ShowMissions()
         {
             if (_missionBody != null)
-                _missionBody.text = MissionSystem.Summary() + "\n\nAchievements:\n" + AchievementSystem.ListUnlocked() +
-                                    "\n\n" + BattlePassService.Status();
+                _missionBody.text = MissionSystem.Summary() + "\n\n" + ArtifactHuntSystem.Status() +
+                                    "\n\nAchievements:\n" + AchievementSystem.ListUnlocked() +
+                                    "\n\n" + BattlePassService.Status() +
+                                    "\n\n" + EventService.SeasonalLockerBlurb();
             ShowOnly(_missions);
         }
 

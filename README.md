@@ -29,7 +29,14 @@ In Unity: wait for compile → press the Editor **Play** button → click **PLAY
 
 ## Controls
 
-WASD / arrows — lanes, jump, slide. Space — equipped power-up. Mouse drag — swipe.
+WASD / arrows — lanes, jump, slide. Space — equipped power-up (needs full energy). Mouse drag — swipe. Coins fill the power meter.
+
+## Biomes & stages
+
+Jungle Ruins, Desert Tombs, Ice Caverns, Cave Mines, Volcanic Crater — each with distinct fog, ground, mist, and roadside props.
+Special crossings: river (boat/rope/jump/swim), fire (jump/vine/dunk), zipline, mine cart, ice surf, wall run, ledge grab.
+Locker: original characters, hats & pets (with pet passives), plus rotating seasonal cosmetics.
+Live ops: weekly event biome bias, artifact hunt, mission claims.
 
 ## Optional (cloud / store)
 

@@ -229,7 +229,9 @@ namespace TempleSprint
             if (_darkTimer <= 0f && _darkCooldown <= 0f && !DarknessActive && distance > 160f)
             {
                 _darkCooldown = DarknessCooldown;
-                if (Random.value < 0.22f) BeginDarkness(5f);
+                float darkChance = BiomeSystem.Current == BiomeId.CaveMines ? 0.55f
+                    : BiomeSystem.Current == BiomeId.VolcanicCrater ? 0.3f : 0.22f;
+                if (Random.value < darkChance) BeginDarkness(BiomeSystem.Current == BiomeId.CaveMines ? 7f : 5f);
             }
 
             if (_rainTimer > 0f) { _rainTimer -= dt; if (_rainTimer <= 0f) RainActive = false; }
