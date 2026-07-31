@@ -572,6 +572,23 @@ namespace TempleSprint
             _col.height = _baseColHeight * 0.45f;
             _col.center = new Vector3(0f, _col.height * 0.5f, 0f);
             _explorer?.SetPoseFlags(true, false);
+            ApplySlideVisual(true);
+        }
+
+        void ApplySlideVisual(bool sliding)
+        {
+            if (Visual == null) return;
+            if (sliding)
+            {
+                // Distinct dive-crouch (animator slide still reuses jump clip).
+                Visual.localPosition = new Vector3(0f, -0.42f, 0.35f);
+                Visual.localRotation = Quaternion.Euler(62f, 0f, 0f);
+            }
+            else if (Traversal != TraversalMode.WallRun && Traversal != TraversalMode.LedgeGrab)
+            {
+                Visual.localPosition = Vector3.zero;
+                Visual.localRotation = Quaternion.identity;
+            }
         }
 
         void TryRopeRelease()
@@ -812,10 +829,12 @@ namespace TempleSprint
             if (IsSliding)
             {
                 _slideTimer -= Time.deltaTime;
+                ApplySlideVisual(true);
                 if (_slideTimer <= 0f)
                 {
                     IsSliding = false;
                     RestoreCollider();
+                    ApplySlideVisual(false);
                 }
             }
 
@@ -1246,6 +1265,8 @@ namespace TempleSprint
             ApplyPathPose();
         }
 
+        float _pathBank;
+
         void ApplyPathPose()
         {
             PathPose pose = new PathPose(transform.position, FacingYaw, PathDistance);
@@ -1256,10 +1277,12 @@ namespace TempleSprint
                 pose = tile.SampleAtPathDistance(PathDistance);
 
             FacingYaw = pose.yaw;
+            _pathBank = Mathf.Lerp(_pathBank, pose.bank, 1f - Mathf.Exp(-10f * Time.deltaTime));
             Vector3 lateral = pose.Right * _laneOffset;
             Vector3 pos = pose.position + lateral;
             pos.y = transform.position.y;
-            transform.SetPositionAndRotation(pos, Quaternion.Euler(0f, FacingYaw, 0f));
+            // Bank into curved turns; slide crouch is applied on Visual separately.
+            transform.SetPositionAndRotation(pos, Quaternion.Euler(0f, FacingYaw, _pathBank));
         }
 
         void OnTriggerEnter(Collider other)
@@ -1648,11 +1671,25 @@ namespace TempleSprint
                 _model.localPosition = lp;
             }
 
-            float leanZ = _laneLean * -10f;
-            transform.localRotation = Quaternion.Slerp(
-                transform.localRotation,
-                Quaternion.Euler(0f, 0f, leanZ),
-                1f - Mathf.Exp(-8f * Time.deltaTime));
+            bool sliding = PlayerController.Instance != null && PlayerController.Instance.IsSliding;
+            if (sliding)
+            {
+                // Dive-crouch pose — keep distinct from jump/run lean.
+                transform.localPosition = Vector3.Lerp(transform.localPosition, new Vector3(0f, -0.42f, 0.35f),
+                    1f - Mathf.Exp(-12f * Time.deltaTime));
+                transform.localRotation = Quaternion.Slerp(transform.localRotation, Quaternion.Euler(62f, 0f, 0f),
+                    1f - Mathf.Exp(-12f * Time.deltaTime));
+            }
+            else
+            {
+                transform.localPosition = Vector3.Lerp(transform.localPosition, Vector3.zero,
+                    1f - Mathf.Exp(-10f * Time.deltaTime));
+                float leanZ = _laneLean * -10f;
+                transform.localRotation = Quaternion.Slerp(
+                    transform.localRotation,
+                    Quaternion.Euler(0f, 0f, leanZ),
+                    1f - Mathf.Exp(-8f * Time.deltaTime));
+            }
         }
 
         float _groundY;

@@ -438,6 +438,18 @@ namespace TempleSprint.EditorTools
                 }
             }
 
+            // Curved turns must bank mid-arc (genre-style, not sharp L corners).
+            foreach (var t in tiles)
+            {
+                if (t == null || (t.Kind != TileKind.TurnLeft && t.Kind != TileKind.TurnRight)) continue;
+                var mid = t.SampleAtPathDistance(t.PathStartDistance + t.PathLength * 0.5f);
+                if (Mathf.Abs(mid.bank) < 4f)
+                {
+                    Debug.LogWarning($"[VERIFY] turn missing bank mid-curve kind={t.Kind} bank={mid.bank:0.0}");
+                    return false;
+                }
+            }
+
             // Turn geometry itself must carry nothing lethal, decor included.
             foreach (var t in tiles)
             {

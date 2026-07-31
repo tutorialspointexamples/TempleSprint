@@ -27,10 +27,16 @@ namespace TempleSprint
     {
         public const float Length = 12f;
         public const float DeckWidth = 4.6f;
-        public const float TurnArmIn = 6f;
-        public const float TurnArmOut = 6f;
+        /// <summary>Quarter-circle turn radius (genre-style banked curves, not sharp L corners).</summary>
+        public const float CurveRadius = 7.2f;
+        public const int CurveSegments = 12;
+        public const float MaxBankDegrees = 20f;
+        // Legacy aliases — arm length ≈ radius for spacing estimates.
+        public const float TurnArmIn = CurveRadius;
+        public const float TurnArmOut = CurveRadius;
         public const float JunctionApproach = 7f;
         public const float JunctionArm = 6f;
+        public static float CurvePathLength => CurveRadius * (Mathf.PI * 0.5f);
 
         public TileKind Kind { get; private set; }
         public PathPose EntryPose { get; private set; }
@@ -215,18 +221,23 @@ namespace TempleSprint
             if (IsTurn)
             {
                 bool left = Kind == TileKind.TurnLeft;
-                var corner = EntryPose.position + EntryPose.Forward * TurnArmIn;
-                if (s <= TurnArmIn)
-                {
-                    return new PathPose(EntryPose.position + EntryPose.Forward * s, EntryPose.yaw,
-                        PathStartDistance + s);
-                }
+                float arcLen = CurvePathLength;
+                float clamped = Mathf.Clamp(s, 0f, arcLen);
+                float thetaDeg = (clamped / Mathf.Max(0.001f, arcLen)) * 90f;
+                float thetaRad = thetaDeg * Mathf.Deg2Rad;
+                float R = CurveRadius;
 
-                float u = s - TurnArmIn;
-                float t = Mathf.Clamp01(u / TurnArmOut);
-                float yaw = Mathf.LerpAngle(EntryPose.yaw, ExitPose.yaw, t);
-                Vector3 dir = left ? -EntryPose.Right : EntryPose.Right;
-                return new PathPose(corner + dir * u, yaw, PathStartDistance + s);
+                Vector3 center = left
+                    ? EntryPose.position - EntryPose.Right * R
+                    : EntryPose.position + EntryPose.Right * R;
+                Vector3 fromCenter = left
+                    ? EntryPose.Right * (Mathf.Cos(thetaRad) * R) + EntryPose.Forward * (Mathf.Sin(thetaRad) * R)
+                    : -EntryPose.Right * (Mathf.Cos(thetaRad) * R) + EntryPose.Forward * (Mathf.Sin(thetaRad) * R);
+
+                float yaw = NormalizeYaw(EntryPose.yaw + (left ? -thetaDeg : thetaDeg));
+                // Peak bank mid-curve; lean into the turn (left = negative roll).
+                float bank = Mathf.Sin(thetaRad * 2f) * MaxBankDegrees * (left ? -1f : 1f);
+                return new PathPose(center + fromCenter, yaw, PathStartDistance + clamped, bank);
             }
 
             if (IsJunction)
@@ -243,12 +254,16 @@ namespace TempleSprint
                 float yaw = Mathf.LerpAngle(EntryPose.yaw, ExitPose.yaw, t);
                 var corner = EntryPose.position + EntryPose.Forward * JunctionApproach;
                 Vector3 dir = JunctionChoseLeft ? -EntryPose.Right : EntryPose.Right;
-                return new PathPose(corner + dir * u, yaw, PathStartDistance + s);
+                // Soft bank into the chosen arm so forks feel less like a hard L.
+                float bank = Mathf.Sin(t * Mathf.PI) * (MaxBankDegrees * 0.55f) * (JunctionChoseLeft ? -1f : 1f);
+                return new PathPose(corner + dir * u, yaw, PathStartDistance + s, bank);
             }
 
             // Straight
             return new PathPose(EntryPose.position + EntryPose.Forward * s, EntryPose.yaw, PathStartDistance + s);
         }
+
+        static float NormalizeYaw(float yaw) => PathPose.NormalizeYaw(yaw);
 
         /// <summary>Commit T-junction choice. Returns new exit pose for the spawner.</summary>
         public PathPose ResolveJunction(bool chooseLeft)
@@ -272,39 +287,92 @@ namespace TempleSprint
 
         void BuildTurn(bool left)
         {
-            PathLength = TurnArmIn + TurnArmOut;
-            var corner = EntryPose.position + EntryPose.Forward * TurnArmIn;
-            float exitYaw = PathPose.NormalizeYaw(EntryPose.yaw + (left ? -90f : 90f));
-            Vector3 dir = left ? -EntryPose.Right : EntryPose.Right;
-            ExitPose = new PathPose(corner + dir * TurnArmOut, exitYaw, PathStartDistance + PathLength);
+            PathLength = CurvePathLength;
+            ExitPose = SampleLocal(PathLength);
 
-            // Approach along local +Z
-            BuildFloorSegment(new Vector3(0f, -0.12f, TurnArmIn * 0.5f), new Vector3(DeckWidth, 0.4f, TurnArmIn));
-            BuildRailSegment(0.3f, TurnArmIn - 0.6f);
-            SpawnSupportPair(TurnArmIn * 0.35f);
-            SpawnSupportPair(TurnArmIn * 0.75f);
+            var curveRoot = new GameObject(left ? "BankedCurveL" : "BankedCurveR").transform;
+            curveRoot.SetParent(transform, false);
 
-            // Exit arm as child rotated ±90° at corner
-            var arm = new GameObject(left ? "TurnArmL" : "TurnArmR").transform;
-            arm.SetParent(transform, false);
-            arm.localPosition = new Vector3(0f, 0f, TurnArmIn);
-            arm.localRotation = Quaternion.Euler(0f, left ? -90f : 90f, 0f);
-
-            BuildFloorOn(arm, new Vector3(0f, -0.12f, TurnArmOut * 0.5f), new Vector3(DeckWidth, 0.4f, TurnArmOut));
-            BuildRailsOn(arm, 0.3f, TurnArmOut - 0.6f);
-            SpawnSupportPairOn(arm, TurnArmOut * 0.4f);
-            SpawnSupportPairOn(arm, TurnArmOut * 0.85f);
-
-            if (Random.value < 0.4f)
+            float segArc = PathLength / CurveSegments;
+            for (int i = 0; i < CurveSegments; i++)
             {
-                CollectibleCoin.Create(transform, new Vector3(0f, 1.25f, TurnArmIn * 0.5f));
-                CollectibleCoin.Create(arm, new Vector3(0f, 1.25f, TurnArmOut * 0.55f));
+                float sMid = (i + 0.5f) * segArc;
+                var pose = SampleLocal(sMid);
+                Vector3 localPos = transform.InverseTransformPoint(pose.position);
+                float localYaw = NormalizeYaw(pose.yaw - EntryPose.yaw);
+
+                var slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                slab.name = "CurveSlab_" + i;
+                slab.transform.SetParent(curveRoot, false);
+                slab.transform.localPosition = localPos + new Vector3(0f, -0.12f, 0f);
+                // Bank the deck into the turn so the outer rail reads higher.
+                slab.transform.localRotation = Quaternion.Euler(0f, localYaw, pose.bank);
+                slab.transform.localScale = new Vector3(DeckWidth, 0.42f, segArc * 1.12f);
+                slab.GetComponent<Renderer>().sharedMaterial = BiomeSystem.PathMat;
+                Object.Destroy(slab.GetComponent<Collider>());
+
+                // Outer curb raised slightly for banked-turn silhouette.
+                float curbSide = left ? 1f : -1f;
+                var curb = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                curb.name = "BankCurb_" + i;
+                curb.transform.SetParent(curveRoot, false);
+                curb.transform.localPosition = localPos
+                    + Quaternion.Euler(0f, localYaw, 0f) * new Vector3(curbSide * (DeckWidth * 0.5f - 0.12f), 0.18f, 0f);
+                curb.transform.localRotation = Quaternion.Euler(0f, localYaw, pose.bank);
+                curb.transform.localScale = new Vector3(0.28f, 0.35f, segArc * 1.05f);
+                curb.GetComponent<Renderer>().sharedMaterial = BiomeSystem.StoneMat;
+                Object.Destroy(curb.GetComponent<Collider>());
+
+                if (i % 2 == 0)
+                {
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        var rail = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                        rail.transform.SetParent(curveRoot, false);
+                        rail.transform.localPosition = localPos
+                            + Quaternion.Euler(0f, localYaw, 0f) * new Vector3(side * (DeckWidth * 0.5f), 0.28f, 0f);
+                        rail.transform.localRotation = Quaternion.Euler(0f, localYaw, pose.bank);
+                        rail.transform.localScale = new Vector3(0.28f, 0.5f, segArc * 1.05f);
+                        rail.GetComponent<Renderer>().sharedMaterial = BiomeSystem.StoneMat;
+                        Object.Destroy(rail.GetComponent<Collider>());
+                    }
+                }
+
+                if (i % 3 == 0)
+                {
+                    var supportAnchor = new GameObject("CurveSupport_" + i).transform;
+                    supportAnchor.SetParent(curveRoot, false);
+                    supportAnchor.localPosition = localPos;
+                    supportAnchor.localRotation = Quaternion.Euler(0f, localYaw, 0f);
+                    SpawnSupportPairOn(supportAnchor, 0f);
+                }
             }
 
-            // Plant only on the outside of the corner; keep foliage clear of the inside lane.
-            int outer = left ? 1 : -1;
-            BuildForestEdge(transform, 0f, TurnArmIn, outer);
-            BuildForestEdge(arm, 0f, TurnArmOut, outer);
+            if (Random.value < 0.55f)
+            {
+                for (int c = 0; c < 3; c++)
+                {
+                    float s = PathLength * (0.2f + c * 0.25f);
+                    var pose = SampleLocal(s);
+                    Vector3 local = transform.InverseTransformPoint(pose.position);
+                    CollectibleCoin.Create(transform, local + Vector3.up * 1.25f);
+                }
+            }
+
+            // Plant only on the outside of the curve; keep the inside clear for camera.
+            int outerSign = left ? 1 : -1;
+            for (int i = 0; i <= 5; i++)
+            {
+                float s = PathLength * (i / 5f);
+                var pose = SampleLocal(s);
+                Vector3 worldOuter = pose.position + pose.Right * (outerSign * (DeckWidth * 0.5f + 3.2f));
+                Vector3 localOuter = transform.InverseTransformPoint(worldOuter);
+                localOuter.y = ForestFloorY;
+                if (Random.value < 0.7f)
+                    SpawnForestTree(transform, localOuter, Random.Range(0.9f, 1.35f), Random.value < 0.55f);
+                if (Random.value < 0.5f)
+                    SpawnShrub(transform, localOuter + new Vector3(outerSign * 1.2f, 0f, Random.Range(-0.4f, 0.4f)));
+            }
 
             StripHazardsFromTile();
         }
@@ -1076,19 +1144,30 @@ namespace TempleSprint
                 new Vector3(fallSide * (ForestInner + 8.5f), ForestFloorY, channelStart + channelLen * 0.2f),
                 Random.Range(7f, 9.5f), fallSide);
 
-            for (int i = 0; i < 7; i++)
+            // Shore foam strips along both banks — reads as whitewater from the chase cam.
+            for (int side = -1; side <= 1; side += 2)
             {
-                var foam = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                foam.name = "RiverFoam";
-                foam.transform.SetParent(transform, false);
-                foam.transform.localPosition = new Vector3(
-                    Random.Range(-riverWidth * 0.35f, riverWidth * 0.35f),
-                    ForestFloorY + 0.08f,
-                    channelStart + channelLen * Random.Range(0.08f, 0.92f));
-                foam.transform.localScale = new Vector3(Random.Range(1.6f, 3.4f), 0.1f, Random.Range(0.45f, 1.1f));
-                foam.GetComponent<Renderer>().sharedMaterial = JunglePalette.Foam;
-                StripCollider(foam);
+                var shore = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                shore.name = "ShoreFoam";
+                shore.transform.SetParent(transform, false);
+                shore.transform.localPosition = new Vector3(
+                    side * (DeckWidth * 0.5f + 1.1f),
+                    ForestFloorY + 0.12f,
+                    channelMid);
+                shore.transform.localScale = new Vector3(1.4f, 0.12f, channelLen + 0.6f);
+                shore.GetComponent<Renderer>().sharedMaterial = JunglePalette.Foam;
+                StripCollider(shore);
             }
+
+            var foamRoot = new GameObject("RiverFoamBurst").transform;
+            foamRoot.SetParent(transform, false);
+            foamRoot.localPosition = new Vector3(0f, ForestFloorY + 0.1f, channelMid);
+            var fx = foamRoot.gameObject.AddComponent<RiverFoamAnimator>();
+            fx.Build(foamRoot, riverWidth, channelLen);
+
+            // Scroll the surface sheet so the crossing never looks like a static cube.
+            var flowAnim = river.AddComponent<RiverSurfaceScroll>();
+            flowAnim.Bind(river.GetComponent<Renderer>(), flow.GetComponent<Renderer>());
 
             for (int i = 0; i < 6; i++)
             {
@@ -1441,6 +1520,13 @@ namespace TempleSprint
             light.range = 14f;
             light.intensity = 2.4f;
             light.shadows = LightShadows.None;
+
+            // Rising ember sparks so the pit feels alive (not a flat orange slab).
+            var sparks = new GameObject("EmberSparks");
+            sparks.transform.SetParent(transform, false);
+            sparks.transform.localPosition = new Vector3(0f, ForestFloorY + 0.4f, channelMid);
+            var sparkFx = sparks.AddComponent<EmberSparkAnimator>();
+            sparkFx.Build(sparks.transform, pitWidth * 0.4f, channelLen * 0.4f);
         }
 
         void SpawnFlameColumn(Vector3 basePos, float height)
