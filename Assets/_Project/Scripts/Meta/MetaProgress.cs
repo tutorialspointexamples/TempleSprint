@@ -13,6 +13,12 @@ namespace TempleSprint
         public int magnetRadiusLevel;
         public int coinMultiplierLevel;
         public int reviveLevel;
+        public int energyFillLevel;
+        public int magnetDurationLevel;
+        public int boostDurationLevel;
+        public string unlockedCosmetics = "hat_none,pet_none";
+        public string selectedHat = "hat_none";
+        public string selectedPet = "pet_none";
         public bool tutorialCompleted;
         public int totalRuns;
         public float totalDistance;
@@ -84,9 +90,15 @@ namespace TempleSprint
         public int MagnetRadiusBonus => Data.magnetRadiusLevel;
         public float CoinMultiplier => 1f + Data.coinMultiplierLevel * 0.15f;
         public int ReviveCharges => Mathf.Min(1, Data.reviveLevel);
+        public float EnergyFillBonus => Data.energyFillLevel * 0.75f;
+        public float MagnetDurationBonus => Data.magnetDurationLevel * 1.25f;
+        public float BoostDurationBonus => Data.boostDurationLevel * 0.75f;
         public int MagnetUpgradeCost => 80 + Data.magnetRadiusLevel * 60;
         public int CoinUpgradeCost => 100 + Data.coinMultiplierLevel * 75;
         public int ReviveUpgradeCost => Data.reviveLevel >= 1 ? -1 : 250;
+        public int EnergyFillUpgradeCost => 90 + Data.energyFillLevel * 70;
+        public int MagnetDurationUpgradeCost => 100 + Data.magnetDurationLevel * 80;
+        public int BoostDurationUpgradeCost => 110 + Data.boostDurationLevel * 85;
 
         public bool TryBuyMagnet()
         {
@@ -113,6 +125,46 @@ namespace TempleSprint
             Data.reviveLevel = 1;
             Save();
             return true;
+        }
+
+        public bool TryBuyEnergyFill()
+        {
+            if (Data.energyFillLevel >= 5 || Data.bankedCoins < EnergyFillUpgradeCost) return false;
+            Data.bankedCoins -= EnergyFillUpgradeCost;
+            Data.energyFillLevel++;
+            Save();
+            return true;
+        }
+
+        public bool TryBuyMagnetDuration()
+        {
+            if (Data.magnetDurationLevel >= 5 || Data.bankedCoins < MagnetDurationUpgradeCost) return false;
+            Data.bankedCoins -= MagnetDurationUpgradeCost;
+            Data.magnetDurationLevel++;
+            Save();
+            return true;
+        }
+
+        public bool TryBuyBoostDuration()
+        {
+            if (Data.boostDurationLevel >= 5 || Data.bankedCoins < BoostDurationUpgradeCost) return false;
+            Data.bankedCoins -= BoostDurationUpgradeCost;
+            Data.boostDurationLevel++;
+            Save();
+            return true;
+        }
+
+        public bool HasCosmetic(string id) =>
+            id == "hat_none" || id == "pet_none"
+            || ("," + (Data.unlockedCosmetics ?? "") + ",").Contains("," + id + ",");
+
+        public void UnlockCosmetic(string id)
+        {
+            if (HasCosmetic(id)) return;
+            Data.unlockedCosmetics = string.IsNullOrEmpty(Data.unlockedCosmetics)
+                ? id
+                : Data.unlockedCosmetics + "," + id;
+            Save();
         }
 
         public void BankCoins(int amount)

@@ -85,7 +85,8 @@ namespace TempleSprint
         public void AddEnergyFromCoins(int coins)
         {
             if (coins <= 0) return;
-            Energy = Mathf.Min(EnergyMax, Energy + coins * EnergyPerCoin);
+            float perCoin = EnergyPerCoin + (_meta != null ? _meta.EnergyFillBonus : 0f);
+            Energy = Mathf.Min(EnergyMax, Energy + coins * perCoin);
         }
 
         public void GrantReviveIFrames(float seconds = 1.75f)
@@ -98,7 +99,7 @@ namespace TempleSprint
             switch (type)
             {
                 case PowerUpType.Magnet:
-                    _magnetTimer = 8f;
+                    _magnetTimer = 8f + (_meta != null ? _meta.MagnetDurationBonus : 0f);
                     MissionSystem.Report(MissionType.UsePowerUps, 1);
                     break;
                 case PowerUpType.Shield:
@@ -106,7 +107,7 @@ namespace TempleSprint
                     MissionSystem.Report(MissionType.UsePowerUps, 1);
                     break;
                 case PowerUpType.ScoreMultiplier:
-                    _multiplierTimer = 10f;
+                    _multiplierTimer = 10f + (_meta != null ? _meta.BoostDurationBonus * 0.5f : 0f);
                     _triple = Random.value < 0.25f;
                     MissionSystem.Report(MissionType.UsePowerUps, 1);
                     break;
@@ -115,7 +116,7 @@ namespace TempleSprint
                         EquippedConsumable = PowerUpType.SpeedBoost;
                     else
                     {
-                        _boostTimer = 5f;
+                        _boostTimer = 5f + (_meta != null ? _meta.BoostDurationBonus : 0f);
                         EquippedConsumable = null;
                         MissionSystem.Report(MissionType.UsePowerUps, 1);
                     }
@@ -125,7 +126,7 @@ namespace TempleSprint
                         EquippedConsumable = PowerUpType.SlowMo;
                     else
                     {
-                        _slowTimer = 6f;
+                        _slowTimer = 6f + (_meta != null ? _meta.BoostDurationBonus * 0.6f : 0f);
                         EquippedConsumable = null;
                         MissionSystem.Report(MissionType.UsePowerUps, 1);
                     }
