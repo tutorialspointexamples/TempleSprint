@@ -250,6 +250,16 @@ namespace TempleSprint
             _spawner.BeginRun(tutorial, difficulty);
             _guardian.BeginRun();
             _ghost?.BeginRun();
+
+            // Genre-style head-start: skip ahead past the opening tiles + boost burst.
+            if (meta.ConsumeHeadStartArm())
+            {
+                _player.AdvanceAfterRevive(28f);
+                _powers.GrantHeadStartBurst();
+                _camera?.PunchFov(5f);
+                GameUI.Instance?.ShowTutorial("HEAD START! Sprint ahead!");
+            }
+
             _camera?.SnapNow();
             _camera?.PunchFov(3f);
             GameUI.Instance?.ShowHud();
@@ -273,11 +283,12 @@ namespace TempleSprint
             State = GameState.Running;
             Time.timeScale = 1f;
             _env?.ResetEffects();
-            _powers?.GrantReviveIFrames(1.75f);
+            _powers?.GrantReviveIFrames(2.25f);
+            if (_powers != null) _powers.Activate(PowerUpType.Shield, true);
             if (_player != null)
             {
                 _player.ClearStumble();
-                _player.AdvanceAfterRevive(4f);
+                _player.AdvanceAfterRevive(6f);
             }
             if (_guardian != null)
             {
@@ -285,8 +296,9 @@ namespace TempleSprint
                 _guardian.BeginRun();
             }
             _camera?.SnapNow();
+            _camera?.PunchFov(3.5f);
             GameUI.Instance?.ShowHud();
-            GameUI.Instance?.ShowTutorial("Revived! Keep running!");
+            GameUI.Instance?.ShowTutorial("SAVED! Shield up — keep running!");
         }
 
         void UpdateTutorial()

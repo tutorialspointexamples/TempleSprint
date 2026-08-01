@@ -40,12 +40,13 @@ namespace TempleSprint
             Btn(_menu, "EASY", new Vector2(-280, 90), () => GameManager.Instance?.StartRun(RunDifficulty.Easy));
             Btn(_menu, "MEDIUM", new Vector2(0, 90), () => GameManager.Instance?.StartRun(RunDifficulty.Medium));
             Btn(_menu, "HARD", new Vector2(280, 90), () => GameManager.Instance?.StartRun(RunDifficulty.Hard));
-            Btn(_menu, "UPGRADES", new Vector2(-280, -40), ShowUpgrades);
-            Btn(_menu, "LOCKER", new Vector2(0, -40), ShowLocker);
-            Btn(_menu, "SHOP", new Vector2(280, -40), ShowShop);
-            Btn(_menu, "MISSIONS", new Vector2(-280, -130), ShowMissions);
-            Btn(_menu, "SETTINGS", new Vector2(0, -130), ShowSettings);
-            Btn(_menu, "MORE", new Vector2(280, -130), ShowMore);
+            Btn(_menu, "HEAD START (25 GEMS)", new Vector2(0, 10), TryArmHeadStart);
+            Btn(_menu, "UPGRADES", new Vector2(-280, -60), ShowUpgrades);
+            Btn(_menu, "LOCKER", new Vector2(0, -60), ShowLocker);
+            Btn(_menu, "SHOP", new Vector2(280, -60), ShowShop);
+            Btn(_menu, "MISSIONS", new Vector2(-280, -150), ShowMissions);
+            Btn(_menu, "SETTINGS", new Vector2(0, -150), ShowSettings);
+            Btn(_menu, "MORE", new Vector2(280, -150), ShowMore);
             Sub(_menu, "Choose a difficulty to start  ·  SPACE = Medium", 22, 0.08f, 0.16f);
 
             _hud = new GameObject("HUD");
@@ -95,8 +96,8 @@ namespace TempleSprint
                 RunSession.Instance?.FinalizeAndBank();
                 GameManager.Instance?.StartRun(GameManager.Instance.CurrentDifficulty);
             });
-            _btnReviveAd = Btn(_post, "REVIVE (AD)", new Vector2(0, -50), TryAdRevive);
-            _btnReviveGem = Btn(_post, "REVIVE (5 GEMS)", new Vector2(0, -140), TryGemRevive);
+            _btnReviveAd = Btn(_post, "SAVE ME (AD)", new Vector2(0, -50), TryAdRevive);
+            _btnReviveGem = Btn(_post, "SAVE ME · 5 GEMS", new Vector2(0, -140), TryGemRevive);
             Btn(_post, "2x COINS (AD)", new Vector2(0, -230), TryDoubleCoins);
             Btn(_post, "SHARE", new Vector2(0, -320), ShareRun);
             Btn(_post, "UPGRADES", new Vector2(-200, -410), ShowUpgrades);
@@ -285,7 +286,8 @@ namespace TempleSprint
         public void ShowMainMenu()
         {
             var m = MetaProgress.Ensure().Data;
-            _menuCurrency.text = $"Coins {m.bankedCoins} · Gems {m.gems} · Relics {m.relics}\n{CharacterRoster.SelectedDisplayName} · {BiomeSystem.DisplayName(BiomeSystem.Current)}";
+            string head = m.headStartArmed ? " · HEAD START READY" : "";
+            _menuCurrency.text = $"Coins {m.bankedCoins} · Gems {m.gems} · Relics {m.relics}{head}\n{CharacterRoster.SelectedDisplayName} · {BiomeSystem.DisplayName(BiomeSystem.Current)}";
             ShowOnly(_menu);
         }
 
@@ -293,15 +295,30 @@ namespace TempleSprint
 
         public void ShowPostRun(RunEndPayload p)
         {
+            var meta = MetaProgress.Ensure().Data;
             bool canRevive = RunSession.Instance != null
                              && !RunSession.Instance.ReviveUsed
                              && !RunSession.Instance.IsFinalized;
-            bool adsOff = MetaProgress.Ensure().Data.adsRemoved;
+            bool adsOff = meta.adsRemoved;
             if (_btnReviveAd != null) _btnReviveAd.gameObject.SetActive(canRevive && !adsOff);
-            if (_btnReviveGem != null) _btnReviveGem.gameObject.SetActive(canRevive);
+            if (_btnReviveGem != null)
+            {
+                _btnReviveGem.gameObject.SetActive(canRevive);
+                var label = _btnReviveGem.GetComponentInChildren<Text>();
+                if (label != null)
+                {
+                    label.text = canRevive
+                        ? (meta.gems >= 5 ? $"SAVE ME · 5 GEMS ({meta.gems})" : $"NEED 5 GEMS (have {meta.gems})")
+                        : "SAVE USED";
+                }
+            }
 
+            string saveLine = canRevive
+                ? "One SAVE ME left this run — revive with shield + i-frames.\n"
+                : "Save already used this run.\n";
             _postSummary.text =
-                $"{p.deathReason}\n\nScore {p.score}\nCoins +{p.coinsEarned}  Gems +{p.gemsEarned}  Relics +{p.relicsEarned}\n" +
+                $"{p.deathReason}\n\n{saveLine}" +
+                $"Score {p.score}\nCoins +{p.coinsEarned}  Gems +{p.gemsEarned}  Relics +{p.relicsEarned}\n" +
                 $"Distance {p.distance:0}m  Near-misses {p.nearMisses}\n" +
                 $"Mode {(GameManager.Instance != null ? DifficultyProfile.For(GameManager.Instance.CurrentDifficulty).DisplayName : "?")}\n" +
                 (p.doubledCoins ? "Coins doubled\n" : "") +
@@ -377,8 +394,13 @@ namespace TempleSprint
                 if (!BiomeSystem.IsUnlocked(BiomeId.VolcanicCrater)) { Toast("Unlock Volcano via runs/relics"); return; }
                 BiomeSystem.Select(BiomeId.VolcanicCrater); Toast("Volcanic Crater");
             });
+            Btn(_locker, "NIGHT", new Vector2(0, -360), () =>
+            {
+                if (!BiomeSystem.IsUnlocked(BiomeId.NightSummit)) { Toast("Unlock Night Summit via runs/relics"); return; }
+                BiomeSystem.Select(BiomeId.NightSummit); Toast("Night Summit");
+            });
 
-            float cy = -370f;
+            float cy = -420f;
             foreach (var h in CosmeticRoster.Hats)
             {
                 if (h.id == "hat_none") continue;
@@ -462,9 +484,9 @@ namespace TempleSprint
                 if (ok)
                 {
                     GameManager.Instance?.ContinueAfterRevive();
-                    Toast("Revived via rewarded ad");
+                    Toast("Saved via rewarded ad!");
                 }
-                else Toast("Revive unavailable");
+                else Toast("Save unavailable");
             });
         }
 
@@ -473,9 +495,26 @@ namespace TempleSprint
             if (MonetizationService.ReviveWithGems())
             {
                 GameManager.Instance?.ContinueAfterRevive();
-                Toast("Revived for 5 gems");
+                Toast("Saved! Shield armed");
             }
             else Toast("Need 5 gems / already used");
+        }
+
+        void TryArmHeadStart()
+        {
+            var m = MetaProgress.Ensure();
+            if (m.Data.headStartArmed)
+            {
+                Toast("Head start already armed — pick a difficulty");
+                ShowMainMenu();
+                return;
+            }
+            if (m.TryArmHeadStart())
+            {
+                Toast("Head start armed (25 gems)");
+                ShowMainMenu();
+            }
+            else Toast($"Need {MetaProgress.HeadStartGemCost} gems");
         }
 
         void TryDoubleCoins()

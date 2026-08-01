@@ -83,6 +83,16 @@ namespace TempleSprint
                 HasShield = true;
         }
 
+        /// <summary>Head-start burst: short speed boost + score mult kick for the opening sprint.</summary>
+        public void GrantHeadStartBurst()
+        {
+            _boostTimer = Mathf.Max(_boostTimer, 4.5f + (_meta != null ? _meta.BoostDurationBonus : 0f));
+            _multiplierTimer = Mathf.Max(_multiplierTimer, 6f);
+            _triple = false;
+            HasShield = true;
+            GrantReviveIFrames(1.1f);
+        }
+
         public void ClearTimers()
         {
             _magnetTimer = _multiplierTimer = _boostTimer = _slowTimer = _reviveIFrames = 0f;

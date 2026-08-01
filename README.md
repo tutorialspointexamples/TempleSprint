@@ -33,9 +33,9 @@ WASD / arrows — lanes, jump (air hop), slide. Space — equipped power-up (nee
 
 ## Biomes & stages
 
-Jungle Ruins, Desert Tombs, Ice Caverns, Cave Mines, Volcanic Crater — each with distinct fog, ground, mist, textured path/stone, and roadside props.
-Turns are banked quarter-circle curves (not sharp L corners). Special crossings: river (boat/rope/jump/swim + shore foam), fire (jump/vine/dunk), zipline, mine cart, ice surf, wall run, ledge grab, jungle tree bridge.
-Chase pack: Idol Beast with carved idol plate; rolling boulders in cave/volcano/desert. Near-misses build a combo score multiplier.
+Jungle Ruins, Desert Tombs, Ice Caverns, Cave Mines, Volcanic Crater, Night Summit — each with distinct fog, ground, mist, textured path/stone, and roadside props.
+Turns are banked quarter-circle curves (not sharp L corners). Special crossings: river (boat/rope/jump/swim + shore foam), fire (jump/vine/dunk), lava river, zipline, dual-track mine cart, ice surf, aqueduct water-slide, wall run, ledge grab, jungle tree bridge, canopy rope, waterfall plunge.
+Chase pack: Idol Beast pack with dust wake; rolling boulders and spinning spike wheels. Near-misses build a combo score multiplier. Menu head-start and SAVE ME gem revive.
 Characters have original silhouette kits + traversal poses (swim, zipline hang, wall lean, ledge hang). Relics and gems are multi-part idols.
 Locker: original characters, hats & pets (with pet passives), plus rotating seasonal cosmetics.
 Live ops: weekly event biome bias, artifact hunt, mission claims. HUD uses carved stone-tablet plaques.

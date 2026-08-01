@@ -16,9 +16,11 @@ namespace TempleSprint
         float[] _phase;
         bool _active;
         Renderer[] _eyeGlow;
+        Transform _dustWake;
         float _lunge;
         float _lastLungeTime = -10f;
         float _threat01;
+        float _lastGrowlTime = -10f;
 
         /// <summary>0 far → 1 about to catch (for chase cam pressure / UI).</summary>
         public float Threat01 => _threat01;
@@ -34,17 +36,35 @@ namespace TempleSprint
         {
             var root = new GameObject("IdolBeastPack").transform;
             root.SetParent(transform, false);
-            _pack = new Transform[3];
-            _phase = new float[3];
-            float[] xOff = { -0.95f, 0f, 0.95f };
-            float[] zOff = { -0.55f, 0.4f, -0.7f };
+            // Five-beast pack: lead + flanking wings + trailing scouts (stronger chase presence).
+            _pack = new Transform[5];
+            _phase = new float[5];
+            float[] xOff = { -1.35f, -0.7f, 0f, 0.7f, 1.35f };
+            float[] zOff = { -0.95f, -0.35f, 0.55f, -0.45f, -1.05f };
+            float[] scales = { 0.92f, 1.05f, 1.32f, 1.05f, 0.92f };
             var eyes = new System.Collections.Generic.List<Renderer>();
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 5; i++)
             {
-                _pack[i] = BuildBeast(root, new Vector3(xOff[i], 0f, zOff[i]), i == 1 ? 1.25f : 1.0f, eyes);
-                _phase[i] = i * 0.7f;
+                _pack[i] = BuildBeast(root, new Vector3(xOff[i], 0f, zOff[i]), scales[i], eyes);
+                _phase[i] = i * 0.55f;
             }
             _eyeGlow = eyes.ToArray();
+
+            _dustWake = new GameObject("PackDustWake").transform;
+            _dustWake.SetParent(root, false);
+            _dustWake.localPosition = new Vector3(0f, 0.15f, -1.4f);
+            for (int i = 0; i < 6; i++)
+            {
+                var puff = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                puff.transform.SetParent(_dustWake, false);
+                puff.transform.localPosition = new Vector3(
+                    (i % 3 - 1) * 0.45f, Random.Range(0f, 0.25f), -i * 0.22f);
+                float s = Random.Range(0.35f, 0.7f);
+                puff.transform.localScale = new Vector3(s, s * 0.55f, s);
+                puff.GetComponent<Renderer>().sharedMaterial =
+                    JunglePalette.Mat(new Color(0.45f, 0.38f, 0.28f, 0.55f), 0.05f);
+                Object.Destroy(puff.GetComponent<Collider>());
+            }
         }
 
         static Transform BuildBeast(Transform parent, Vector3 localPos, float scale,
@@ -263,8 +283,12 @@ namespace TempleSprint
                 _phase[i] += Time.deltaTime * (11f + _threat01 * 4f + _lunge * 6f);
                 float s = Mathf.Sin(_phase[i]);
                 var lp = _pack[i].localPosition;
-                float reach = _lunge * (0.55f + (i == 1 ? 0.35f : 0.15f));
-                _pack[i].localPosition = new Vector3(lp.x, Mathf.Abs(s) * 0.18f + _lunge * 0.12f, lp.z + reach);
+                bool lead = i == 2;
+                float reach = _lunge * (0.55f + (lead ? 0.4f : 0.18f));
+                // Preserve staggered base Z from BuildVisual via phase bob only on Y / temp reach.
+                float baseZ = i switch { 0 => -0.95f, 1 => -0.35f, 2 => 0.55f, 3 => -0.45f, _ => -1.05f };
+                float baseX = i switch { 0 => -1.35f, 1 => -0.7f, 2 => 0f, 3 => 0.7f, _ => 1.35f };
+                _pack[i].localPosition = new Vector3(baseX, Mathf.Abs(s) * 0.18f + _lunge * 0.12f, baseZ + reach);
                 _pack[i].localRotation = Quaternion.Euler(s * 12f - _lunge * 28f, 0f, s * 4f);
 
                 var armL = _pack[i].Find("ArmL");
@@ -272,6 +296,13 @@ namespace TempleSprint
                 float claw = _lunge * 55f;
                 if (armL != null) armL.localRotation = Quaternion.Euler(55f + s * 25f - claw, -15f - claw * 0.2f, -35f);
                 if (armR != null) armR.localRotation = Quaternion.Euler(55f - s * 25f - claw, 15f + claw * 0.2f, 35f);
+            }
+
+            if (_dustWake != null)
+            {
+                float dustPulse = 0.85f + _threat01 * 0.45f + _lunge * 0.35f;
+                _dustWake.localScale = new Vector3(dustPulse, dustPulse * 0.7f, 1f + _threat01);
+                _dustWake.localPosition = new Vector3(0f, 0.12f + Mathf.Abs(Mathf.Sin(Time.time * 9f)) * 0.08f, -1.5f - _lunge * 0.3f);
             }
 
             // Eyes pulse hotter as the pack closes in
