@@ -8,11 +8,17 @@ namespace TempleSprint
         public static GameUI Instance { get; private set; }
 
         Canvas _canvas;
-        GameObject _boot, _menu, _hud, _post, _upgrade, _locker, _shop, _missions, _settings, _info, _tutorial;
-        Text _menuCurrency, _hudScore, _hudCoins, _hudPower, _postSummary, _infoBody, _tutorialText, _upgradeInfo, _missionBody;
+        GameObject _boot, _menu, _hud, _post, _upgrade, _locker, _shop, _missions, _settings, _info, _tutorial, _leaderboard, _guardianQte;
+        Text _menuCurrency, _hudScore, _hudCoins, _hudPower, _hudCombo, _hudGhost, _postSummary, _infoBody, _tutorialText, _upgradeInfo, _missionBody;
+        Text _weeklyChallengeText, _leaderboardBody, _guardianQteText;
+        GameObject _hudComboFrame, _hudGhostFrame;
+        Image _hudPowerFill;
         Button _btnReviveAd, _btnReviveGem;
         bool _bootDone, _starterQueued;
         float _bootTimer = 0.45f;
+        float _comboPulse;
+        float _qtePulse;
+        float _qteSecondsLeft;
 
         void Awake()
         {
@@ -37,12 +43,14 @@ namespace TempleSprint
             Btn(_menu, "EASY", new Vector2(-280, 90), () => GameManager.Instance?.StartRun(RunDifficulty.Easy));
             Btn(_menu, "MEDIUM", new Vector2(0, 90), () => GameManager.Instance?.StartRun(RunDifficulty.Medium));
             Btn(_menu, "HARD", new Vector2(280, 90), () => GameManager.Instance?.StartRun(RunDifficulty.Hard));
-            Btn(_menu, "UPGRADES", new Vector2(-280, -40), ShowUpgrades);
-            Btn(_menu, "LOCKER", new Vector2(0, -40), ShowLocker);
-            Btn(_menu, "SHOP", new Vector2(280, -40), ShowShop);
-            Btn(_menu, "MISSIONS", new Vector2(-280, -130), ShowMissions);
-            Btn(_menu, "SETTINGS", new Vector2(0, -130), ShowSettings);
-            Btn(_menu, "MORE", new Vector2(280, -130), ShowMore);
+            Btn(_menu, "HEAD START (25 GEMS)", new Vector2(0, 10), TryArmHeadStart);
+            Btn(_menu, "UPGRADES", new Vector2(-280, -60), ShowUpgrades);
+            Btn(_menu, "LOCKER", new Vector2(0, -60), ShowLocker);
+            Btn(_menu, "SHOP", new Vector2(280, -60), ShowShop);
+            Btn(_menu, "MISSIONS", new Vector2(-280, -150), ShowMissions);
+            Btn(_menu, "BOARD", new Vector2(0, -150), ShowLeaderboard);
+            Btn(_menu, "SETTINGS", new Vector2(280, -150), ShowSettings);
+            Btn(_menu, "MORE", new Vector2(0, -230), ShowMore);
             Sub(_menu, "Choose a difficulty to start  ·  SPACE = Medium", 22, 0.08f, 0.16f);
 
             _hud = new GameObject("HUD");
@@ -58,10 +66,23 @@ namespace TempleSprint
                 _hud.transform, "Coins",
                 new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f),
                 new Vector2(-36f, -140f), new Vector2(240f, 72f), "◆ 0");
-            _hudPower = UiFactory.CreateHudPlaque(
+            var powerRing = UiFactory.CreatePowerRing(
                 _hud.transform, "Power",
-                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(36f, -36f), new Vector2(200f, 88f), "");
+                new Vector2(0f, 1f), new Vector2(36f, -36f), 132f);
+            _hudPowerFill = powerRing.fill;
+            _hudPower = powerRing.label;
+            _hudCombo = UiFactory.CreateHudPlaque(
+                _hud.transform, "Combo",
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -36f), new Vector2(220f, 64f), "");
+            _hudComboFrame = _hudCombo != null ? _hudCombo.transform.parent.parent.gameObject : null;
+            if (_hudComboFrame != null) _hudComboFrame.SetActive(false);
+            _hudGhost = UiFactory.CreateHudPlaque(
+                _hud.transform, "Ghost",
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -110f), new Vector2(280f, 56f), "");
+            _hudGhostFrame = _hudGhost != null ? _hudGhost.transform.parent.parent.gameObject : null;
+            if (_hudGhostFrame != null) _hudGhostFrame.SetActive(false);
             UiFactory.CreateCircleButton(
                 _hud.transform, "Pause", "Ⅱ",
                 new Vector2(1f, 0f), new Vector2(-40f, 40f), 96f,
@@ -79,8 +100,8 @@ namespace TempleSprint
                 RunSession.Instance?.FinalizeAndBank();
                 GameManager.Instance?.StartRun(GameManager.Instance.CurrentDifficulty);
             });
-            _btnReviveAd = Btn(_post, "REVIVE (AD)", new Vector2(0, -50), TryAdRevive);
-            _btnReviveGem = Btn(_post, "REVIVE (5 GEMS)", new Vector2(0, -140), TryGemRevive);
+            _btnReviveAd = Btn(_post, "SAVE ME (AD)", new Vector2(0, -50), TryAdRevive);
+            _btnReviveGem = Btn(_post, "SAVE ME · 5 GEMS", new Vector2(0, -140), TryGemRevive);
             Btn(_post, "2x COINS (AD)", new Vector2(0, -230), TryDoubleCoins);
             Btn(_post, "SHARE", new Vector2(0, -320), ShareRun);
             Btn(_post, "UPGRADES", new Vector2(-200, -410), ShowUpgrades);
@@ -89,15 +110,18 @@ namespace TempleSprint
             _upgrade = Panel("Upgrades", new Color(0.07f, 0.12f, 0.1f, 0.82f));
             Title(_upgrade, "UPGRADES", 44, 0.82f, 0.96f);
             _upgradeInfo = Sub(_upgrade, "", 22, 0.55f, 0.8f);
-            Btn(_upgrade, "MAGNET RADIUS", new Vector2(0, 40), () => { MetaProgress.Ensure().TryBuyMagnet(); RefreshUpgrade(); });
-            Btn(_upgrade, "COIN MULTIPLIER", new Vector2(0, -50), () => { MetaProgress.Ensure().TryBuyCoinMultiplier(); RefreshUpgrade(); });
-            Btn(_upgrade, "STARTING SHIELD", new Vector2(0, -140), () => { MetaProgress.Ensure().TryBuyRevive(); RefreshUpgrade(); });
-            Btn(_upgrade, "BACK", new Vector2(0, -260), BackToMenuOrPost);
+            Btn(_upgrade, "MAGNET RADIUS", new Vector2(-160, 80), () => { MetaProgress.Ensure().TryBuyMagnet(); RefreshUpgrade(); });
+            Btn(_upgrade, "COIN MULTIPLIER", new Vector2(160, 80), () => { MetaProgress.Ensure().TryBuyCoinMultiplier(); RefreshUpgrade(); });
+            Btn(_upgrade, "STARTING SHIELD", new Vector2(-160, -10), () => { MetaProgress.Ensure().TryBuyRevive(); RefreshUpgrade(); });
+            Btn(_upgrade, "ENERGY FILL", new Vector2(160, -10), () => { MetaProgress.Ensure().TryBuyEnergyFill(); RefreshUpgrade(); });
+            Btn(_upgrade, "MAGNET TIME", new Vector2(-160, -100), () => { MetaProgress.Ensure().TryBuyMagnetDuration(); RefreshUpgrade(); });
+            Btn(_upgrade, "BOOST TIME", new Vector2(160, -100), () => { MetaProgress.Ensure().TryBuyBoostDuration(); RefreshUpgrade(); });
+            Btn(_upgrade, "BACK", new Vector2(0, -220), BackToMenuOrPost);
 
             _locker = Panel("Locker", new Color(0.08f, 0.12f, 0.14f, 0.82f));
             Title(_locker, "LOCKER", 44, 0.82f, 0.96f);
             BuildLockerButtons();
-            Btn(_locker, "BACK", new Vector2(0, -360), () => ShowMainMenu());
+            Btn(_locker, "BACK", new Vector2(0, -390), () => ShowMainMenu());
 
             _shop = Panel("Shop", new Color(0.1f, 0.1f, 0.14f, 0.82f));
             Title(_shop, "SHOP", 44, 0.82f, 0.96f);
@@ -115,7 +139,20 @@ namespace TempleSprint
             Btn(_missions, "CLAIM 1", new Vector2(-160, -40), () => { MissionSystem.TryClaim(0); ShowMissions(); });
             Btn(_missions, "CLAIM 2", new Vector2(160, -40), () => { MissionSystem.TryClaim(1); ShowMissions(); });
             Btn(_missions, "CLAIM 3", new Vector2(0, -120), () => { MissionSystem.TryClaim(2); ShowMissions(); });
-            Btn(_missions, "BACK", new Vector2(0, -260), () => ShowMainMenu());
+            Btn(_missions, "CLAIM ARTIFACT", new Vector2(0, -200), () =>
+            {
+                Toast(ArtifactHuntSystem.TryClaim() ? "Artifact claimed!" : "Hunt incomplete / claimed");
+                ShowMissions();
+            });
+            Btn(_missions, "WEEKLY BOARD", new Vector2(0, -280), ShowLeaderboard);
+            Btn(_missions, "BACK", new Vector2(0, -350), () => ShowMainMenu());
+
+            _leaderboard = Panel("Leaderboard", new Color(0.08f, 0.1f, 0.12f, 0.86f));
+            Title(_leaderboard, "WEEKLY RUN BOARD", 42, 0.82f, 0.96f);
+            _weeklyChallengeText = Sub(_leaderboard, "", 20, 0.68f, 0.8f);
+            _leaderboardBody = Sub(_leaderboard, "", 22, 0.28f, 0.72f);
+            Btn(_leaderboard, "MISSIONS", new Vector2(-160, -340), ShowMissions);
+            Btn(_leaderboard, "BACK", new Vector2(160, -340), () => ShowMainMenu());
 
             _settings = Panel("Settings", new Color(0.09f, 0.1f, 0.12f, 0.82f));
             Title(_settings, "SETTINGS", 44, 0.82f, 0.96f);
@@ -143,6 +180,18 @@ namespace TempleSprint
             _tutorial.AddComponent<Image>().color = new Color(0, 0, 0, 0.5f);
             _tutorialText = UiFactory.CreateText(_tutorial.transform, "Tip", "", 32, TextAnchor.MiddleCenter, Color.white);
             _tutorial.SetActive(false);
+
+            _guardianQte = new GameObject("GuardianQte");
+            _guardianQte.transform.SetParent(_canvas.transform, false);
+            var qr = _guardianQte.AddComponent<RectTransform>();
+            qr.anchorMin = new Vector2(0.12f, 0.42f);
+            qr.anchorMax = new Vector2(0.88f, 0.62f);
+            qr.offsetMin = Vector2.zero;
+            qr.offsetMax = Vector2.zero;
+            _guardianQte.AddComponent<Image>().color = new Color(0.12f, 0.05f, 0.04f, 0.78f);
+            _guardianQteText = UiFactory.CreateText(_guardianQte.transform, "Qte", "", 34, TextAnchor.MiddleCenter,
+                new Color(1f, 0.85f, 0.35f));
+            _guardianQte.SetActive(false);
 
             ShowOnly(_boot);
         }
@@ -184,9 +233,82 @@ namespace TempleSprint
                     : "RUN";
                 _hudScore.text = RunSession.Instance.Score.ToString("N0");
                 _hudCoins.text = "◆  " + RunSession.Instance.CoinsThisRun;
-                string power = PowerUpController.Instance != null ? PowerUpController.Instance.ActiveLabel : "";
-                _hudPower.text = string.IsNullOrEmpty(power) ? diff : power;
+                if (PowerUpController.Instance != null)
+                {
+                    float fill = PowerUpController.Instance.EnergyFill01;
+                    if (_hudPowerFill != null)
+                    {
+                        _hudPowerFill.fillAmount = fill;
+                        _hudPowerFill.color = PowerUpController.Instance.EnergyReady
+                            ? Color.Lerp(new Color(1f, 0.9f, 0.35f), new Color(1f, 0.55f, 0.15f),
+                                0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 8f))
+                            : new Color(1f, 0.82f, 0.28f, 1f);
+                    }
+                    if (PowerUpController.Instance.CharacterSkillReady)
+                        _hudPower.text = "SKILL";
+                    else if (PowerUpController.Instance.EnergyReady)
+                        _hudPower.text = "READY";
+                    else
+                        _hudPower.text = Mathf.FloorToInt(fill * 100f) + "%";
+                }
+
+                if (_guardianQte != null && _guardianQte.activeSelf && _qtePulse > 0f)
+                {
+                    _qtePulse -= Time.unscaledDeltaTime;
+                    float s = 1f + _qtePulse * 0.2f;
+                    _guardianQte.transform.localScale = new Vector3(s, s, 1f);
+                }
+                else
+                {
+                    if (_hudPowerFill != null) _hudPowerFill.fillAmount = 0f;
+                    _hudPower.text = diff;
+                }
+
+                if (_hudCombo != null && _hudComboFrame != null)
+                {
+                    int combo = RunSession.Instance.Combo;
+                    if (combo > 0)
+                    {
+                        _hudComboFrame.SetActive(true);
+                        _hudCombo.text = $"COMBO x{RunSession.Instance.ComboMultiplier:0.0}";
+                        var rt = _hudComboFrame.GetComponent<RectTransform>();
+                        if (_comboPulse > 0f)
+                        {
+                            _comboPulse -= Time.unscaledDeltaTime;
+                            float s = 1f + _comboPulse * 0.35f;
+                            if (rt != null) rt.localScale = new Vector3(s, s, 1f);
+                        }
+                        else if (rt != null)
+                            rt.localScale = Vector3.one;
+                    }
+                    else
+                    {
+                        _hudComboFrame.SetActive(false);
+                        var rt = _hudComboFrame.GetComponent<RectTransform>();
+                        if (rt != null) rt.localScale = Vector3.one;
+                    }
+                }
+
+                if (_hudGhost != null && _hudGhostFrame != null)
+                {
+                    var ghost = GhostRivalRunner.Instance;
+                    if (ghost != null && ghost.IsRacing && !string.IsNullOrEmpty(ghost.HudLabel))
+                    {
+                        _hudGhostFrame.SetActive(true);
+                        _hudGhost.text = ghost.HudLabel;
+                    }
+                    else
+                        _hudGhostFrame.SetActive(false);
+                }
             }
+        }
+
+        public void PulseCombo(int combo, float mult)
+        {
+            if (_hudCombo == null || _hudComboFrame == null) return;
+            _comboPulse = 0.35f;
+            _hudComboFrame.SetActive(combo > 0);
+            _hudCombo.text = $"COMBO x{mult:0.0}";
         }
 
         public void QueueStarterPackOffer() => _starterQueued = true;
@@ -194,7 +316,11 @@ namespace TempleSprint
         public void ShowMainMenu()
         {
             var m = MetaProgress.Ensure().Data;
-            _menuCurrency.text = $"Coins {m.bankedCoins} · Gems {m.gems} · Relics {m.relics}\n{CharacterRoster.SelectedDisplayName} · {BiomeSystem.DisplayName(BiomeSystem.Current)}";
+            string head = m.headStartArmed ? " · HEAD START READY" : "";
+            string skill = string.IsNullOrEmpty(CharacterRoster.ActiveSkillLabel)
+                ? ""
+                : $" · {CharacterRoster.ActiveSkillLabel}";
+            _menuCurrency.text = $"Coins {m.bankedCoins} · Gems {m.gems} · Relics {m.relics}{head}\n{CharacterRoster.SelectedDisplayName} · {BiomeSystem.DisplayName(BiomeSystem.Current)}{skill}";
             ShowOnly(_menu);
         }
 
@@ -202,15 +328,30 @@ namespace TempleSprint
 
         public void ShowPostRun(RunEndPayload p)
         {
+            var meta = MetaProgress.Ensure().Data;
             bool canRevive = RunSession.Instance != null
                              && !RunSession.Instance.ReviveUsed
                              && !RunSession.Instance.IsFinalized;
-            bool adsOff = MetaProgress.Ensure().Data.adsRemoved;
+            bool adsOff = meta.adsRemoved;
             if (_btnReviveAd != null) _btnReviveAd.gameObject.SetActive(canRevive && !adsOff);
-            if (_btnReviveGem != null) _btnReviveGem.gameObject.SetActive(canRevive);
+            if (_btnReviveGem != null)
+            {
+                _btnReviveGem.gameObject.SetActive(canRevive);
+                var label = _btnReviveGem.GetComponentInChildren<Text>();
+                if (label != null)
+                {
+                    label.text = canRevive
+                        ? (meta.gems >= 5 ? $"SAVE ME · 5 GEMS ({meta.gems})" : $"NEED 5 GEMS (have {meta.gems})")
+                        : "SAVE USED";
+                }
+            }
 
+            string saveLine = canRevive
+                ? "One SAVE ME left this run — revive with shield + i-frames.\n"
+                : "Save already used this run.\n";
             _postSummary.text =
-                $"{p.deathReason}\n\nScore {p.score}\nCoins +{p.coinsEarned}  Gems +{p.gemsEarned}  Relics +{p.relicsEarned}\n" +
+                $"{p.deathReason}\n\n{saveLine}" +
+                $"Score {p.score}\nCoins +{p.coinsEarned}  Gems +{p.gemsEarned}  Relics +{p.relicsEarned}\n" +
                 $"Distance {p.distance:0}m  Near-misses {p.nearMisses}\n" +
                 $"Mode {(GameManager.Instance != null ? DifficultyProfile.For(GameManager.Instance.CurrentDifficulty).DisplayName : "?")}\n" +
                 (p.doubledCoins ? "Coins doubled\n" : "") +
@@ -226,6 +367,35 @@ namespace TempleSprint
 
         public void HideTutorial() => _tutorial.SetActive(false);
 
+        public void ShowGuardianStruggle(SwipeDirection required, float seconds)
+        {
+            if (_guardianQte == null || _guardianQteText == null) return;
+            _qteSecondsLeft = seconds;
+            string arrow = required == SwipeDirection.Left ? "← SWIPE LEFT" : "SWIPE RIGHT →";
+            _guardianQteText.text = $"IDOL BEAST GRAB!\n{arrow}\nMash to break free  ·  {seconds:0.0}s";
+            _guardianQte.SetActive(true);
+            _qtePulse = 0.25f;
+        }
+
+        public void UpdateGuardianStruggle(float secondsLeft, int hits)
+        {
+            if (_guardianQteText == null || !_guardianQte.activeSelf) return;
+            _qteSecondsLeft = secondsLeft;
+            _guardianQteText.text = $"BREAK FREE!  hits {hits}/3\n{secondsLeft:0.0}s left";
+        }
+
+        public void PulseGuardianStruggle(int hits)
+        {
+            _qtePulse = 0.28f;
+            UpdateGuardianStruggle(_qteSecondsLeft, hits);
+        }
+
+        public void HideGuardianStruggle()
+        {
+            if (_guardianQte != null) _guardianQte.SetActive(false);
+            if (_guardianQte != null) _guardianQte.transform.localScale = Vector3.one;
+        }
+
         void ShowUpgrades()
         {
             RefreshUpgrade();
@@ -236,8 +406,9 @@ namespace TempleSprint
         {
             var m = MetaProgress.Ensure();
             string revive = m.Data.reviveLevel >= 1 ? "OWNED" : m.ReviveUpgradeCost + " coins";
-            _upgradeInfo.text = $"Bank {m.Data.bankedCoins}\nMagnet Lv {m.Data.magnetRadiusLevel} ({m.MagnetUpgradeCost})\n" +
-                                $"Coin Mult Lv {m.Data.coinMultiplierLevel} x{m.CoinMultiplier:0.00} ({m.CoinUpgradeCost})\nShield start: {revive}";
+            _upgradeInfo.text = $"Bank {m.Data.bankedCoins}\nMagnet Lv {m.Data.magnetRadiusLevel} ({m.MagnetUpgradeCost}) · Time Lv {m.Data.magnetDurationLevel}\n" +
+                                $"Coin Mult Lv {m.Data.coinMultiplierLevel} x{m.CoinMultiplier:0.00} ({m.CoinUpgradeCost})\n" +
+                                $"Energy Fill Lv {m.Data.energyFillLevel} · Boost Time Lv {m.Data.boostDurationLevel}\nShield start: {revive}";
         }
 
         void ShowLocker()
@@ -258,23 +429,93 @@ namespace TempleSprint
                         Toast(CharacterRoster.TryUnlock(id) ? "Unlocked!" : $"Need {c.gemCost} gems");
                     else
                     {
-                        Toast(CharacterRoster.Select(id) ? "Selected " + c.displayName : "Locked");
-                        PlayerController.Instance?.ApplyCharacterColors();
+                        if (CharacterRoster.Select(id))
+                        {
+                            string skill = string.IsNullOrEmpty(c.activeDescription) || c.activeSkill == CharacterActiveSkill.None
+                                ? c.passive
+                                : c.activeDescription;
+                            Toast("Selected " + c.displayName + " · " + skill);
+                            PlayerController.Instance?.ApplyCharacterColors();
+                        }
+                        else Toast("Locked");
                     }
                 });
                 y -= 70f;
             }
-            Btn(_locker, "JUNGLE BIOME", new Vector2(-180, -280), () => { BiomeSystem.Select(BiomeId.JungleRuins); Toast("Jungle"); });
-            Btn(_locker, "DESERT", new Vector2(0, -280), () =>
+            Btn(_locker, "JUNGLE", new Vector2(-220, -240), () => { BiomeSystem.Select(BiomeId.JungleRuins); Toast("Jungle Ruins"); });
+            Btn(_locker, "DESERT", new Vector2(0, -240), () =>
             {
                 if (!BiomeSystem.IsUnlocked(BiomeId.DesertTombs)) { Toast("Unlock via runs/relics/distance"); return; }
                 BiomeSystem.Select(BiomeId.DesertTombs); Toast("Desert Tombs");
             });
-            Btn(_locker, "ICE", new Vector2(180, -280), () =>
+            Btn(_locker, "ICE", new Vector2(220, -240), () =>
             {
                 if (!BiomeSystem.IsUnlocked(BiomeId.IceCaverns)) { Toast("Unlock via runs/relics/distance"); return; }
                 BiomeSystem.Select(BiomeId.IceCaverns); Toast("Ice Caverns");
             });
+            Btn(_locker, "CAVE", new Vector2(-120, -310), () =>
+            {
+                if (!BiomeSystem.IsUnlocked(BiomeId.CaveMines)) { Toast("Unlock Cave Mines via runs/relics"); return; }
+                BiomeSystem.Select(BiomeId.CaveMines); Toast("Cave Mines");
+            });
+            Btn(_locker, "VOLCANO", new Vector2(120, -310), () =>
+            {
+                if (!BiomeSystem.IsUnlocked(BiomeId.VolcanicCrater)) { Toast("Unlock Volcano via runs/relics"); return; }
+                BiomeSystem.Select(BiomeId.VolcanicCrater); Toast("Volcanic Crater");
+            });
+            Btn(_locker, "NIGHT", new Vector2(0, -360), () =>
+            {
+                if (!BiomeSystem.IsUnlocked(BiomeId.NightSummit)) { Toast("Unlock Night Summit via runs/relics"); return; }
+                BiomeSystem.Select(BiomeId.NightSummit); Toast("Night Summit");
+            });
+
+            float cy = -420f;
+            foreach (var h in CosmeticRoster.Hats)
+            {
+                if (h.id == "hat_none") continue;
+                // Hide off-season cosmetics unless already owned.
+                if (CosmeticRoster.IsSeasonal(h.id) && !CosmeticRoster.IsFeaturedThisWeek(h.id)
+                    && !MetaProgress.Ensure().HasCosmetic(h.id))
+                    continue;
+                var id = h.id;
+                var label = (CosmeticRoster.IsFeaturedThisWeek(id) ? "★ " : "") + h.displayName;
+                var cost = h.gemCost;
+                Btn(_locker, "HAT:" + label, new Vector2(-160, cy), () =>
+                {
+                    if (!MetaProgress.Ensure().HasCosmetic(id))
+                        Toast(CosmeticRoster.TryUnlock(id, true) ? "Hat unlocked!" : $"Need {cost} gems / not in season");
+                    else
+                    {
+                        CosmeticRoster.SelectHat(id);
+                        PlayerController.Instance?.ApplyCharacterColors();
+                        Toast("Hat: " + label);
+                    }
+                });
+                cy -= 55f;
+            }
+            cy = -370f;
+            foreach (var p in CosmeticRoster.Pets)
+            {
+                if (p.id == "pet_none") continue;
+                if (CosmeticRoster.IsSeasonal(p.id) && !CosmeticRoster.IsFeaturedThisWeek(p.id)
+                    && !MetaProgress.Ensure().HasCosmetic(p.id))
+                    continue;
+                var id = p.id;
+                var label = (CosmeticRoster.IsFeaturedThisWeek(id) ? "★ " : "") + p.displayName;
+                var cost = p.gemCost;
+                Btn(_locker, "PET:" + label, new Vector2(160, cy), () =>
+                {
+                    if (!MetaProgress.Ensure().HasCosmetic(id))
+                        Toast(CosmeticRoster.TryUnlock(id, false) ? "Pet unlocked!" : $"Need {cost} gems / not in season");
+                    else
+                    {
+                        CosmeticRoster.SelectPet(id);
+                        PlayerController.Instance?.ApplyCharacterColors();
+                        Toast("Pet: " + label);
+                    }
+                });
+                cy -= 55f;
+            }
         }
 
         void ShowShop() => ShowOnly(_shop);
@@ -282,9 +523,43 @@ namespace TempleSprint
         void ShowMissions()
         {
             if (_missionBody != null)
-                _missionBody.text = MissionSystem.Summary() + "\n\nAchievements:\n" + AchievementSystem.ListUnlocked() +
-                                    "\n\n" + BattlePassService.Status();
+                _missionBody.text = MissionSystem.Summary() + "\n\n" + ArtifactHuntSystem.Status() +
+                                    "\n\n" + LeaderboardService.WeeklyChallengeBlurb() +
+                                    "\n\nAchievements:\n" + AchievementSystem.ListUnlocked() +
+                                    "\n\n" + BattlePassService.Status() +
+                                    "\n\n" + EventService.SeasonalLockerBlurb();
             ShowOnly(_missions);
+        }
+
+        void ShowLeaderboard()
+        {
+            if (_weeklyChallengeText != null)
+                _weeklyChallengeText.text = LeaderboardService.WeeklyChallengeBlurb();
+            if (_leaderboardBody != null)
+            {
+                var global = LeaderboardService.GetWeeklyGlobalEntries();
+                var friends = LeaderboardService.GetFriendEntries();
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine("— GLOBAL PLAQUE —");
+                for (int i = 0; i < global.Length && i < 5; i++)
+                {
+                    var e = global[i];
+                    string mark = e.isPlayer ? "★ " : "  ";
+                    sb.AppendLine($"{mark}{i + 1}. {e.name} — {e.score}");
+                }
+                sb.AppendLine();
+                sb.AppendLine("— FRIENDS PLAQUE —");
+                for (int i = 0; i < friends.Length && i < 5; i++)
+                {
+                    var e = friends[i];
+                    string mark = e.isPlayer ? "★ " : "  ";
+                    sb.AppendLine($"{mark}{i + 1}. {e.name} — {e.score}");
+                }
+                sb.AppendLine();
+                sb.Append(GhostRunService.Status());
+                _leaderboardBody.text = sb.ToString();
+            }
+            ShowOnly(_leaderboard);
         }
 
         void ShowSettings() => ShowOnly(_settings);
@@ -310,9 +585,9 @@ namespace TempleSprint
                 if (ok)
                 {
                     GameManager.Instance?.ContinueAfterRevive();
-                    Toast("Revived via rewarded ad");
+                    Toast("Saved via rewarded ad!");
                 }
-                else Toast("Revive unavailable");
+                else Toast("Save unavailable");
             });
         }
 
@@ -321,9 +596,26 @@ namespace TempleSprint
             if (MonetizationService.ReviveWithGems())
             {
                 GameManager.Instance?.ContinueAfterRevive();
-                Toast("Revived for 5 gems");
+                Toast("Saved! Shield armed");
             }
             else Toast("Need 5 gems / already used");
+        }
+
+        void TryArmHeadStart()
+        {
+            var m = MetaProgress.Ensure();
+            if (m.Data.headStartArmed)
+            {
+                Toast("Head start already armed — pick a difficulty");
+                ShowMainMenu();
+                return;
+            }
+            if (m.TryArmHeadStart())
+            {
+                Toast("Head start armed (25 gems)");
+                ShowMainMenu();
+            }
+            else Toast($"Need {MetaProgress.HeadStartGemCost} gems");
         }
 
         void TryDoubleCoins()
@@ -404,14 +696,20 @@ namespace TempleSprint
             _locker.SetActive(panel == _locker);
             _shop.SetActive(panel == _shop);
             _missions.SetActive(panel == _missions);
+            if (_leaderboard != null) _leaderboard.SetActive(panel == _leaderboard);
             _settings.SetActive(panel == _settings);
             _info.SetActive(panel == _info);
-            if (panel != _hud) HideTutorial();
+            if (panel != _hud)
+            {
+                HideTutorial();
+                HideGuardianStruggle();
+            }
         }
 
         GameObject Panel(string name, Color c)
         {
-            return UiFactory.CreatePanel(_canvas.transform, name, c).gameObject;
+            // Stone-tablet chrome for menus; keep HUD overlay lightweight.
+            return UiFactory.CreateStonePanel(_canvas.transform, name, c).gameObject;
         }
 
         Text Title(GameObject parent, string t, int size, float amin, float amax)
