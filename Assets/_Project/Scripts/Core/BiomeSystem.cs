@@ -297,6 +297,7 @@ namespace TempleSprint
         Material _groundMatInstance;
         Transform _vineCurtain;
         Transform _starfield;
+        Transform _festivalRoot;
         float _treeSpacing = 16f;
         Vector2 _waterOffset;
 
@@ -700,6 +701,82 @@ namespace TempleSprint
             }
 
             EnsureStarfield(BiomeSystem.Current == BiomeId.NightSummit);
+            EnsureFestivalBackdrop(EventService.IsFeaturedBiome(BiomeSystem.Current));
+
+            // Limited-time event: warm the sky/fog toward festival accents on the featured biome.
+            if (EventService.IsFeaturedBiome(BiomeSystem.Current))
+            {
+                Color accent = EventService.FestivalAccent;
+                RenderSettings.fogColor = Color.Lerp(RenderSettings.fogColor, accent, 0.18f);
+                RenderSettings.ambientSkyColor = Color.Lerp(RenderSettings.ambientSkyColor, accent, 0.12f);
+                if (RenderSettings.skybox != null)
+                {
+                    Color festTint = Color.Lerp(skyTint, accent, 0.28f);
+                    if (RenderSettings.skybox.HasProperty("_Tint"))
+                        RenderSettings.skybox.SetColor("_Tint", festTint);
+                    else if (RenderSettings.skybox.HasProperty("_SkyTint"))
+                        RenderSettings.skybox.SetColor("_SkyTint", festTint);
+                }
+            }
+        }
+
+        void EnsureFestivalBackdrop(bool enabled)
+        {
+            if (!enabled)
+            {
+                if (_festivalRoot != null) _festivalRoot.gameObject.SetActive(false);
+                return;
+            }
+
+            if (_festivalRoot == null)
+            {
+                _festivalRoot = new GameObject("FestivalBackdrop").transform;
+                _festivalRoot.SetParent(transform, false);
+                var accentMat = JunglePalette.Mat(EventService.FestivalAccent, 0.5f, 0.12f);
+                var trimMat = JunglePalette.Mat(EventService.FestivalTrim, 0.55f, 0.1f);
+
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    for (int i = 0; i < 4; i++)
+                    {
+                        var pole = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                        pole.name = "FestivalPole";
+                        pole.transform.SetParent(_festivalRoot, false);
+                        pole.transform.localPosition = new Vector3(side * (18f + i * 3.5f), 4.5f, 22f + i * 8f);
+                        pole.transform.localScale = new Vector3(0.35f, 4.5f, 0.35f);
+                        pole.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+                        pole.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                        Object.Destroy(pole.GetComponent<Collider>());
+
+                        var flag = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                        flag.name = "FestivalFlag";
+                        flag.transform.SetParent(pole.transform, false);
+                        flag.transform.localPosition = new Vector3(side * 1.2f, 0.85f, 0f);
+                        flag.transform.localScale = new Vector3(2.4f, 1.1f, 0.08f);
+                        flag.GetComponent<Renderer>().sharedMaterial = (i % 2 == 0) ? accentMat : trimMat;
+                        flag.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                        Object.Destroy(flag.GetComponent<Collider>());
+                    }
+                }
+            }
+            else
+            {
+                // Retint existing flags when the weekly event rotates.
+                var accentMat = JunglePalette.Mat(EventService.FestivalAccent, 0.5f, 0.12f);
+                var trimMat = JunglePalette.Mat(EventService.FestivalTrim, 0.55f, 0.1f);
+                int fi = 0;
+                foreach (Transform child in _festivalRoot)
+                {
+                    foreach (Transform sub in child)
+                    {
+                        if (!sub.name.StartsWith("FestivalFlag")) continue;
+                        var r = sub.GetComponent<Renderer>();
+                        if (r != null) r.sharedMaterial = (fi++ % 2 == 0) ? accentMat : trimMat;
+                    }
+                }
+            }
+
+            _festivalRoot.gameObject.SetActive(true);
         }
 
         void EnsureStarfield(bool enabled)

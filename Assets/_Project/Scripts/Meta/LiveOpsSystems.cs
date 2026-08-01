@@ -193,6 +193,23 @@ namespace TempleSprint
             _ => BiomeId.IceCaverns
         };
 
+        public static bool IsFeaturedBiome(BiomeId id) => id == FeaturedBiome;
+
+        /// <summary>Original festival accent for limited-time runway / backdrop dressing.</summary>
+        public static Color FestivalAccent => (WeekIndex % 3) switch
+        {
+            0 => new Color(0.95f, 0.72f, 0.18f),   // Jungle Festival gold
+            1 => new Color(0.92f, 0.42f, 0.18f),   // Desert Gold Rush copper
+            _ => new Color(0.45f, 0.78f, 0.98f)    // Ice Relic Hunt frost
+        };
+
+        public static Color FestivalTrim => (WeekIndex % 3) switch
+        {
+            0 => new Color(0.28f, 0.62f, 0.32f),
+            1 => new Color(0.85f, 0.7f, 0.28f),
+            _ => new Color(0.75f, 0.88f, 1f)
+        };
+
         public static float EventCoinBonus => RemoteConfigService.GetFloat("event_coin_bonus", 1.15f);
 
         public static float EventStageBias(BiomeId id) =>
@@ -208,6 +225,7 @@ namespace TempleSprint
 
         public static string Status() =>
             $"Live Event: {CurrentEventName}\nFeatured biome: {BiomeSystem.DisplayName(FeaturedBiome)}\n" +
+            $"Event dressing: ON for featured biome runs\n" +
             $"Coin bonus x{EventCoinBonus:0.00}\n{SeasonalLockerBlurb()}\n" +
             ArtifactHuntSystem.Status() + "\nEvent leaderboard resets weekly.";
     }
