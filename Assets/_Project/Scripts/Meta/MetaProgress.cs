@@ -16,9 +16,11 @@ namespace TempleSprint
         public int energyFillLevel;
         public int magnetDurationLevel;
         public int boostDurationLevel;
-        public string unlockedCosmetics = "hat_none,pet_none";
+        public string unlockedCosmetics = "hat_none,pet_none,cape_none,scarf_none";
         public string selectedHat = "hat_none";
         public string selectedPet = "pet_none";
+        public string selectedCape = "cape_none";
+        public string selectedScarf = "scarf_none";
         public bool tutorialCompleted;
         public int totalRuns;
         public float totalDistance;
@@ -189,7 +191,7 @@ namespace TempleSprint
         }
 
         public bool HasCosmetic(string id) =>
-            id == "hat_none" || id == "pet_none"
+            id == "hat_none" || id == "pet_none" || id == "cape_none" || id == "scarf_none"
             || ("," + (Data.unlockedCosmetics ?? "") + ",").Contains("," + id + ",");
 
         public void UnlockCosmetic(string id)

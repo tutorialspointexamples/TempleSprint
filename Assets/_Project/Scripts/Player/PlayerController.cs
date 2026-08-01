@@ -131,9 +131,10 @@ namespace TempleSprint
             _deathFallVel = 0f;
             ClearTraversal();
             RestoreCollider();
+            _explorer?.ClearOutcomePose();
             _explorer?.ResetPose();
             _explorer?.SetPoseFlags(false, false);
-            _explorer?.ApplyCharacterKit(CharacterRoster.GetSelected().id, CharacterRoster.GetSelected().color);
+            ApplyCharacterColors();
         }
 
         /// <summary>Place the runner back on the deck, further along the path, after a revive.</summary>
@@ -470,6 +471,13 @@ namespace TempleSprint
             _deathFalling = true;
             _deathFallVel = 1.5f;
             _explorer?.SetPoseFlags(false, true);
+            _explorer?.SetOutcomePose(RunnerOutcomePose.FallDeath);
+        }
+
+        /// <summary>Impact / catch death pose before EndRun tears down the session.</summary>
+        public void BeginOutcomeDeath(RunnerOutcomePose pose)
+        {
+            _explorer?.SetOutcomePose(pose);
         }
 
         void Update()
@@ -1618,6 +1626,7 @@ namespace TempleSprint
 
                 AudioHooks.Instance?.PlayHit();
                 ClearTraversal();
+                BeginOutcomeDeath(RunnerOutcomePose.ImpactDeath);
                 RunSession.Instance.EndRun(obstacle.DeathMessage);
                 return;
             }
@@ -1682,9 +1691,9 @@ namespace TempleSprint
         {
             if (_explorer == null) return;
             var c = CharacterRoster.GetSelected();
-            _explorer.SetAccentColor(c.color);
+            _explorer.ApplyCharacterAppearance(c);
             _explorer.ApplyCharacterKit(c.id, c.color);
-            CosmeticRoster.ApplyToRunner(_explorer.transform);
+            _explorer.ApplyCosmetics();
             if (GameManager.Instance != null && GameManager.Instance.State == GameState.MainMenu)
                 _explorer.ApplyMenuShowcase();
         }
@@ -1700,6 +1709,16 @@ namespace TempleSprint
         }
     }
 
+    public enum RunnerOutcomePose
+    {
+        None = 0,
+        Slide = 1,
+        ImpactDeath = 2,
+        FallDeath = 3,
+        Caught = 4,
+        IdolReach = 5
+    }
+
     /// <summary>Kenney CC0 cartoon humanoid — forced-visible materials + Animator Run/Jump/Slide.</summary>
     public class ExplorerRunnerVisual : MonoBehaviour
     {
@@ -1707,16 +1726,20 @@ namespace TempleSprint
         public float BodyHeight { get; private set; }
         public int PartCount { get; private set; }
         public bool HasSkinnedMesh { get; private set; }
+        public Animator Animator => _anim;
 
         Animator _anim;
         Transform _model;
         Transform _kitRoot;
         float _laneLean;
         string _kitId;
+        string _skinKey;
+        Material _runtimeSkin;
+        RunnerOutcomePose _outcomePose;
+        float _outcomeBlend;
         static readonly int RunningHash = Animator.StringToHash("Running");
         static readonly int JumpHash = Animator.StringToHash("Jump");
         static readonly int SlideHash = Animator.StringToHash("Slide");
-        static Material _runtimeSkin;
 
         public static ExplorerRunnerVisual Create(Transform parent)
         {
@@ -1794,7 +1817,7 @@ namespace TempleSprint
         void ForceVisibleRenderers()
         {
             if (_model == null) return;
-            var mat = GetRuntimeSkin();
+            var mat = EnsureRuntimeSkin(CharacterRoster.GetSelected());
             foreach (var r in _model.GetComponentsInChildren<Renderer>(true))
             {
                 r.enabled = true;
@@ -1812,24 +1835,30 @@ namespace TempleSprint
             }
         }
 
-        static Material GetRuntimeSkin()
+        Material EnsureRuntimeSkin(CharacterRoster.CharacterDef def)
         {
-            if (_runtimeSkin != null) return _runtimeSkin;
-            var tex = Resources.Load<Texture2D>("Characters/survivorMaleB");
-            // Prefer Unlit so lighting/fog never erase the character
+            string texPath = string.IsNullOrEmpty(def.textureResource)
+                ? "Characters/survivorMaleB"
+                : def.textureResource;
+            string key = def.id + "|" + texPath;
+            if (_runtimeSkin != null && _skinKey == key) return _runtimeSkin;
+
+            var tex = Resources.Load<Texture2D>(texPath)
+                      ?? Resources.Load<Texture2D>("Characters/survivorMaleB");
             var shader = Shader.Find("Universal Render Pipeline/Unlit")
                          ?? Shader.Find("Unlit/Texture")
                          ?? Shader.Find("Universal Render Pipeline/Lit")
                          ?? Shader.Find("Sprites/Default")
                          ?? Shader.Find("Standard");
             _runtimeSkin = new Material(shader != null ? shader : Shader.Find("Hidden/InternalErrorShader"));
-            _runtimeSkin.name = "RuntimeCartoonSkin";
+            _runtimeSkin.name = "RuntimeCartoonSkin_" + def.id;
+            _skinKey = key;
             if (tex != null)
             {
                 _runtimeSkin.mainTexture = tex;
                 if (_runtimeSkin.HasProperty("_BaseMap")) _runtimeSkin.SetTexture("_BaseMap", tex);
             }
-            var tint = new Color(1f, 0.92f, 0.75f, 1f);
+            Color tint = Color.Lerp(new Color(1f, 0.92f, 0.75f, 1f), def.color, 0.42f);
             _runtimeSkin.color = tint;
             if (_runtimeSkin.HasProperty("_BaseColor")) _runtimeSkin.SetColor("_BaseColor", tint);
             return _runtimeSkin;
@@ -1909,25 +1938,45 @@ namespace TempleSprint
             BodyHeight = b.size.y;
         }
 
+        public void ApplyCharacterAppearance(CharacterRoster.CharacterDef def)
+        {
+            EnsureRuntimeSkin(def);
+            if (_model != null)
+            {
+                Vector3 scale = def.modelScale.sqrMagnitude < 0.01f ? Vector3.one : def.modelScale;
+                // Mild shoulder bias via non-uniform X so roster reads as distinct silhouettes.
+                scale.x += def.shoulderBias;
+                scale.z += def.shoulderBias * 0.5f;
+                _model.localScale = scale;
+            }
+            ForceVisibleRenderers();
+            GroundAlign();
+            Measure();
+        }
+
         public void SetAccentColor(Color accent)
         {
-            // Soft roster tint on the runtime skin (locker character identity).
-            var mat = GetRuntimeSkin();
-            if (mat == null) return;
-            Color tint = Color.Lerp(new Color(1f, 0.92f, 0.75f, 1f), accent, 0.45f);
-            mat.color = tint;
-            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", tint);
+            var def = CharacterRoster.GetSelected();
+            def.color = accent;
+            EnsureRuntimeSkin(def);
             ForceVisibleRenderers();
+        }
+
+        public void ApplyCosmetics()
+        {
+            CosmeticRoster.ApplyToRunner(transform, _anim);
         }
 
         /// <summary>Original per-character silhouette accents (scarf / pack / wraps / cuffs).</summary>
         public void ApplyCharacterKit(string characterId, Color accent)
         {
-            if (_kitRoot != null && _kitId == characterId) return;
             if (_kitRoot != null) Destroy(_kitRoot.gameObject);
             _kitId = characterId ?? "scout_default";
             _kitRoot = new GameObject("CharacterKit").transform;
             _kitRoot.SetParent(transform, false);
+
+            bool scarfEquipped = CosmeticRoster.HasEquippedScarf;
+            bool capeEquipped = CosmeticRoster.HasEquippedCape;
 
             void Prim(PrimitiveType p, string name, Vector3 pos, Vector3 scale, Color c, Vector3? euler = null)
             {
@@ -1944,17 +1993,23 @@ namespace TempleSprint
             switch (_kitId)
             {
                 case "desert_runner":
-                    Prim(PrimitiveType.Cube, "Scarf", new Vector3(0f, 1.55f, -0.05f), new Vector3(0.55f, 0.12f, 0.35f), accent);
-                    Prim(PrimitiveType.Cube, "ScarfTail", new Vector3(0.12f, 1.25f, -0.28f), new Vector3(0.12f, 0.55f, 0.08f),
-                        Color.Lerp(accent, Color.white, 0.15f), new Vector3(18f, 0f, 12f));
+                    if (!scarfEquipped)
+                    {
+                        Prim(PrimitiveType.Cube, "Scarf", new Vector3(0f, 1.55f, -0.05f), new Vector3(0.55f, 0.12f, 0.35f), accent);
+                        Prim(PrimitiveType.Cube, "ScarfTail", new Vector3(0.12f, 1.25f, -0.28f), new Vector3(0.12f, 0.55f, 0.08f),
+                            Color.Lerp(accent, Color.white, 0.15f), new Vector3(18f, 0f, 12f));
+                    }
                     Prim(PrimitiveType.Cube, "BootL", new Vector3(-0.18f, 0.12f, 0.05f), new Vector3(0.22f, 0.18f, 0.32f),
                         new Color(0.45f, 0.28f, 0.14f));
                     Prim(PrimitiveType.Cube, "BootR", new Vector3(0.18f, 0.12f, 0.05f), new Vector3(0.22f, 0.18f, 0.32f),
                         new Color(0.45f, 0.28f, 0.14f));
                     break;
                 case "ice_wraith":
-                    Prim(PrimitiveType.Cube, "Cloak", new Vector3(0f, 1.15f, -0.22f), new Vector3(0.7f, 0.9f, 0.12f),
-                        Color.Lerp(accent, Color.white, 0.35f));
+                    if (!capeEquipped)
+                    {
+                        Prim(PrimitiveType.Cube, "Cloak", new Vector3(0f, 1.15f, -0.22f), new Vector3(0.7f, 0.9f, 0.12f),
+                            Color.Lerp(accent, Color.white, 0.35f));
+                    }
                     Prim(PrimitiveType.Sphere, "FrostOrb", new Vector3(0.38f, 1.35f, 0.05f), Vector3.one * 0.18f, accent);
                     break;
                 case "jungle_ace":
@@ -1962,7 +2017,8 @@ namespace TempleSprint
                         new Color(0.35f, 0.5f, 0.28f));
                     Prim(PrimitiveType.Cube, "ArmWrapR", new Vector3(0.42f, 1.15f, 0f), new Vector3(0.14f, 0.35f, 0.14f),
                         new Color(0.35f, 0.5f, 0.28f));
-                    Prim(PrimitiveType.Cube, "LeafBand", new Vector3(0f, 1.72f, 0f), new Vector3(0.42f, 0.1f, 0.42f), accent);
+                    if (!CosmeticRoster.HasEquippedHat())
+                        Prim(PrimitiveType.Cube, "LeafBand", new Vector3(0f, 1.72f, 0f), new Vector3(0.42f, 0.1f, 0.42f), accent);
                     break;
                 case "cave_miner":
                     Prim(PrimitiveType.Cube, "Pack", new Vector3(0f, 1.2f, -0.32f), new Vector3(0.55f, 0.55f, 0.28f),
@@ -1982,11 +2038,24 @@ namespace TempleSprint
                         new Color(0.25f, 0.15f, 0.12f));
                     break;
                 default:
-                    Prim(PrimitiveType.Cube, "Bandana", new Vector3(0f, 1.68f, 0.05f), new Vector3(0.38f, 0.1f, 0.38f), accent);
+                    if (!CosmeticRoster.HasEquippedHat())
+                        Prim(PrimitiveType.Cube, "Bandana", new Vector3(0f, 1.68f, 0.05f), new Vector3(0.38f, 0.1f, 0.38f), accent);
                     Prim(PrimitiveType.Cube, "Satchel", new Vector3(0.32f, 1.05f, -0.05f), new Vector3(0.22f, 0.28f, 0.18f),
                         new Color(0.42f, 0.3f, 0.18f));
                     break;
             }
+        }
+
+        public void SetOutcomePose(RunnerOutcomePose pose)
+        {
+            _outcomePose = pose;
+            _outcomeBlend = 0f;
+        }
+
+        public void ClearOutcomePose()
+        {
+            _outcomePose = RunnerOutcomePose.None;
+            _outcomeBlend = 0f;
         }
 
         public void SetPoseFlags(bool sliding, bool jumping)
@@ -2022,6 +2091,7 @@ namespace TempleSprint
         {
             _laneLean = 0f;
             _menuShowcasePhase = 0f;
+            ClearOutcomePose();
             if (_anim == null) return;
             _anim.SetBool(SlideHash, false);
             _anim.SetBool(RunningHash, false);
@@ -2031,6 +2101,7 @@ namespace TempleSprint
         void LateUpdate()
         {
             bool onMenu = GameManager.Instance != null && GameManager.Instance.State == GameState.MainMenu;
+            bool opening = GameManager.Instance != null && GameManager.Instance.State == GameState.Opening;
             bool running = RunSession.Instance != null && RunSession.Instance.IsAlive;
             if (onMenu)
             {
@@ -2053,7 +2124,7 @@ namespace TempleSprint
                 else
                 {
                     bool sliding = _anim.GetBool(SlideHash);
-                    _anim.SetBool(RunningHash, running && !sliding);
+                    _anim.SetBool(RunningHash, running && !sliding && !opening);
                     if (_model != null)
                     {
                         var lp = _model.localPosition;
@@ -2070,10 +2141,99 @@ namespace TempleSprint
                 _model.localPosition = lp;
             }
 
-            if (onMenu)
+            if (_outcomePose != RunnerOutcomePose.None)
+                ApplyOutcomePose();
+            else if (onMenu)
                 ApplyMenuShowcasePose();
             else
                 ApplyTraversalPose(running);
+        }
+
+        void ApplyOutcomePose()
+        {
+            _outcomeBlend = Mathf.MoveTowards(_outcomeBlend, 1f, Time.deltaTime * 6f);
+            Vector3 targetPos = Vector3.zero;
+            Quaternion targetRot = Quaternion.identity;
+
+            switch (_outcomePose)
+            {
+                case RunnerOutcomePose.Caught:
+                    targetPos = new Vector3(0f, 0.05f, -0.2f);
+                    targetRot = Quaternion.Euler(-18f, 160f, 8f);
+                    break;
+                case RunnerOutcomePose.ImpactDeath:
+                    targetPos = new Vector3(0f, -0.15f, 0.1f);
+                    targetRot = Quaternion.Euler(35f, 25f, -18f);
+                    break;
+                case RunnerOutcomePose.FallDeath:
+                    targetPos = new Vector3(0f, 0.1f, 0f);
+                    targetRot = Quaternion.Euler(-25f + Mathf.Sin(Time.time * 8f) * 20f, 40f, Mathf.Sin(Time.time * 6f) * 25f);
+                    break;
+                case RunnerOutcomePose.IdolReach:
+                    targetPos = new Vector3(0f, 0.05f, 0.12f);
+                    targetRot = Quaternion.Euler(-12f, 0f, 0f);
+                    break;
+                case RunnerOutcomePose.Slide:
+                    targetPos = new Vector3(0f, -0.42f, 0.35f);
+                    targetRot = Quaternion.Euler(62f, 0f, 0f);
+                    break;
+            }
+
+            transform.localPosition = Vector3.Lerp(transform.localPosition, targetPos, _outcomeBlend);
+            transform.localRotation = Quaternion.Slerp(transform.localRotation, targetRot, _outcomeBlend);
+
+            // Procedural bone overlays after Animator evaluation for denser silhouette.
+            ApplyProceduralBonePose(_outcomePose, _outcomeBlend);
+        }
+
+        void ApplyProceduralBonePose(RunnerOutcomePose pose, float blend)
+        {
+            if (_anim == null || !_anim.isHuman || blend < 0.01f) return;
+            Transform spine = _anim.GetBoneTransform(HumanBodyBones.Spine);
+            Transform head = _anim.GetBoneTransform(HumanBodyBones.Head);
+            Transform lArm = _anim.GetBoneTransform(HumanBodyBones.LeftUpperArm);
+            Transform rArm = _anim.GetBoneTransform(HumanBodyBones.RightUpperArm);
+            Transform hips = _anim.GetBoneTransform(HumanBodyBones.Hips);
+
+            void BlendLocal(Transform t, Quaternion localExtra)
+            {
+                if (t == null) return;
+                t.localRotation = Quaternion.Slerp(t.localRotation, t.localRotation * localExtra, blend);
+            }
+
+            switch (pose)
+            {
+                case RunnerOutcomePose.Caught:
+                    BlendLocal(spine, Quaternion.Euler(-25f, 180f, 0f));
+                    BlendLocal(head, Quaternion.Euler(10f, 160f, 0f));
+                    BlendLocal(lArm, Quaternion.Euler(-40f, 0f, 55f));
+                    BlendLocal(rArm, Quaternion.Euler(-40f, 0f, -55f));
+                    break;
+                case RunnerOutcomePose.ImpactDeath:
+                    BlendLocal(spine, Quaternion.Euler(40f, 20f, -15f));
+                    BlendLocal(head, Quaternion.Euler(25f, -15f, 10f));
+                    BlendLocal(lArm, Quaternion.Euler(-20f, 0f, 70f));
+                    BlendLocal(rArm, Quaternion.Euler(30f, 0f, -40f));
+                    BlendLocal(hips, Quaternion.Euler(15f, 10f, 0f));
+                    break;
+                case RunnerOutcomePose.FallDeath:
+                    BlendLocal(spine, Quaternion.Euler(-20f, 0f, Mathf.Sin(Time.time * 7f) * 18f));
+                    BlendLocal(lArm, Quaternion.Euler(-70f, 0f, 40f));
+                    BlendLocal(rArm, Quaternion.Euler(-70f, 0f, -40f));
+                    break;
+                case RunnerOutcomePose.IdolReach:
+                    BlendLocal(spine, Quaternion.Euler(-8f, 0f, 0f));
+                    BlendLocal(rArm, Quaternion.Euler(-75f, 20f, -10f));
+                    BlendLocal(lArm, Quaternion.Euler(-40f, -10f, 20f));
+                    BlendLocal(head, Quaternion.Euler(-5f, 15f, 0f));
+                    break;
+                case RunnerOutcomePose.Slide:
+                    BlendLocal(spine, Quaternion.Euler(50f, 0f, 0f));
+                    BlendLocal(hips, Quaternion.Euler(25f, 0f, 0f));
+                    BlendLocal(lArm, Quaternion.Euler(-30f, 0f, 25f));
+                    BlendLocal(rArm, Quaternion.Euler(-30f, 0f, -25f));
+                    break;
+            }
         }
 
         void ApplyMenuShowcasePose()

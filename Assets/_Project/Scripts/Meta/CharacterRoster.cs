@@ -23,6 +23,10 @@ namespace TempleSprint
             public CharacterActiveSkill activeSkill;
             public int gemCost;
             public Color color;
+            /// <summary>Resources path under Characters/ (no extension).</summary>
+            public string textureResource;
+            public Vector3 modelScale;
+            public float shoulderBias;
         }
 
         public static readonly CharacterDef[] All =
@@ -31,42 +35,55 @@ namespace TempleSprint
             {
                 id = "scout_default", displayName = "Scout Reed", passive = "None",
                 activeDescription = "None", activeSkill = CharacterActiveSkill.None,
-                gemCost = 0, color = new Color(0.92f, 0.82f, 0.45f)
+                gemCost = 0, color = new Color(0.92f, 0.82f, 0.45f),
+                textureResource = "Characters/survivorMaleB",
+                modelScale = new Vector3(1f, 1f, 1f), shoulderBias = 0f
             },
             new CharacterDef
             {
                 id = "desert_runner", displayName = "Sand Strider", passive = "+5% coins in Desert",
                 activeDescription = "Sand Dash — short boost burst",
                 activeSkill = CharacterActiveSkill.SandDash,
-                gemCost = 80, color = new Color(0.85f, 0.55f, 0.28f)
+                gemCost = 80, color = new Color(0.85f, 0.55f, 0.28f),
+                textureResource = "Characters/survivorMaleB",
+                modelScale = new Vector3(1.04f, 1.02f, 1.04f), shoulderBias = 0.04f
             },
             new CharacterDef
             {
                 id = "ice_wraith", displayName = "Frost Courier", passive = "Slight magnet bonus",
                 activeDescription = "Frost Magnet — wide coin pull",
                 activeSkill = CharacterActiveSkill.FrostMagnetBurst,
-                gemCost = 120, color = new Color(0.55f, 0.75f, 0.9f)
+                gemCost = 120, color = new Color(0.55f, 0.75f, 0.9f),
+                // Distinct female survivor skin for clear locker/runway identity.
+                textureResource = "Characters/survivorFemaleA",
+                modelScale = new Vector3(0.96f, 0.98f, 0.96f), shoulderBias = -0.02f
             },
             new CharacterDef
             {
                 id = "jungle_ace", displayName = "Canopy Ace", passive = "Tutorial clear bonus",
                 activeDescription = "Canopy Vault — free air hop",
                 activeSkill = CharacterActiveSkill.CanopyVault,
-                gemCost = 60, color = new Color(0.4f, 0.55f, 0.35f)
+                gemCost = 60, color = new Color(0.4f, 0.55f, 0.35f),
+                textureResource = "Characters/survivorFemaleA",
+                modelScale = new Vector3(0.98f, 1.01f, 0.98f), shoulderBias = 0.01f
             },
             new CharacterDef
             {
                 id = "cave_miner", displayName = "Tunnel Runner", passive = "+8% coins in Cave Mines",
                 activeDescription = "Headlamp — clear darkness fog",
                 activeSkill = CharacterActiveSkill.MinerHeadlamp,
-                gemCost = 140, color = new Color(0.65f, 0.55f, 0.4f)
+                gemCost = 140, color = new Color(0.65f, 0.55f, 0.4f),
+                textureResource = "Characters/survivorMaleB",
+                modelScale = new Vector3(1.08f, 1.04f, 1.08f), shoulderBias = 0.08f
             },
             new CharacterDef
             {
                 id = "ember_scout", displayName = "Ember Scout", passive = "Brief shield pulse in Volcano",
                 activeDescription = "Ember Pulse — grant a shield",
                 activeSkill = CharacterActiveSkill.EmberShieldPulse,
-                gemCost = 160, color = new Color(0.95f, 0.45f, 0.2f)
+                gemCost = 160, color = new Color(0.95f, 0.45f, 0.2f),
+                textureResource = "Characters/survivorMaleB",
+                modelScale = new Vector3(1.02f, 1.0f, 1.02f), shoulderBias = 0.03f
             }
         };
 
