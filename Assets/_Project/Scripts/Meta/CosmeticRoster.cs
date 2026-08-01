@@ -303,21 +303,72 @@ namespace TempleSprint
             Vector3 brimPos = explorerSpace ? new Vector3(0f, 1.72f, 0f) : new Vector3(0f, 0.18f, 0.02f);
             Vector3 crownPos = explorerSpace ? new Vector3(0f, 1.9f, 0f) : new Vector3(0f, 0.32f, 0.02f);
             float scale = explorerSpace ? 1f : 0.85f;
+            Material mat = JunglePalette.Mat(hat.color, 0.35f);
+            Material bright = JunglePalette.Mat(Color.Lerp(hat.color, Color.white, 0.25f), 0.45f);
 
-            var brim = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            brim.name = "Hat";
-            brim.transform.SetParent(parent, false);
-            brim.transform.localPosition = brimPos;
-            brim.transform.localScale = new Vector3(0.55f, 0.12f, 0.55f) * scale;
-            brim.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(hat.color, 0.35f);
-            Object.Destroy(brim.GetComponent<Collider>());
+            void Prim(PrimitiveType p, string name, Vector3 pos, Vector3 scl, Material m, Vector3? euler = null)
+            {
+                var go = GameObject.CreatePrimitive(p);
+                go.name = name;
+                go.transform.SetParent(parent, false);
+                go.transform.localPosition = pos;
+                go.transform.localScale = scl * scale;
+                if (euler.HasValue) go.transform.localRotation = Quaternion.Euler(euler.Value);
+                go.GetComponent<Renderer>().sharedMaterial = m;
+                Object.Destroy(go.GetComponent<Collider>());
+            }
 
-            var crown = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            crown.transform.SetParent(parent, false);
-            crown.transform.localPosition = crownPos;
-            crown.transform.localScale = new Vector3(0.42f, 0.28f, 0.42f) * scale;
-            crown.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(hat.color * 1.1f, 0.4f);
-            Object.Destroy(crown.GetComponent<Collider>());
+            // Distinct silhouettes per hat id (genre locker read — original shapes, no IP).
+            switch (hat.id)
+            {
+                case "hat_canopy":
+                    Prim(PrimitiveType.Cylinder, "CanopyBrim", brimPos, new Vector3(0.72f, 0.08f, 0.72f), mat);
+                    Prim(PrimitiveType.Cube, "CanopyDome", crownPos + Vector3.up * 0.02f, new Vector3(0.38f, 0.32f, 0.38f), bright);
+                    Prim(PrimitiveType.Cube, "CanopyCrest", crownPos + new Vector3(0f, 0.22f, 0f), new Vector3(0.12f, 0.28f, 0.12f), mat);
+                    break;
+                case "hat_ember":
+                    Prim(PrimitiveType.Cylinder, "EmberBand", brimPos, new Vector3(0.48f, 0.14f, 0.48f), mat);
+                    Prim(PrimitiveType.Sphere, "EmberGem", crownPos, new Vector3(0.22f, 0.22f, 0.22f), JunglePalette.FlameCore);
+                    for (int i = 0; i < 3; i++)
+                    {
+                        float a = (i - 1) * 28f;
+                        Prim(PrimitiveType.Cube, "EmberSpike" + i,
+                            crownPos + new Vector3(Mathf.Sin(a * Mathf.Deg2Rad) * 0.18f, 0.18f, Mathf.Cos(a * Mathf.Deg2Rad) * 0.08f),
+                            new Vector3(0.08f, 0.28f, 0.08f), bright, new Vector3(0f, 0f, a * 0.3f));
+                    }
+                    break;
+                case "hat_lotus_crown":
+                    Prim(PrimitiveType.Cylinder, "LotusRing", brimPos, new Vector3(0.5f, 0.08f, 0.5f), mat);
+                    for (int i = 0; i < 5; i++)
+                    {
+                        float ang = i * 72f;
+                        Prim(PrimitiveType.Cube, "LotusPetal" + i,
+                            crownPos + new Vector3(Mathf.Sin(ang * Mathf.Deg2Rad) * 0.22f, 0.05f, Mathf.Cos(ang * Mathf.Deg2Rad) * 0.22f),
+                            new Vector3(0.14f, 0.08f, 0.28f), bright, new Vector3(15f, ang, 0f));
+                    }
+                    break;
+                case "hat_sun_veil":
+                    Prim(PrimitiveType.Cylinder, "SunBrim", brimPos, new Vector3(0.8f, 0.06f, 0.8f), mat);
+                    Prim(PrimitiveType.Sphere, "SunCrown", crownPos, new Vector3(0.36f, 0.22f, 0.36f), bright);
+                    Prim(PrimitiveType.Cube, "SunVeil", brimPos + new Vector3(0f, -0.15f, 0.05f), new Vector3(0.55f, 0.35f, 0.08f),
+                        JunglePalette.Mat(Color.Lerp(hat.color, Color.white, 0.4f), 0.2f));
+                    break;
+                case "hat_frost_circlet":
+                    Prim(PrimitiveType.Cylinder, "FrostRing", brimPos + Vector3.up * 0.05f, new Vector3(0.46f, 0.07f, 0.46f), mat);
+                    for (int i = 0; i < 4; i++)
+                    {
+                        float ang = i * 90f + 45f;
+                        Prim(PrimitiveType.Cube, "FrostSpike" + i,
+                            crownPos + new Vector3(Mathf.Sin(ang * Mathf.Deg2Rad) * 0.2f, 0.12f, Mathf.Cos(ang * Mathf.Deg2Rad) * 0.2f),
+                            new Vector3(0.07f, 0.32f, 0.07f), bright, new Vector3(0f, ang, 12f));
+                    }
+                    break;
+                default: // reed cap + fallbacks
+                    Prim(PrimitiveType.Cylinder, "Hat", brimPos, new Vector3(0.55f, 0.12f, 0.55f), mat);
+                    Prim(PrimitiveType.Sphere, "HatCrown", crownPos, new Vector3(0.42f, 0.28f, 0.42f), bright);
+                    Prim(PrimitiveType.Cube, "ReedBill", brimPos + new Vector3(0f, -0.02f, 0.22f), new Vector3(0.28f, 0.05f, 0.22f), mat);
+                    break;
+            }
         }
 
         static void BuildCape(Transform parent, CosmeticDef cape, bool explorerSpace)

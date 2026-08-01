@@ -362,6 +362,68 @@ namespace TempleSprint
             return _radialSprite;
         }
 
+        /// <summary>Scrollable content area for locker / long plaque lists.</summary>
+        public static (ScrollRect scroll, RectTransform content) CreateScrollArea(
+            Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin, Vector2 offsetMax)
+        {
+            var root = new GameObject(name);
+            root.transform.SetParent(parent, false);
+            var rootRt = root.AddComponent<RectTransform>();
+            rootRt.anchorMin = anchorMin;
+            rootRt.anchorMax = anchorMax;
+            rootRt.offsetMin = offsetMin;
+            rootRt.offsetMax = offsetMax;
+
+            var viewport = new GameObject("Viewport");
+            viewport.transform.SetParent(root.transform, false);
+            var viewportRt = viewport.AddComponent<RectTransform>();
+            viewportRt.anchorMin = Vector2.zero;
+            viewportRt.anchorMax = Vector2.one;
+            viewportRt.offsetMin = Vector2.zero;
+            viewportRt.offsetMax = Vector2.zero;
+            var mask = viewport.AddComponent<Mask>();
+            mask.showMaskGraphic = false;
+            var maskImg = viewport.AddComponent<Image>();
+            maskImg.color = new Color(0.08f, 0.07f, 0.05f, 0.35f);
+
+            var content = new GameObject("Content");
+            content.transform.SetParent(viewport.transform, false);
+            var contentRt = content.AddComponent<RectTransform>();
+            contentRt.anchorMin = new Vector2(0.5f, 1f);
+            contentRt.anchorMax = new Vector2(0.5f, 1f);
+            contentRt.pivot = new Vector2(0.5f, 1f);
+            contentRt.anchoredPosition = Vector2.zero;
+            contentRt.sizeDelta = new Vector2(900f, 400f);
+
+            var scroll = root.AddComponent<ScrollRect>();
+            scroll.viewport = viewportRt;
+            scroll.content = contentRt;
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 28f;
+            scroll.inertia = true;
+            return (scroll, contentRt);
+        }
+
+        public static Button CreateTabButton(Transform parent, string name, string label, Vector2 anchoredPos, Vector2 size)
+        {
+            var btn = CreateButton(parent, name, label, anchoredPos, size);
+            var img = btn.GetComponent<Image>();
+            if (img != null) img.color = new Color(0.42f, 0.32f, 0.16f, 1f);
+            return btn;
+        }
+
+        public static void SetTabSelected(Button tab, bool selected)
+        {
+            if (tab == null) return;
+            var img = tab.GetComponent<Image>();
+            if (img != null)
+                img.color = selected
+                    ? new Color(0.82f, 0.58f, 0.18f, 1f)
+                    : new Color(0.42f, 0.32f, 0.16f, 1f);
+        }
+
         public static Button CreateCircleButton(Transform parent, string name, string label, Vector2 anchor, Vector2 anchoredPos, float diameter, UnityEngine.Events.UnityAction onClick)
         {
             var go = new GameObject(name);

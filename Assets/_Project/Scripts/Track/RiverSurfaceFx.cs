@@ -157,6 +157,97 @@ namespace TempleSprint
         }
     }
 
+    /// <summary>Bobbing translucent heat shimmer for desert runways and fire pits.</summary>
+    public class HeatShimmerAnimator : MonoBehaviour
+    {
+        Transform[] _orbs;
+        Vector3[] _origin;
+        Vector3[] _baseScale;
+        float[] _phase;
+        Light _glow;
+
+        public void BindExisting(Transform parent)
+        {
+            if (parent == null) return;
+            int n = parent.childCount;
+            _orbs = new Transform[n];
+            _origin = new Vector3[n];
+            _baseScale = new Vector3[n];
+            _phase = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                _orbs[i] = parent.GetChild(i);
+                _origin[i] = _orbs[i].localPosition;
+                _baseScale[i] = _orbs[i].localScale;
+                _phase[i] = Random.value * Mathf.PI * 2f;
+            }
+        }
+
+        public void Build(Transform parent, int count, float halfWidth, float halfLen, float baseY, Color tint, bool withGlow = true)
+        {
+            _orbs = new Transform[count];
+            _origin = new Vector3[count];
+            _baseScale = new Vector3[count];
+            _phase = new float[count];
+            for (int i = 0; i < count; i++)
+            {
+                var orb = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                orb.name = "HeatShimmer_" + i;
+                orb.transform.SetParent(parent, false);
+                var origin = new Vector3(
+                    Random.Range(-halfWidth, halfWidth),
+                    baseY + Random.Range(0.4f, 1.8f),
+                    Random.Range(-halfLen, halfLen));
+                float s = Random.Range(0.8f, 1.6f);
+                orb.transform.localPosition = origin;
+                orb.transform.localScale = new Vector3(s, s * 0.5f, s);
+                orb.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(tint, 0.08f);
+                var col = orb.GetComponent<Collider>();
+                if (col != null)
+                {
+                    col.enabled = false;
+                    Destroy(col);
+                }
+                _orbs[i] = orb.transform;
+                _origin[i] = origin;
+                _baseScale[i] = orb.transform.localScale;
+                _phase[i] = Random.value * Mathf.PI * 2f;
+            }
+
+            if (withGlow)
+            {
+                var lightGo = new GameObject("HeatGlow");
+                lightGo.transform.SetParent(parent, false);
+                lightGo.transform.localPosition = new Vector3(0f, baseY + 1.2f, 0f);
+                _glow = lightGo.AddComponent<Light>();
+                _glow.type = LightType.Point;
+                _glow.color = new Color(1f, 0.72f, 0.35f);
+                _glow.range = 10f;
+                _glow.intensity = 1.1f;
+                _glow.shadows = LightShadows.None;
+            }
+        }
+
+        void Update()
+        {
+            if (_orbs == null) return;
+            for (int i = 0; i < _orbs.Length; i++)
+            {
+                if (_orbs[i] == null) continue;
+                _phase[i] += Time.deltaTime * (1.1f + i * 0.07f);
+                var p = _origin[i];
+                p.y += Mathf.Sin(_phase[i]) * 0.22f;
+                p.x += Mathf.Sin(_phase[i] * 0.7f + i) * 0.12f;
+                _orbs[i].localPosition = p;
+                float pulse = 0.88f + 0.18f * Mathf.Sin(_phase[i] * 1.4f);
+                var bs = _baseScale[i];
+                _orbs[i].localScale = new Vector3(bs.x * pulse, bs.y * (0.9f + pulse * 0.15f), bs.z * pulse);
+            }
+            if (_glow != null)
+                _glow.intensity = 0.9f + Mathf.Sin(Time.time * 2.4f) * 0.25f;
+        }
+    }
+
     /// <summary>Rising ember sparks over fire crossings.</summary>
     public class EmberSparkAnimator : MonoBehaviour
     {

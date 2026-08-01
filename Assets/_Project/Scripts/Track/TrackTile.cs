@@ -2029,38 +2029,16 @@ namespace TempleSprint
                 StripCollider(smoke);
             }
 
-            // Heat shimmer orbs above the pit for stronger fire-channel read.
-            for (int i = 0; i < 4; i++)
-            {
-                var haze = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                haze.name = "FireHeatHaze";
-                haze.transform.SetParent(transform, false);
-                haze.transform.localPosition = new Vector3(
-                    Random.Range(-DeckWidth * 0.4f, DeckWidth * 0.4f),
-                    ForestFloorY + Random.Range(1.6f, 3.4f),
-                    channelStart + channelLen * Random.Range(0.2f, 0.8f));
-                float s = Random.Range(0.7f, 1.4f);
-                haze.transform.localScale = new Vector3(s, s * 0.55f, s);
-                haze.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(1f, 0.55f, 0.2f, 0.25f), 0.1f);
-                StripCollider(haze);
-            }
-
-            // Rising ember sparks for heat read without particle systems.
-            int sparkCount = BiomeSystem.Current == BiomeId.VolcanicCrater ? 14 : 10;
-            for (int i = 0; i < sparkCount; i++)
-            {
-                var spark = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                spark.name = "EmberSpark";
-                spark.transform.SetParent(transform, false);
-                spark.transform.localPosition = new Vector3(
-                    Random.Range(-DeckWidth * 0.5f, DeckWidth * 0.5f),
-                    ForestFloorY + Random.Range(0.8f, 3.2f),
-                    channelStart + channelLen * Random.Range(0.1f, 0.9f));
-                float s = Random.Range(0.12f, 0.28f);
-                spark.transform.localScale = Vector3.one * s;
-                spark.GetComponent<Renderer>().sharedMaterial = JunglePalette.FlameCore;
-                StripCollider(spark);
-            }
+            // Animated heat shimmer orbs above the pit for stronger fire-channel read.
+            var hazeRoot = new GameObject("FireHeatHaze");
+            hazeRoot.transform.SetParent(transform, false);
+            hazeRoot.transform.localPosition = new Vector3(0f, ForestFloorY, channelMid);
+            var hazeFx = hazeRoot.AddComponent<HeatShimmerAnimator>();
+            hazeFx.Build(
+                hazeRoot.transform,
+                BiomeSystem.Current == BiomeId.VolcanicCrater ? 7 : 5,
+                DeckWidth * 0.42f, channelLen * 0.35f, 1.8f,
+                new Color(1f, 0.55f, 0.2f, 0.28f), false);
 
             for (int i = 0; i < 5; i++)
             {
@@ -2674,6 +2652,48 @@ namespace TempleSprint
             ceiling.transform.localScale = new Vector3(DeckWidth + 4.2f, 0.55f, len * 0.92f);
             ceiling.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
             StripCollider(ceiling);
+
+            // Torch rhythm along longer corridor segments for mine-tunnel cadence.
+            if (len > Length * 0.4f)
+            {
+                int torches = 2;
+                for (int i = 0; i < torches; i++)
+                {
+                    float z = Mathf.Lerp(zStart + 0.8f, zEnd - 0.8f, (i + 0.5f) / torches);
+                    int side = i % 2 == 0 ? -1 : 1;
+                    SpawnCaveTorchSconce(side, z, 1.75f);
+                }
+            }
+        }
+
+        void SpawnCaveTorchSconce(int side, float z, float height)
+        {
+            var torch = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            torch.name = "CaveCorridorTorch";
+            torch.transform.SetParent(transform, false);
+            torch.transform.localPosition = new Vector3(side * (DeckWidth * 0.5f + 0.55f), height, z);
+            torch.transform.localScale = new Vector3(0.12f, 0.35f, 0.12f);
+            torch.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+            StripCollider(torch);
+
+            var flame = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            flame.transform.SetParent(torch.transform, false);
+            flame.transform.localPosition = new Vector3(0f, 1.1f, 0f);
+            flame.transform.localScale = new Vector3(1.6f, 2.2f, 1.6f);
+            flame.GetComponent<Renderer>().sharedMaterial = JunglePalette.Flame;
+            StripCollider(flame);
+
+            var light = new GameObject("TorchLight").AddComponent<Light>();
+            light.transform.SetParent(torch.transform, false);
+            light.transform.localPosition = new Vector3(0f, 1.2f, 0f);
+            light.type = LightType.Point;
+            light.color = new Color(1f, 0.55f, 0.25f);
+            light.intensity = 1.5f;
+            light.range = 7f;
+            light.shadows = LightShadows.None;
+
+            var flicker = torch.AddComponent<FlameFlicker>();
+            flicker.Configure(0.6f);
         }
 
         void BuildCaveTunnelShell()
@@ -2701,10 +2721,20 @@ namespace TempleSprint
             ceiling.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
             StripCollider(ceiling);
 
+            // Dark void under the rails so mine carts feel suspended over a shaft.
+            var voidBed = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            voidBed.name = "MineShaftVoid";
+            voidBed.transform.SetParent(transform, false);
+            voidBed.transform.localPosition = new Vector3(0f, ForestFloorY - 1.8f, mid);
+            voidBed.transform.localScale = new Vector3(DeckWidth + 1.2f, 2.2f, channelLen + 0.8f);
+            voidBed.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.04f, 0.04f, 0.05f), 0.05f);
+            StripCollider(voidBed);
+
             for (int i = 0; i < 3; i++)
             {
                 float z = channelStart + channelLen * ((i + 1f) / 4f);
                 BuildMineTimberAt(z);
+                SpawnCaveTorchSconce(i % 2 == 0 ? -1 : 1, z, 2.1f);
             }
         }
 
@@ -3047,7 +3077,7 @@ namespace TempleSprint
             }
         }
 
-        /// <summary>Desert-specific deck dressing — sand drifts + broken sandstone arch.</summary>
+        /// <summary>Desert-specific deck dressing — sand drifts + broken sandstone arch + heat shimmer.</summary>
         void BuildDesertRunwayProps()
         {
             for (int i = 0; i < 3; i++)
@@ -3087,6 +3117,16 @@ namespace TempleSprint
                 lintel.GetComponent<Renderer>().sharedMaterial = BiomeSystem.AccentMat;
                 StripCollider(lintel);
             }
+
+            // Heat haze over the sand so desert reads hotter than jungle/ice.
+            var shimmerRoot = new GameObject("DesertHeatShimmer");
+            shimmerRoot.transform.SetParent(transform, false);
+            shimmerRoot.transform.localPosition = new Vector3(0f, 0f, Length * 0.5f);
+            var shimmer = shimmerRoot.AddComponent<HeatShimmerAnimator>();
+            shimmer.Build(
+                shimmerRoot.transform, 6,
+                DeckWidth * 0.45f, Length * 0.35f, 1.1f,
+                new Color(1f, 0.78f, 0.35f, 0.22f), true);
         }
 
         /// <summary>Ice-specific deck dressing — packed snow banks + frozen arch crystals.</summary>
@@ -3788,10 +3828,24 @@ namespace TempleSprint
             flow.transform.localPosition = new Vector3(0f, 0.02f, mid);
             flow.transform.localRotation = Quaternion.Euler(7f, 0f, 0f);
             flow.transform.localScale = new Vector3(DeckWidth * 0.88f, 0.12f, channelLen * 0.98f);
-            var flowMat = new Material(JunglePalette.Water);
+            WaterFlow.Ensure();
+            var flowMat = new Material(JunglePalette.RiverWater);
             flow.GetComponent<Renderer>().sharedMaterial = flowMat;
             StripCollider(flow);
             flow.AddComponent<RiverSurfaceScroll>();
+
+            // Foam + mist so the aqueduct reads as living water, not a flat blue slab.
+            var foamRoot = new GameObject("SlideFoam").transform;
+            foamRoot.SetParent(transform, false);
+            foamRoot.localPosition = new Vector3(0f, 0.12f, mid);
+            var foamFx = foamRoot.gameObject.AddComponent<RiverFoamAnimator>();
+            foamFx.Build(foamRoot, DeckWidth * 0.4f, channelLen * 0.4f);
+
+            var mistRoot = new GameObject("SlideMist").transform;
+            mistRoot.SetParent(transform, false);
+            mistRoot.localPosition = new Vector3(0f, 0.55f, mid);
+            var mistFx = mistRoot.gameObject.AddComponent<RiverMistAnimator>();
+            mistFx.Build(mistRoot, DeckWidth * 0.35f, channelLen * 0.35f, 7);
 
             // Stone aqueduct walls + arches.
             for (int side = -1; side <= 1; side += 2)
@@ -3853,9 +3907,30 @@ namespace TempleSprint
                 GemPickup.Create(transform, new Vector3(0f, 1.35f, mid + 0.8f));
         }
 
-        /// <summary>Night summit runway dressing — lantern posts + starlit stone markers.</summary>
+        /// <summary>Night summit runway dressing — ridge walls, cliff drops, lanterns, moon disc.</summary>
         void BuildNightSummitProps()
         {
+            // Ridge / cliff silhouette so Night Summit is not just lantern-dark jungle.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var ridge = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                ridge.name = "SummitRidge";
+                ridge.transform.SetParent(transform, false);
+                ridge.transform.localPosition = new Vector3(side * (DeckWidth * 0.5f + 2.8f), 1.8f, Length * 0.5f);
+                ridge.transform.localRotation = Quaternion.Euler(0f, 0f, side * -8f);
+                ridge.transform.localScale = new Vector3(3.2f, 4.2f, Length * 0.9f);
+                ridge.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
+                StripCollider(ridge);
+
+                var cliff = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                cliff.name = "SummitCliffDrop";
+                cliff.transform.SetParent(transform, false);
+                cliff.transform.localPosition = new Vector3(side * (DeckWidth * 0.5f + 5.2f), -1.6f, Length * 0.5f);
+                cliff.transform.localScale = new Vector3(2.4f, 6.5f, Length * 0.85f);
+                cliff.GetComponent<Renderer>().sharedMaterial = BiomeSystem.StoneMat;
+                StripCollider(cliff);
+            }
+
             for (int i = 0; i < 3; i++)
             {
                 float z = Length * ((i + 0.5f) / 3f);
@@ -3875,9 +3950,40 @@ namespace TempleSprint
                 lamp.transform.localScale = Vector3.one * 0.32f;
                 lamp.GetComponent<Renderer>().sharedMaterial = JunglePalette.GoldBright;
                 StripCollider(lamp);
+
+                var light = new GameObject("LanternLight").AddComponent<Light>();
+                light.transform.SetParent(lamp.transform, false);
+                light.type = LightType.Point;
+                light.color = new Color(1f, 0.82f, 0.45f);
+                light.intensity = 1.35f;
+                light.range = 7f;
+                light.shadows = LightShadows.None;
             }
 
-            if (Random.value < 0.5f)
+            // Tall summit pillars for skyline read from chase cam.
+            if (Random.value < 0.7f)
+            {
+                float z = Length * Random.Range(0.35f, 0.7f);
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    var pillar = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    pillar.name = "SummitPillar";
+                    pillar.transform.SetParent(transform, false);
+                    pillar.transform.localPosition = new Vector3(side * (DeckWidth * 0.48f + 0.15f), 2.4f, z);
+                    pillar.transform.localScale = new Vector3(0.4f, 4.6f, 0.4f);
+                    pillar.GetComponent<Renderer>().sharedMaterial = BiomeSystem.StoneMat;
+                    StripCollider(pillar);
+                }
+                var lintel = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                lintel.name = "SummitLintel";
+                lintel.transform.SetParent(transform, false);
+                lintel.transform.localPosition = new Vector3(0f, 4.7f, z);
+                lintel.transform.localScale = new Vector3(DeckWidth + 0.7f, 0.35f, 0.35f);
+                lintel.GetComponent<Renderer>().sharedMaterial = BiomeSystem.AccentMat;
+                StripCollider(lintel);
+            }
+
+            if (Random.value < 0.55f)
             {
                 var marker = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 marker.name = "SummitMarker";
@@ -3886,6 +3992,19 @@ namespace TempleSprint
                 marker.transform.localScale = new Vector3(0.8f, 0.7f, 0.35f);
                 marker.GetComponent<Renderer>().sharedMaterial = BiomeSystem.AccentMat;
                 StripCollider(marker);
+            }
+
+            // Soft moon disc for night sky identity (one per tile chance).
+            if (Random.value < 0.35f)
+            {
+                var moon = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                moon.name = "SummitMoon";
+                moon.transform.SetParent(transform, false);
+                moon.transform.localPosition = new Vector3(Random.Range(-6f, 6f), 14f, Length * 0.5f + Random.Range(-2f, 2f));
+                moon.transform.localScale = Vector3.one * Random.Range(1.8f, 2.6f);
+                moon.GetComponent<Renderer>().sharedMaterial =
+                    JunglePalette.Mat(new Color(0.92f, 0.94f, 1f, 0.95f), 0.85f, 0.4f);
+                StripCollider(moon);
             }
         }
     }

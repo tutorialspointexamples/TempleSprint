@@ -14,6 +14,9 @@ namespace TempleSprint
         GameObject _hudComboFrame, _hudGhostFrame;
         Image _hudPowerFill;
         Button _btnReviveAd, _btnReviveGem;
+        Button _lockerTabChars, _lockerTabCosmetics, _lockerTabBiomes;
+        RectTransform _lockerScrollContent;
+        int _lockerTab;
         bool _bootDone, _starterQueued;
         float _bootTimer = 0.45f;
         float _comboPulse;
@@ -119,9 +122,20 @@ namespace TempleSprint
             Btn(_upgrade, "BACK", new Vector2(0, -220), BackToMenuOrPost);
 
             _locker = Panel("Locker", new Color(0.08f, 0.12f, 0.14f, 0.82f));
-            Title(_locker, "LOCKER", 44, 0.82f, 0.96f);
+            Title(_locker, "LOCKER", 44, 0.86f, 0.96f);
+            _lockerTabChars = UiFactory.CreateTabButton(_locker.transform, "TabChars", "CHARS", new Vector2(-240f, 290f), new Vector2(200f, 54f));
+            _lockerTabCosmetics = UiFactory.CreateTabButton(_locker.transform, "TabCosmetics", "GEAR", new Vector2(0f, 290f), new Vector2(200f, 54f));
+            _lockerTabBiomes = UiFactory.CreateTabButton(_locker.transform, "TabBiomes", "BIOMES", new Vector2(240f, 290f), new Vector2(200f, 54f));
+            _lockerTabChars.onClick.AddListener(() => ShowLockerTab(0));
+            _lockerTabCosmetics.onClick.AddListener(() => ShowLockerTab(1));
+            _lockerTabBiomes.onClick.AddListener(() => ShowLockerTab(2));
+            var scroll = UiFactory.CreateScrollArea(
+                _locker.transform, "LockerScroll",
+                new Vector2(0.08f, 0.16f), new Vector2(0.92f, 0.78f),
+                Vector2.zero, Vector2.zero);
+            _lockerScrollContent = scroll.content;
             BuildLockerButtons();
-            Btn(_locker, "BACK", new Vector2(0, -390), () => ShowMainMenu());
+            Btn(_locker, "BACK", new Vector2(0, -420), () => ShowMainMenu());
 
             _shop = Panel("Shop", new Color(0.1f, 0.1f, 0.14f, 0.82f));
             Title(_shop, "SHOP", 44, 0.82f, 0.96f);
@@ -462,96 +476,139 @@ namespace TempleSprint
         void ShowLocker()
         {
             ShowOnly(_locker);
+            ShowLockerTab(_lockerTab);
+        }
+
+        void ShowLockerTab(int tab)
+        {
+            _lockerTab = Mathf.Clamp(tab, 0, 2);
+            UiFactory.SetTabSelected(_lockerTabChars, _lockerTab == 0);
+            UiFactory.SetTabSelected(_lockerTabCosmetics, _lockerTab == 1);
+            UiFactory.SetTabSelected(_lockerTabBiomes, _lockerTab == 2);
+            BuildLockerButtons();
         }
 
         void BuildLockerButtons()
         {
-            float y = 120f;
-            foreach (var c in CharacterRoster.All)
+            if (_lockerScrollContent == null) return;
+            for (int i = _lockerScrollContent.childCount - 1; i >= 0; i--)
+                Destroy(_lockerScrollContent.GetChild(i).gameObject);
+
+            float y = -20f;
+            const float row = 66f;
+            var host = _lockerScrollContent.gameObject;
+
+            void Place(string label, float x, UnityEngine.Events.UnityAction action)
             {
-                var id = c.id;
-                Btn(_locker, c.displayName, new Vector2(0, y), () =>
+                var b = UiFactory.CreateButton(host.transform, label, label, new Vector2(x, y), new Vector2(260f, 56f));
+                b.onClick.AddListener(action);
+            }
+
+            if (_lockerTab == 0)
+            {
+                foreach (var c in CharacterRoster.All)
                 {
-                    var unlocked = MetaProgress.Ensure().GetUnlockedCharacters().Contains(id);
-                    if (!unlocked)
-                        Toast(CharacterRoster.TryUnlock(id) ? "Unlocked!" : $"Need {c.gemCost} gems");
-                    else
+                    var id = c.id;
+                    var def = c;
+                    Place(def.displayName, 0f, () =>
                     {
-                        if (CharacterRoster.Select(id))
+                        var unlocked = MetaProgress.Ensure().GetUnlockedCharacters().Contains(id);
+                        if (!unlocked)
+                            Toast(CharacterRoster.TryUnlock(id) ? "Unlocked!" : $"Need {def.gemCost} gems");
+                        else if (CharacterRoster.Select(id))
                         {
-                            string skill = string.IsNullOrEmpty(c.activeDescription) || c.activeSkill == CharacterActiveSkill.None
-                                ? c.passive
-                                : c.activeDescription;
-                            Toast("Selected " + c.displayName + " · " + skill);
+                            string skill = string.IsNullOrEmpty(def.activeDescription) || def.activeSkill == CharacterActiveSkill.None
+                                ? def.passive
+                                : def.activeDescription;
+                            Toast("Selected " + def.displayName + " · " + skill);
                             PlayerController.Instance?.ApplyCharacterColors();
                         }
                         else Toast("Locked");
-                    }
-                });
-                y -= 70f;
-            }
-            Btn(_locker, "JUNGLE", new Vector2(-220, -240), () => { BiomeSystem.Select(BiomeId.JungleRuins); Toast("Jungle Ruins"); });
-            Btn(_locker, "DESERT", new Vector2(0, -240), () =>
-            {
-                if (!BiomeSystem.IsUnlocked(BiomeId.DesertTombs)) { Toast("Unlock via runs/relics/distance"); return; }
-                BiomeSystem.Select(BiomeId.DesertTombs); Toast("Desert Tombs");
-            });
-            Btn(_locker, "ICE", new Vector2(220, -240), () =>
-            {
-                if (!BiomeSystem.IsUnlocked(BiomeId.IceCaverns)) { Toast("Unlock via runs/relics/distance"); return; }
-                BiomeSystem.Select(BiomeId.IceCaverns); Toast("Ice Caverns");
-            });
-            Btn(_locker, "CAVE", new Vector2(-120, -310), () =>
-            {
-                if (!BiomeSystem.IsUnlocked(BiomeId.CaveMines)) { Toast("Unlock Cave Mines via runs/relics"); return; }
-                BiomeSystem.Select(BiomeId.CaveMines); Toast("Cave Mines");
-            });
-            Btn(_locker, "VOLCANO", new Vector2(120, -310), () =>
-            {
-                if (!BiomeSystem.IsUnlocked(BiomeId.VolcanicCrater)) { Toast("Unlock Volcano via runs/relics"); return; }
-                BiomeSystem.Select(BiomeId.VolcanicCrater); Toast("Volcanic Crater");
-            });
-            Btn(_locker, "NIGHT", new Vector2(0, -360), () =>
-            {
-                if (!BiomeSystem.IsUnlocked(BiomeId.NightSummit)) { Toast("Unlock Night Summit via runs/relics"); return; }
-                BiomeSystem.Select(BiomeId.NightSummit); Toast("Night Summit");
-            });
-
-            float leftY = -420f;
-            float rightY = -370f;
-            void AddCosmeticButtons(CosmeticRoster.CosmeticDef[] list, CosmeticSlot slot, string prefix, ref float y, float x)
-            {
-                foreach (var c in list)
-                {
-                    if (CosmeticRoster.IsNoneId(c.id)) continue;
-                    if (CosmeticRoster.IsSeasonal(c.id) && !CosmeticRoster.IsFeaturedThisWeek(c.id)
-                        && !MetaProgress.Ensure().HasCosmetic(c.id))
-                        continue;
-                    var id = c.id;
-                    var label = (CosmeticRoster.IsFeaturedThisWeek(id) ? "★ " : "") + c.displayName;
-                    var cost = c.gemCost;
-                    var slotLocal = slot;
-                    Btn(_locker, prefix + label, new Vector2(x, y), () =>
-                    {
-                        if (!MetaProgress.Ensure().HasCosmetic(id))
-                            Toast(CosmeticRoster.TryUnlock(id, slotLocal)
-                                ? prefix.TrimEnd(':') + " unlocked!"
-                                : $"Need {cost} gems / not in season");
-                        else
-                        {
-                            CosmeticRoster.Select(id, slotLocal);
-                            PlayerController.Instance?.ApplyCharacterColors();
-                            Toast(prefix + label);
-                        }
                     });
-                    y -= 48f;
+                    y -= row;
                 }
             }
+            else if (_lockerTab == 1)
+            {
+                float AddColumn(CosmeticRoster.CosmeticDef[] list, CosmeticSlot slot, string prefix, float x, float startY)
+                {
+                    float cy = startY;
+                    foreach (var c in list)
+                    {
+                        if (CosmeticRoster.IsNoneId(c.id)) continue;
+                        if (CosmeticRoster.IsSeasonal(c.id) && !CosmeticRoster.IsFeaturedThisWeek(c.id)
+                            && !MetaProgress.Ensure().HasCosmetic(c.id))
+                            continue;
+                        var id = c.id;
+                        var label = (CosmeticRoster.IsFeaturedThisWeek(id) ? "★ " : "") + prefix + c.displayName;
+                        var cost = c.gemCost;
+                        var slotLocal = slot;
+                        var b = UiFactory.CreateButton(host.transform, label, label, new Vector2(x, cy), new Vector2(260f, 52f));
+                        b.onClick.AddListener(() =>
+                        {
+                            if (!MetaProgress.Ensure().HasCosmetic(id))
+                                Toast(CosmeticRoster.TryUnlock(id, slotLocal)
+                                    ? prefix.TrimEnd(' ', ':') + " unlocked!"
+                                    : $"Need {cost} gems / not in season");
+                            else
+                            {
+                                CosmeticRoster.Select(id, slotLocal);
+                                PlayerController.Instance?.ApplyCharacterColors();
+                                Toast(label);
+                            }
+                        });
+                        cy -= row * 0.85f;
+                    }
+                    return cy;
+                }
 
-            AddCosmeticButtons(CosmeticRoster.Hats, CosmeticSlot.Hat, "HAT:", ref leftY, -220f);
-            AddCosmeticButtons(CosmeticRoster.Capes, CosmeticSlot.Cape, "CAPE:", ref leftY, -220f);
-            AddCosmeticButtons(CosmeticRoster.Pets, CosmeticSlot.Pet, "PET:", ref rightY, 220f);
-            AddCosmeticButtons(CosmeticRoster.Scarves, CosmeticSlot.Scarf, "SCARF:", ref rightY, 220f);
+                // Two columns: hats/capes left, pets/scarves right.
+                float leftY = AddColumn(CosmeticRoster.Hats, CosmeticSlot.Hat, "HAT: ", -220f, y);
+                float rightY = AddColumn(CosmeticRoster.Pets, CosmeticSlot.Pet, "PET: ", 220f, y);
+                float nextY = Mathf.Min(leftY, rightY) - 16f;
+                leftY = AddColumn(CosmeticRoster.Capes, CosmeticSlot.Cape, "CAPE: ", -220f, nextY);
+                rightY = AddColumn(CosmeticRoster.Scarves, CosmeticSlot.Scarf, "SCARF: ", 220f, nextY);
+                y = Mathf.Min(leftY, rightY);
+            }
+            else
+            {
+                Place("JUNGLE RUINS", 0f, () => { BiomeSystem.Select(BiomeId.JungleRuins); Toast("Jungle Ruins"); });
+                y -= row;
+                Place("DESERT TOMBS", 0f, () =>
+                {
+                    if (!BiomeSystem.IsUnlocked(BiomeId.DesertTombs)) { Toast("Unlock via runs/relics/distance"); return; }
+                    BiomeSystem.Select(BiomeId.DesertTombs); Toast("Desert Tombs");
+                });
+                y -= row;
+                Place("ICE CAVERNS", 0f, () =>
+                {
+                    if (!BiomeSystem.IsUnlocked(BiomeId.IceCaverns)) { Toast("Unlock via runs/relics/distance"); return; }
+                    BiomeSystem.Select(BiomeId.IceCaverns); Toast("Ice Caverns");
+                });
+                y -= row;
+                Place("CAVE MINES", 0f, () =>
+                {
+                    if (!BiomeSystem.IsUnlocked(BiomeId.CaveMines)) { Toast("Unlock Cave Mines via runs/relics"); return; }
+                    BiomeSystem.Select(BiomeId.CaveMines); Toast("Cave Mines");
+                });
+                y -= row;
+                Place("VOLCANIC CRATER", 0f, () =>
+                {
+                    if (!BiomeSystem.IsUnlocked(BiomeId.VolcanicCrater)) { Toast("Unlock Volcano via runs/relics"); return; }
+                    BiomeSystem.Select(BiomeId.VolcanicCrater); Toast("Volcanic Crater");
+                });
+                y -= row;
+                Place("NIGHT SUMMIT", 0f, () =>
+                {
+                    if (!BiomeSystem.IsUnlocked(BiomeId.NightSummit)) { Toast("Unlock Night Summit via runs/relics"); return; }
+                    BiomeSystem.Select(BiomeId.NightSummit); Toast("Night Summit");
+                });
+                y -= row;
+            }
+
+            float contentH = Mathf.Max(420f, 40f - y + 40f);
+            _lockerScrollContent.sizeDelta = new Vector2(900f, contentH);
+            _lockerScrollContent.anchoredPosition = Vector2.zero;
         }
 
         void ShowShop() => ShowOnly(_shop);
