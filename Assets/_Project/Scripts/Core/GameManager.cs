@@ -19,6 +19,7 @@ namespace TempleSprint
         PowerUpController _powers;
         ChaseCamera _camera;
         EnvironmentEffects _env;
+        GhostRivalRunner _ghost;
         float _tutorialTimer;
         int _tutorialStep = -1;
         RunEndPayload _lastPayload;
@@ -107,6 +108,8 @@ namespace TempleSprint
             var guardianGo = new GameObject("Guardian");
             guardianGo.transform.SetParent(transform);
             _guardian = guardianGo.AddComponent<GuardianAI>();
+
+            _ghost = GhostRivalRunner.Ensure(transform);
 
             var nature = NatureBackdrop.Ensure(transform);
             nature.SetFollow(_player.transform);
@@ -201,13 +204,20 @@ namespace TempleSprint
 
         public void EnterMainMenu()
         {
+            StopCoroutineSafe(_openingCo);
+            _openingCo = null;
             State = GameState.MainMenu;
             Time.timeScale = 1f;
             _powers?.ClearTimers();
             SetRunActorsVisible(true);
             _guardian?.Stop();
             if (_guardian != null) _guardian.gameObject.SetActive(false);
+            _ghost?.Stop();
             _env?.ResetEffects();
+            BiomeSystem.ClearRunTransition();
+            AudioHooks.Instance?.StopAmbience();
+            _camera?.ClearCinematic();
+            GameUI.Instance?.HideOpening();
             _spawner?.ShowMenuPreview();
             _player?.ResetAtStart();
             _player?.ApplyCharacterColors();
@@ -230,11 +240,27 @@ namespace TempleSprint
             if (!_session.IsAlive && !_session.IsFinalized)
                 _session.FinalizeAndBank();
 
+            StopCoroutineSafe(_openingCo);
+            _openingSkip = false;
+            _openingCo = StartCoroutine(PlayOpeningThenRun(difficulty));
+        }
+
+        Coroutine _openingCo;
+        bool _openingSkip;
+
+        void StopCoroutineSafe(Coroutine co)
+        {
+            if (co != null) StopCoroutine(co);
+        }
+
+        IEnumerator PlayOpeningThenRun(RunDifficulty difficulty)
+        {
             var meta = MetaProgress.Ensure();
             bool tutorial = !meta.Data.tutorialCompleted;
+            BiomeSystem.ClearRunTransition();
             BiomeSystem.ApplyLighting();
 
-            State = GameState.Running;
+            State = GameState.Opening;
             SetRunActorsVisible(true);
             if (_guardian != null) _guardian.gameObject.SetActive(true);
             _difficulty.ResetDifficulty(difficulty);
@@ -242,11 +268,69 @@ namespace TempleSprint
             _env?.ResetEffects();
             _player.ResetAtStart();
             _player.ApplyCharacterColors();
-            _session.Begin();
             _spawner.BeginRun(tutorial, difficulty);
-            _guardian.BeginRun();
+            _ghost?.Stop();
+            _guardian.BeginOpeningPose();
+
+            // Pedestal idol ahead of the runner for the theft beat.
+            Transform pedestal = IdolVisualFactory.BuildPedestal(_player.transform, new Vector3(0f, 0.05f, 2.4f));
+            Transform idol = IdolVisualFactory.BuildStolenIdol(_player.transform, new Vector3(0f, 0.85f, 2.4f), 1.1f);
+            _player.BeginOutcomeDeath(RunnerOutcomePose.IdolReach);
+
+            Vector3 camPos = _player.transform.position + _player.transform.right * 2.2f
+                             + Vector3.up * 2.1f - _player.transform.forward * 1.2f;
+            Vector3 look = _player.transform.position + Vector3.up * 1.2f + _player.transform.forward * 1.6f;
+            _camera?.SetCinematicPose(camPos, look, 50f);
+            GameUI.Instance?.ShowOpening("IDOL STOLEN!");
+            AudioHooks.Instance?.PlayPickup();
+
+            float t = 0f;
+            const float openDur = 1.35f;
+            bool snatched = false;
+            while (t < openDur)
+            {
+                if (ConsumeOpeningSkip()) break;
+                t += Time.unscaledDeltaTime;
+                // Idol snatch mid-beat — keep the prop for the early run (genre "stolen treasure").
+                if (!snatched && t > 0.55f && idol != null)
+                {
+                    snatched = true;
+                    _player.AttachStolenIdol(idol);
+                    idol = null;
+                    AudioHooks.Instance?.PlayGem();
+                    _camera?.PunchFov(4f);
+                }
+                yield return null;
+            }
+
+            // Skip path still needs the idol on the runner.
+            if (!snatched && idol != null)
+            {
+                _player.AttachStolenIdol(idol);
+                idol = null;
+            }
+            if (pedestal != null) Destroy(pedestal.gameObject);
+            _player.ClearOutcomePose();
+            _camera?.ClearCinematic();
+            GameUI.Instance?.HideOpening();
+
+            // Live run begins after the theft framing.
+            _session.Begin();
+            _guardian.StartChaseFromOpening();
+            _ghost?.BeginRun();
+            State = GameState.Running;
+
+            if (meta.ConsumeHeadStartArm())
+            {
+                _player.AdvanceAfterRevive(28f);
+                _powers.GrantHeadStartBurst();
+                _camera?.PunchFov(5f);
+                GameUI.Instance?.ShowTutorial("HEAD START! Sprint ahead!");
+            }
+
             _camera?.SnapNow();
             _camera?.PunchFov(3f);
+            AudioHooks.Instance?.PlayBiomeAmbience(BiomeSystem.Current);
             GameUI.Instance?.ShowHud();
             AnalyticsService.Track("run_start", (int)difficulty);
 
@@ -261,18 +345,35 @@ namespace TempleSprint
                 _tutorialStep = -1;
                 GameUI.Instance?.HideTutorial();
             }
+
+            _openingCo = null;
         }
+
+        bool ConsumeOpeningSkip()
+        {
+            if (_openingSkip) return true;
+            if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Escape)
+                || Input.GetMouseButtonDown(0) || Input.touchCount > 0)
+            {
+                _openingSkip = true;
+                return true;
+            }
+            return false;
+        }
+
+        public void SkipOpening() => _openingSkip = true;
 
         public void ContinueAfterRevive()
         {
             State = GameState.Running;
             Time.timeScale = 1f;
             _env?.ResetEffects();
-            _powers?.GrantReviveIFrames(1.75f);
+            _powers?.GrantReviveIFrames(2.25f);
+            if (_powers != null) _powers.Activate(PowerUpType.Shield, true);
             if (_player != null)
             {
                 _player.ClearStumble();
-                _player.AdvanceAfterRevive(4f);
+                _player.AdvanceAfterRevive(6f);
             }
             if (_guardian != null)
             {
@@ -280,8 +381,9 @@ namespace TempleSprint
                 _guardian.BeginRun();
             }
             _camera?.SnapNow();
+            _camera?.PunchFov(3.5f);
             GameUI.Instance?.ShowHud();
-            GameUI.Instance?.ShowTutorial("Revived! Keep running!");
+            GameUI.Instance?.ShowTutorial("SAVED! Shield up — keep running!");
         }
 
         void UpdateTutorial()
@@ -328,9 +430,11 @@ namespace TempleSprint
             _lastPayload = payload;
             State = GameState.PostRun;
             _guardian.Stop();
+            _ghost?.Stop();
             Time.timeScale = 1f;
             _powers?.ClearTimers();
             _env?.ResetEffects();
+            AudioHooks.Instance?.StopAmbience();
             MonetizationService.OnPostRun();
             GameUI.Instance?.ShowPostRun(payload);
         }
