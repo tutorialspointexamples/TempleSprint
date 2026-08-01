@@ -2334,6 +2334,18 @@ namespace TempleSprint
                 GemPickup.Create(transform, new Vector3(x, 1.35f, Length * 0.4f));
         }
 
+        void SpawnBreakableIdol()
+        {
+            // Park urns beside the runway so they read as smashables, not lane blockers.
+            float side = Random.value < 0.5f ? -1f : 1f;
+            float x = side * (DeckWidth * 0.5f + 0.55f);
+            float z = Length * Random.Range(0.35f, 0.75f);
+            var kind = Random.value < 0.28f
+                ? BreakableIdol.IdolKind.GemIdol
+                : BreakableIdol.IdolKind.CoinUrn;
+            BreakableIdol.Create(transform, new Vector3(x, 0.15f, z), kind);
+        }
+
         void SpawnObstacles(float chance, int tier)
         {
             int max = Mathf.RoundToInt(DifficultyProfile.For(_runDifficulty).MaxObstaclesInCluster);
@@ -2467,6 +2479,10 @@ namespace TempleSprint
             // Easy: reward route. Medium: one hazard side. Hard: risk/reward split.
             for (int i = 0; i < 6; i++)
                 CollectibleCoin.Create(transform, new Vector3(-PlayerController.LaneWidth, 1.25f, 1.8f + i * 1.6f));
+            if (Random.value < 0.65f)
+                BreakableIdol.Create(transform,
+                    new Vector3(-DeckWidth * 0.5f - 0.5f, 0.15f, Length * 0.45f),
+                    BreakableIdol.IdolKind.CoinUrn);
 
             if (_runDifficulty == RunDifficulty.Easy)
             {

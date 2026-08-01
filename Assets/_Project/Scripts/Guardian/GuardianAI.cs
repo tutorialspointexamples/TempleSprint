@@ -471,8 +471,7 @@ namespace TempleSprint
                     && _threat01 > 0.42f
                     && Time.time - _lastPressureHit > 1.6f
                     && !player.IsSliding
-                    && PowerUpController.Instance != null
-                    && !PowerUpController.Instance.IsInvulnerable)
+                    && (PowerUpController.Instance == null || !PowerUpController.Instance.Invulnerable))
                 {
                     _lastPressureHit = Time.time;
                     player.RegisterStumble(0.7f);
