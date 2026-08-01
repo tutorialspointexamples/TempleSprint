@@ -4,7 +4,11 @@ namespace TempleSprint
 {
     public class DynamicHazard : MonoBehaviour
     {
-        public enum Kind { Pendulum, CrumblingFloor, ArrowTrap, ClosingGate, CollapsingBridge, RollingBoulder, SpikeWheel }
+        public enum Kind
+        {
+            Pendulum, CrumblingFloor, ArrowTrap, ClosingGate, CollapsingBridge, RollingBoulder, SpikeWheel,
+            StoneCrusher, CeilingSlam
+        }
 
         public Kind HazardKind;
         public bool RequiresJump;
@@ -16,6 +20,11 @@ namespace TempleSprint
         float _amp = 2.2f;
         bool _triggered;
         Renderer _rend;
+        Renderer _telegraphRend;
+        Vector3 _slamHigh;
+        Vector3 _slamLow;
+        float _telegraphSeconds = 0.65f;
+        float _slamInterval = 1.85f;
 
         void Start()
         {
@@ -66,7 +75,103 @@ namespace TempleSprint
                     transform.localPosition = new Vector3(_origin.x + sweep, _origin.y, _origin.z);
                     TrySpikeWheelNearMiss();
                     break;
+                case Kind.StoneCrusher:
+                    TickCrusher();
+                    break;
+                case Kind.CeilingSlam:
+                    TickCeilingSlam();
+                    break;
             }
+        }
+
+        void PulseTelegraph(float warn01)
+        {
+            if (_telegraphRend == null) return;
+            float pulse = 0.45f + 0.55f * Mathf.Clamp01(warn01);
+            var c = Color.Lerp(JunglePalette.GoldBright.color, JunglePalette.Hazard.color, warn01);
+            c.a = 1f;
+            _telegraphRend.material.color = c;
+            if (_telegraphRend.material.HasProperty("_BaseColor"))
+                _telegraphRend.material.SetColor("_BaseColor", c);
+            _telegraphRend.transform.localScale = new Vector3(
+                1.55f + pulse * 0.25f, 0.06f, 1.55f + pulse * 0.15f);
+        }
+
+        void TickCrusher()
+        {
+            float cycle = Mathf.Repeat(_t, _slamInterval);
+            float warn = Mathf.Clamp01(cycle / _telegraphSeconds);
+            PulseTelegraph(warn);
+
+            bool crushing = cycle > _telegraphSeconds && cycle < _telegraphSeconds + 0.4f;
+            float u = crushing
+                ? Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(_telegraphSeconds, _telegraphSeconds + 0.4f, cycle))
+                : 0f;
+            transform.localPosition = Vector3.Lerp(_slamHigh, _slamLow, u);
+
+            // Lane dodge during the slam counts once as a near-miss.
+            if (crushing && !_triggered)
+            {
+                var player = PlayerController.Instance;
+                if (player == null || RunSession.Instance == null || !RunSession.Instance.IsAlive) return;
+                float dx = Mathf.Abs(transform.position.x - player.transform.position.x);
+                float dz = Vector3.Dot(transform.position - player.transform.position,
+                    Quaternion.Euler(0f, player.FacingYaw, 0f) * Vector3.forward);
+                if (dz > -0.7f && dz < 1.4f && dx > 1.05f && dx < 2.9f)
+                {
+                    _triggered = true;
+                    RunSession.Instance.RegisterNearMiss();
+                    ChaseCamera.Instance?.PunchFov(1.6f);
+                }
+            }
+        }
+
+        void TickCeilingSlam()
+        {
+            float cycle = Mathf.Repeat(_t, _slamInterval);
+            float warn = Mathf.Clamp01(cycle / _telegraphSeconds);
+            PulseTelegraph(warn);
+
+            bool down = cycle >= _telegraphSeconds && cycle < _telegraphSeconds + 0.34f;
+            float u = down
+                ? Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(_telegraphSeconds, _telegraphSeconds + 0.34f, cycle))
+                : 0f;
+            // Rise quickly after slam so the open window is readable.
+            if (!down && cycle >= _telegraphSeconds + 0.34f)
+            {
+                float rise = Mathf.InverseLerp(_telegraphSeconds + 0.34f, _slamInterval, cycle);
+                u = 1f - Mathf.SmoothStep(0f, 1f, rise);
+            }
+            transform.localPosition = Vector3.Lerp(_slamHigh, _slamLow, u);
+
+            // Sliding under the open window during slam telegraph counts as near-miss.
+            if (down && !_triggered)
+            {
+                var player = PlayerController.Instance;
+                if (player == null || RunSession.Instance == null || !RunSession.Instance.IsAlive) return;
+                float dx = Mathf.Abs(transform.position.x - player.transform.position.x);
+                float dz = Vector3.Dot(transform.position - player.transform.position,
+                    Quaternion.Euler(0f, player.FacingYaw, 0f) * Vector3.forward);
+                if (dz > -0.6f && dz < 1.3f && dx < 1.0f && player.IsSliding)
+                {
+                    _triggered = true;
+                    RunSession.Instance.RegisterNearMiss();
+                    ChaseCamera.Instance?.PunchFov(1.7f);
+                }
+            }
+        }
+
+        static GameObject BuildTelegraphPlate(Transform parent, float x, float localZ, out Renderer rend)
+        {
+            var plate = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            plate.name = "HazardTelegraph";
+            plate.transform.SetParent(parent, false);
+            plate.transform.localPosition = new Vector3(x, 0.07f, localZ);
+            plate.transform.localScale = new Vector3(1.55f, 0.06f, 1.55f);
+            plate.GetComponent<Renderer>().sharedMaterial = JunglePalette.Hazard;
+            Object.Destroy(plate.GetComponent<Collider>());
+            rend = plate.GetComponent<Renderer>();
+            return plate;
         }
 
         void TrySpikeWheelNearMiss()
@@ -275,6 +380,98 @@ namespace TempleSprint
             obs.DeathMessage = h.DeathMessage;
             return h;
         }
+
+        /// <summary>Vertical stone press with floor telegraph — lane-dodge during the slam window.</summary>
+        public static DynamicHazard CreateStoneCrusher(Transform parent, float localZ, int lane)
+        {
+            float x = (lane - 1) * PlayerController.LaneWidth;
+            var go = new GameObject("StoneCrusher");
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = new Vector3(x, 2.55f, localZ);
+
+            BuildTelegraphPlate(parent, x, localZ, out var telegraph);
+
+            var block = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            block.name = "CrusherBlock";
+            block.transform.SetParent(go.transform, false);
+            block.transform.localPosition = Vector3.zero;
+            block.transform.localScale = new Vector3(1.7f, 1.1f, 1.7f);
+            block.GetComponent<Renderer>().sharedMaterial = BiomeSystem.StoneMat;
+            Object.Destroy(block.GetComponent<Collider>());
+
+            // Carved teeth for silhouette (colorblind-safe vs gate/boulder).
+            for (int i = -1; i <= 1; i++)
+            {
+                var tooth = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                tooth.transform.SetParent(go.transform, false);
+                tooth.transform.localPosition = new Vector3(i * 0.45f, -0.7f, 0f);
+                tooth.transform.localScale = new Vector3(0.28f, 0.45f, 1.2f);
+                tooth.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
+                Object.Destroy(tooth.GetComponent<Collider>());
+            }
+
+            var hit = go.AddComponent<BoxCollider>();
+            hit.isTrigger = true;
+            hit.size = new Vector3(1.55f, 1.4f, 1.55f);
+            hit.center = new Vector3(0f, -0.15f, 0f);
+
+            var h = go.AddComponent<DynamicHazard>();
+            h.HazardKind = Kind.StoneCrusher;
+            h.DeathMessage = "Crushed by moving stones";
+            h._telegraphRend = telegraph;
+            h._slamHigh = new Vector3(x, 2.55f, localZ);
+            h._slamLow = new Vector3(x, 0.85f, localZ);
+            h._telegraphSeconds = 0.7f;
+            h._slamInterval = 1.9f;
+            var obs = go.AddComponent<Obstacle>();
+            obs.DeathMessage = h.DeathMessage;
+            return h;
+        }
+
+        /// <summary>Ceiling slab that telegraph-warns then slams — slide under the open window.</summary>
+        public static DynamicHazard CreateCeilingSlam(Transform parent, float localZ, int lane)
+        {
+            float x = (lane - 1) * PlayerController.LaneWidth;
+            var go = new GameObject("CeilingSlam");
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = new Vector3(x, 3.1f, localZ);
+
+            BuildTelegraphPlate(parent, x, localZ, out var telegraph);
+
+            var slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            slab.name = "SlamSlab";
+            slab.transform.SetParent(go.transform, false);
+            slab.transform.localPosition = Vector3.zero;
+            slab.transform.localScale = new Vector3(2.1f, 0.45f, 1.9f);
+            slab.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
+            Object.Destroy(slab.GetComponent<Collider>());
+
+            var tip = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            tip.transform.SetParent(go.transform, false);
+            tip.transform.localPosition = new Vector3(0f, -0.45f, 0f);
+            tip.transform.localScale = new Vector3(1.6f, 0.35f, 0.35f);
+            tip.GetComponent<Renderer>().sharedMaterial = JunglePalette.Hazard;
+            Object.Destroy(tip.GetComponent<Collider>());
+
+            var hit = go.AddComponent<BoxCollider>();
+            hit.isTrigger = true;
+            hit.size = new Vector3(1.9f, 1.2f, 1.6f);
+            hit.center = new Vector3(0f, -0.35f, 0f);
+
+            var h = go.AddComponent<DynamicHazard>();
+            h.HazardKind = Kind.CeilingSlam;
+            h.RequiresSlide = true;
+            h.DeathMessage = "Flattened by a ceiling trap";
+            h._telegraphRend = telegraph;
+            h._slamHigh = new Vector3(x, 3.1f, localZ);
+            h._slamLow = new Vector3(x, 1.05f, localZ);
+            h._telegraphSeconds = 0.6f;
+            h._slamInterval = 1.75f;
+            var obs = go.AddComponent<Obstacle>();
+            obs.RequiresSlide = true;
+            obs.DeathMessage = h.DeathMessage;
+            return h;
+        }
     }
 
     public class CrumbleTrigger : MonoBehaviour
@@ -467,6 +664,17 @@ namespace TempleSprint
             if (DarknessActive || DarknessBlend > 0.05f) return;
             _darkCooldown = 0f;
             BeginDarkness(seconds);
+        }
+
+        /// <summary>Tunnel Runner headlamp / lantern skill — snap darkness off.</summary>
+        public void ClearDarkness()
+        {
+            DarknessActive = false;
+            _darkTimer = 0f;
+            _fadeDir = -1f;
+            DarknessBlend = 0f;
+            RestoreAmbientFog();
+            SnapshotBaseFog();
         }
 
         void OnDestroy()

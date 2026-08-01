@@ -25,6 +25,7 @@ namespace TempleSprint
         TempleHall,
         RuinFork,
         LavaRiver,
+        BiomeTransitionTunnel,
         TurnLeft,
         TurnRight,
         TJunction
@@ -162,6 +163,8 @@ namespace TempleSprint
                 BuildIceSlopeShell();
             else if (kind == TileKind.TempleHall)
                 BuildTempleHallInterior();
+            else if (kind == TileKind.BiomeTransitionTunnel)
+                BuildBiomeTransitionTunnelShell();
             else
                 BuildForestEdge(transform, 0f, Length);
 
@@ -246,6 +249,9 @@ namespace TempleSprint
                     break;
                 case TileKind.LavaRiver:
                     BuildLavaRiverCrossing();
+                    break;
+                case TileKind.BiomeTransitionTunnel:
+                    BuildBiomeTransitionTunnelContents();
                     break;
             }
         }
@@ -2368,6 +2374,19 @@ namespace TempleSprint
 
         void SpawnDynamic(int tier)
         {
+            // Cave / desert / night bias telegraphing stone crushers.
+            bool crusherBiome = BiomeSystem.Current == BiomeId.CaveMines
+                                || BiomeSystem.Current == BiomeId.DesertTombs
+                                || BiomeSystem.Current == BiomeId.NightSummit;
+            if (crusherBiome && _runDifficulty != RunDifficulty.Easy
+                && Random.value < (_runDifficulty == RunDifficulty.Hard ? 0.4f : 0.32f))
+            {
+                DynamicHazard.CreateStoneCrusher(transform, Length * 0.55f, Random.Range(0, 3));
+                if (_runDifficulty == RunDifficulty.Hard && Random.value < 0.3f)
+                    DynamicHazard.CreateStoneCrusher(transform, Length * 0.78f, Random.Range(0, 3));
+                return;
+            }
+
             // Cave / volcano bias rolling boulders.
             bool boulderBiome = BiomeSystem.Current == BiomeId.CaveMines
                                 || BiomeSystem.Current == BiomeId.VolcanicCrater
@@ -2391,13 +2410,14 @@ namespace TempleSprint
                 return;
             }
 
-            int roll = Random.Range(0, _runDifficulty == RunDifficulty.Easy ? 3 : 7);
+            int roll = Random.Range(0, _runDifficulty == RunDifficulty.Easy ? 3 : 8);
             if (roll == 0) DynamicHazard.CreatePendulum(transform, Length * 0.5f, 1);
             else if (roll == 1) DynamicHazard.CreateArrow(transform, Length * 0.3f, Random.Range(0, 3));
             else if (roll == 2) DynamicHazard.CreateGate(transform, Length * 0.55f);
             else if (roll == 3) Obstacle.CreateBlockingWall(transform, Length * 0.55f);
             else if (roll == 4) DynamicHazard.CreateCrumbling(transform, Length * 0.5f, Random.Range(0, 3));
             else if (roll == 5) DynamicHazard.CreateSpikeWheel(transform, Length * 0.6f, Random.Range(0, 3));
+            else if (roll == 6) DynamicHazard.CreateStoneCrusher(transform, Length * 0.58f, Random.Range(0, 3));
             else DynamicHazard.CreateRollingBoulder(transform, Length * 0.88f, Random.Range(0, 3));
 
             if (_runDifficulty == RunDifficulty.Hard && tier >= 2 && Random.value < 0.35f)
@@ -3014,6 +3034,102 @@ namespace TempleSprint
                 Obstacle.CreateLowBeam(transform, Length * Random.Range(0.4f, 0.7f), Random.Range(0, 3));
             if (_runDifficulty != RunDifficulty.Easy && Random.value < 0.35f)
                 Obstacle.CreateSpike(transform, Length * Random.Range(0.55f, 0.85f), Random.Range(0, 3));
+            // Ceiling slam traps with telegraph windows in enclosed halls.
+            if (_runDifficulty != RunDifficulty.Easy && Random.value < 0.4f)
+                DynamicHazard.CreateCeilingSlam(transform, Length * Random.Range(0.45f, 0.75f), Random.Range(0, 3));
+        }
+
+        void BuildBiomeTransitionTunnelShell()
+        {
+            BiomeId from = BiomeSystem.Current;
+            BiomeId to = BiomeSystem.PendingTransitionTarget;
+            if (!BiomeSystem.TransitionActive || to == from)
+                to = BiomeSystem.PeekNextUnlockedBiome();
+
+            float mid = Length * 0.5f;
+            // Near half keeps the current biome, far half previews the destination.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var nearWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                nearWall.name = "TransitionWallNear";
+                nearWall.transform.SetParent(transform, false);
+                nearWall.transform.localPosition = new Vector3(side * (DeckWidth * 0.5f + 1.9f), 2.1f, mid * 0.55f);
+                nearWall.transform.localScale = new Vector3(2.6f, 4.4f, Length * 0.55f);
+                nearWall.GetComponent<Renderer>().sharedMaterial = BiomePalette.Stone(from);
+                StripCollider(nearWall);
+
+                var farWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                farWall.name = "TransitionWallFar";
+                farWall.transform.SetParent(transform, false);
+                farWall.transform.localPosition = new Vector3(side * (DeckWidth * 0.5f + 1.9f), 2.1f, mid + Length * 0.22f);
+                farWall.transform.localScale = new Vector3(2.6f, 4.4f, Length * 0.45f);
+                farWall.GetComponent<Renderer>().sharedMaterial = BiomePalette.Stone(to);
+                StripCollider(farWall);
+            }
+
+            var nearCeil = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            nearCeil.name = "TransitionCeilNear";
+            nearCeil.transform.SetParent(transform, false);
+            nearCeil.transform.localPosition = new Vector3(0f, 4.3f, mid * 0.55f);
+            nearCeil.transform.localScale = new Vector3(DeckWidth + 4.2f, 0.55f, Length * 0.55f);
+            nearCeil.GetComponent<Renderer>().sharedMaterial = BiomePalette.Stone(from);
+            StripCollider(nearCeil);
+
+            var farCeil = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            farCeil.name = "TransitionCeilFar";
+            farCeil.transform.SetParent(transform, false);
+            farCeil.transform.localPosition = new Vector3(0f, 4.3f, mid + Length * 0.22f);
+            farCeil.transform.localScale = new Vector3(DeckWidth + 4.2f, 0.55f, Length * 0.45f);
+            farCeil.GetComponent<Renderer>().sharedMaterial = BiomePalette.Stone(to);
+            StripCollider(farCeil);
+
+            // Crossfade path inlays — current → destination.
+            var nearPath = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            nearPath.name = "TransitionPathNear";
+            nearPath.transform.SetParent(transform, false);
+            nearPath.transform.localPosition = new Vector3(0f, 0.03f, mid * 0.55f);
+            nearPath.transform.localScale = new Vector3(DeckWidth * 0.92f, 0.05f, Length * 0.5f);
+            nearPath.GetComponent<Renderer>().sharedMaterial = BiomePalette.Path(from);
+            StripCollider(nearPath);
+
+            var farPath = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            farPath.name = "TransitionPathFar";
+            farPath.transform.SetParent(transform, false);
+            farPath.transform.localPosition = new Vector3(0f, 0.03f, mid + Length * 0.22f);
+            farPath.transform.localScale = new Vector3(DeckWidth * 0.92f, 0.05f, Length * 0.45f);
+            farPath.GetComponent<Renderer>().sharedMaterial = BiomePalette.Path(to);
+            StripCollider(farPath);
+
+            // Gold threshold arch at the biome seam.
+            var seam = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            seam.name = "BiomeSeam";
+            seam.transform.SetParent(transform, false);
+            seam.transform.localPosition = new Vector3(0f, 2.2f, mid);
+            seam.transform.localScale = new Vector3(DeckWidth + 1.2f, 0.22f, 0.35f);
+            seam.GetComponent<Renderer>().sharedMaterial = JunglePalette.GoldBright;
+            StripCollider(seam);
+        }
+
+        void BuildBiomeTransitionTunnelContents()
+        {
+            BiomeId target = BiomeSystem.PendingTransitionTarget;
+            if (!BiomeSystem.TransitionActive || target == BiomeSystem.Current)
+            {
+                target = BiomeSystem.PeekNextUnlockedBiome();
+                BiomeSystem.BeginRunTransition(target);
+            }
+
+            ScatterCoins(5);
+            if (Random.value < 0.45f) SpawnPowerUp();
+
+            var trigger = new GameObject("BiomeTransitionCommit");
+            trigger.transform.SetParent(transform, false);
+            trigger.transform.localPosition = new Vector3(0f, 1f, Length - 1.35f);
+            var col = trigger.AddComponent<BoxCollider>();
+            col.isTrigger = true;
+            col.size = new Vector3(DeckWidth + 0.8f, 2.6f, 1.5f);
+            var commit = trigger.AddComponent<BiomeTransitionCommitTrigger>();
+            commit.Target = target;
         }
 
         void BuildIceSurfStage()
