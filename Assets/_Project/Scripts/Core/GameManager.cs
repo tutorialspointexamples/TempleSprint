@@ -286,23 +286,29 @@ namespace TempleSprint
 
             float t = 0f;
             const float openDur = 1.35f;
+            bool snatched = false;
             while (t < openDur)
             {
                 if (ConsumeOpeningSkip()) break;
                 t += Time.unscaledDeltaTime;
-                // Idol snatch mid-beat.
-                if (t > 0.55f && idol != null && idol.parent == _player.transform && idol.localPosition.z > 1f)
+                // Idol snatch mid-beat — keep the prop for the early run (genre "stolen treasure").
+                if (!snatched && t > 0.55f && idol != null)
                 {
-                    idol.SetParent(_player.transform, true);
-                    idol.localPosition = new Vector3(0.25f, 1.15f, 0.35f);
-                    idol.localScale = Vector3.one * 0.7f;
+                    snatched = true;
+                    _player.AttachStolenIdol(idol);
+                    idol = null;
                     AudioHooks.Instance?.PlayGem();
                     _camera?.PunchFov(4f);
                 }
                 yield return null;
             }
 
-            if (idol != null) Destroy(idol.gameObject);
+            // Skip path still needs the idol on the runner.
+            if (!snatched && idol != null)
+            {
+                _player.AttachStolenIdol(idol);
+                idol = null;
+            }
             if (pedestal != null) Destroy(pedestal.gameObject);
             _player.ClearOutcomePose();
             _camera?.ClearCinematic();

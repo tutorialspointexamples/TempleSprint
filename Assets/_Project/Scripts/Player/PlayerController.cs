@@ -131,6 +131,7 @@ namespace TempleSprint
             _deathFallVel = 0f;
             ClearTraversal();
             RestoreCollider();
+            _explorer?.ClearHeldIdol();
             _explorer?.ClearOutcomePose();
             _explorer?.ResetPose();
             _explorer?.SetPoseFlags(false, false);
@@ -1696,13 +1697,20 @@ namespace TempleSprint
         public void ApplyCharacterColors()
         {
             if (_explorer == null) return;
+            bool keepIdol = _explorer.CarryingStolenIdol;
             var c = CharacterRoster.GetSelected();
             _explorer.ApplyCharacterAppearance(c);
             _explorer.ApplyCharacterKit(c.id, c.color);
             _explorer.ApplyCosmetics();
+            if (keepIdol) _explorer.EnsureHeldIdol();
             if (GameManager.Instance != null && GameManager.Instance.State == GameState.MainMenu)
                 _explorer.ApplyMenuShowcase();
         }
+
+        /// <summary>Keep the stolen idol prop attached through the opening-to-run handoff.</summary>
+        public void AttachStolenIdol(Transform idol) => _explorer?.AttachHeldIdol(idol);
+
+        public void ClearStolenIdol() => _explorer?.ClearHeldIdol();
 
         void OnDestroy()
         {
@@ -1737,6 +1745,8 @@ namespace TempleSprint
         Animator _anim;
         Transform _model;
         Transform _kitRoot;
+        Transform _heldIdol;
+        bool _carryStolenIdol;
         float _laneLean;
         string _kitId;
         string _skinKey;
@@ -1971,6 +1981,65 @@ namespace TempleSprint
         public void ApplyCosmetics()
         {
             CosmeticRoster.ApplyToRunner(transform, _anim);
+        }
+
+        public bool CarryingStolenIdol => _carryStolenIdol;
+
+        /// <summary>Socket the stolen idol to a hand/hip so the treasure stays visible early-run.</summary>
+        public void AttachHeldIdol(Transform idol)
+        {
+            if (idol == null) return;
+            // Drop any previous held prop without clearing the carry flag mid-swap.
+            if (_heldIdol != null && _heldIdol != idol)
+                Destroy(_heldIdol.gameObject);
+
+            _heldIdol = idol;
+            _carryStolenIdol = true;
+            IdolVisualFactory.ConfigureAsHeldProp(_heldIdol);
+
+            Transform hand = null;
+            if (_anim != null && _anim.isHuman)
+                hand = _anim.GetBoneTransform(HumanBodyBones.RightHand)
+                       ?? _anim.GetBoneTransform(HumanBodyBones.RightLowerArm);
+
+            if (hand != null)
+            {
+                _heldIdol.SetParent(hand, false);
+                _heldIdol.localPosition = new Vector3(0.06f, 0.1f, 0.04f);
+                _heldIdol.localRotation = Quaternion.Euler(12f, 25f, -18f);
+                _heldIdol.localScale = Vector3.one * 0.42f;
+            }
+            else
+            {
+                _heldIdol.SetParent(transform, false);
+                _heldIdol.localPosition = new Vector3(0.3f, 1.08f, 0.2f);
+                _heldIdol.localRotation = Quaternion.Euler(8f, -14f, 8f);
+                _heldIdol.localScale = Vector3.one * 0.55f;
+            }
+            _heldIdol.gameObject.SetActive(true);
+        }
+
+        public void EnsureHeldIdol()
+        {
+            if (!_carryStolenIdol) return;
+            if (_heldIdol != null) { AttachHeldIdol(_heldIdol); return; }
+            var idol = IdolVisualFactory.BuildStolenIdol(transform, Vector3.zero, 0.55f);
+            AttachHeldIdol(idol);
+        }
+
+        public void ClearHeldIdol()
+        {
+            _carryStolenIdol = false;
+            if (_heldIdol != null)
+            {
+                Destroy(_heldIdol.gameObject);
+                _heldIdol = null;
+            }
+        }
+
+        public void SetHeldIdolVisible(bool visible)
+        {
+            if (_heldIdol != null) _heldIdol.gameObject.SetActive(visible);
         }
 
         /// <summary>Original per-character silhouette accents (scarf / pack / wraps / cuffs).</summary>

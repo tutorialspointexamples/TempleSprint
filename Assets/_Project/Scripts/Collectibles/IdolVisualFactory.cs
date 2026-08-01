@@ -48,7 +48,8 @@ namespace TempleSprint
             gr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             Object.Destroy(glow.GetComponent<Collider>());
 
-            root.gameObject.AddComponent<IdolSpin>();
+            var spin = root.gameObject.AddComponent<IdolSpin>();
+            spin.DegreesPerSecond = 90f;
             return root;
         }
 
@@ -63,10 +64,20 @@ namespace TempleSprint
             Object.Destroy(pedestal.GetComponent<Collider>());
             return pedestal.transform;
         }
+
+        /// <summary>Quieter held idol for the early-run "stolen treasure" prop.</summary>
+        public static void ConfigureAsHeldProp(Transform idol)
+        {
+            if (idol == null) return;
+            idol.name = "HeldStolenIdol";
+            var spin = idol.GetComponent<IdolSpin>();
+            if (spin != null) spin.DegreesPerSecond = 28f;
+        }
     }
 
     public class IdolSpin : MonoBehaviour
     {
-        void Update() => transform.Rotate(0f, 90f * Time.deltaTime, 0f, Space.Self);
+        public float DegreesPerSecond = 90f;
+        void Update() => transform.Rotate(0f, DegreesPerSecond * Time.deltaTime, 0f, Space.Self);
     }
 }
