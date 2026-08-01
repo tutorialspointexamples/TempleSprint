@@ -611,6 +611,11 @@ namespace TempleSprint.EditorTools
                         Debug.LogWarning($"[VERIFY] WaterfallPlunge at {t.PathStartDistance:0.0} missing spray curtains");
                         return false;
                     }
+                    if (t.transform.Find("PlungePool") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] WaterfallPlunge at {t.PathStartDistance:0.0} missing plunge pool");
+                        return false;
+                    }
                 }
                 if (t.Kind == TileKind.WaterSlide)
                 {
@@ -668,6 +673,18 @@ namespace TempleSprint.EditorTools
                     if (telegraph != null && telegraph.transform.Find("BrokenRailSparks") == null)
                     {
                         Debug.LogWarning($"[VERIFY] MineCart at {t.PathStartDistance:0.0} missing broken-rail spark telegraph");
+                        return false;
+                    }
+                    if (t.transform.Find("MineCartPortalMouth") == null
+                        && t.transform.Find("MineCartPortalExit") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] MineCart at {t.PathStartDistance:0.0} missing tunnel portal mouth");
+                        return false;
+                    }
+                    if (t.transform.Find("TrackSwitchPlate") == null
+                        && t.transform.Find("TrackSwitchPlateGlow") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] MineCart at {t.PathStartDistance:0.0} missing dual-track switch plate VFX");
                         return false;
                     }
                 }

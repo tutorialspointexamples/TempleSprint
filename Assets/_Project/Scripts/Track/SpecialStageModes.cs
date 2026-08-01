@@ -339,6 +339,90 @@ namespace TempleSprint
         }
     }
 
+    /// <summary>Pulsing dual-track switch plate + chevron VFX so lane changes read clearly.</summary>
+    public class TrackSwitchPlatePulse : MonoBehaviour
+    {
+        Renderer _plate;
+        Transform _glow;
+        readonly Transform[] _chevrons = new Transform[4];
+        Vector3 _baseScale;
+
+        public void BuildExtras(Transform tileRoot, float midZ, float trackX)
+        {
+            _plate = GetComponent<Renderer>();
+            _baseScale = transform.localScale;
+
+            var glowGo = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            glowGo.name = "TrackSwitchPlateGlow";
+            glowGo.transform.SetParent(tileRoot, false);
+            glowGo.transform.localPosition = new Vector3(0f, 0.12f, midZ);
+            glowGo.transform.localScale = new Vector3(TrackTile.DeckWidth * 0.9f, 0.04f, 1.55f);
+            glowGo.GetComponent<Renderer>().sharedMaterial =
+                JunglePalette.Mat(new Color(1f, 0.82f, 0.25f, 0.75f), 0.65f, 0.2f);
+            Object.Destroy(glowGo.GetComponent<Collider>());
+            _glow = glowGo.transform;
+
+            for (int i = 0; i < _chevrons.Length; i++)
+            {
+                int side = i < 2 ? -1 : 1;
+                int tier = i % 2;
+                var chevron = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                chevron.name = "TrackSwitchChevron";
+                chevron.transform.SetParent(tileRoot, false);
+                chevron.transform.localPosition = new Vector3(
+                    side * trackX * 0.55f,
+                    0.18f + tier * 0.08f,
+                    midZ + (tier == 0 ? -0.35f : 0.35f));
+                chevron.transform.localRotation = Quaternion.Euler(0f, side * 35f, 0f);
+                chevron.transform.localScale = new Vector3(0.55f, 0.08f, 0.22f);
+                chevron.GetComponent<Renderer>().sharedMaterial = JunglePalette.GoldBright;
+                Object.Destroy(chevron.GetComponent<Collider>());
+                _chevrons[i] = chevron.transform;
+            }
+        }
+
+        void Update()
+        {
+            float pulse = 0.55f + Mathf.Abs(Mathf.Sin(Time.time * 5.5f)) * 0.45f;
+            if (_plate != null)
+            {
+                var c = Color.Lerp(new Color(0.85f, 0.62f, 0.15f), new Color(1f, 0.95f, 0.45f), pulse);
+                _plate.material.color = c;
+                if (_plate.material.HasProperty("_BaseColor"))
+                    _plate.material.SetColor("_BaseColor", c);
+                transform.localScale = new Vector3(
+                    _baseScale.x * (0.98f + pulse * 0.04f),
+                    _baseScale.y,
+                    _baseScale.z * (0.95f + pulse * 0.1f));
+            }
+
+            if (_glow != null)
+            {
+                _glow.localScale = new Vector3(
+                    TrackTile.DeckWidth * (0.82f + pulse * 0.12f),
+                    0.04f + pulse * 0.03f,
+                    1.35f + pulse * 0.45f);
+                var rend = _glow.GetComponent<Renderer>();
+                if (rend != null)
+                {
+                    var gc = new Color(1f, 0.78f + pulse * 0.18f, 0.2f, 0.35f + pulse * 0.45f);
+                    rend.material.color = gc;
+                    if (rend.material.HasProperty("_BaseColor"))
+                        rend.material.SetColor("_BaseColor", gc);
+                }
+            }
+
+            for (int i = 0; i < _chevrons.Length; i++)
+            {
+                if (_chevrons[i] == null) continue;
+                float bob = Mathf.Abs(Mathf.Sin(Time.time * 7f + i * 0.9f)) * 0.12f;
+                var lp = _chevrons[i].localPosition;
+                lp.y = 0.18f + (i % 2) * 0.08f + bob;
+                _chevrons[i].localPosition = lp;
+            }
+        }
+    }
+
     /// <summary>Auto-mount aqueduct water-slide at the channel lip.</summary>
     public class WaterSlideMount : MonoBehaviour
     {

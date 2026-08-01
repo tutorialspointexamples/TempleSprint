@@ -3301,7 +3301,7 @@ namespace TempleSprint
                 }
             }
 
-            // Cross-switch plate mid-channel — telegraph that lanes matter.
+            // Cross-switch plate mid-channel — telegraph that dual tracks matter.
             var switchPlate = GameObject.CreatePrimitive(PrimitiveType.Cube);
             switchPlate.name = "TrackSwitchPlate";
             switchPlate.transform.SetParent(transform, false);
@@ -3309,6 +3309,12 @@ namespace TempleSprint
             switchPlate.transform.localScale = new Vector3(DeckWidth * 0.85f, 0.06f, 1.2f);
             switchPlate.GetComponent<Renderer>().sharedMaterial = JunglePalette.Gold;
             StripCollider(switchPlate);
+            var switchPulse = switchPlate.AddComponent<TrackSwitchPlatePulse>();
+            switchPulse.BuildExtras(transform, mid, trackX);
+
+            // Tunnel portal mouths frame the mine-cart stage entrance / exit.
+            BuildMineCartPortalMouth(channelStart + 0.15f, true);
+            BuildMineCartPortalMouth(channelEnd - 0.15f, false);
 
             var rideGo = new GameObject("MineCartRide");
             rideGo.transform.SetParent(transform, false);
@@ -3367,6 +3373,66 @@ namespace TempleSprint
             CollectibleCoin.Create(transform, new Vector3(-trackX, 1.5f, channelEnd - 0.6f));
             if (_runDifficulty != RunDifficulty.Easy && Random.value < 0.45f)
                 GemPickup.Create(transform, new Vector3(trackX, 1.55f, mid + 1f));
+        }
+
+        /// <summary>
+        /// Rock-and-timber portal mouth framing a mine-cart tunnel entrance/exit.
+        /// </summary>
+        void BuildMineCartPortalMouth(float z, bool entrance)
+        {
+            var root = new GameObject(entrance ? "MineCartPortalMouth" : "MineCartPortalExit").transform;
+            root.SetParent(transform, false);
+            root.localPosition = new Vector3(0f, 0f, z);
+
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var post = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                post.name = "MineCartPortalPost";
+                post.transform.SetParent(root, false);
+                post.transform.localPosition = new Vector3(side * (DeckWidth * 0.48f + 0.2f), 1.9f, 0f);
+                post.transform.localScale = new Vector3(0.55f, 3.8f, 0.7f);
+                post.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+                StripCollider(post);
+
+                var buttress = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                buttress.name = "MineCartPortalButtress";
+                buttress.transform.SetParent(root, false);
+                buttress.transform.localPosition = new Vector3(side * (DeckWidth * 0.55f + 0.85f), 1.4f, entrance ? -0.35f : 0.35f);
+                buttress.transform.localRotation = Quaternion.Euler(0f, 0f, side * -12f);
+                buttress.transform.localScale = new Vector3(0.7f, 2.6f, 0.55f);
+                buttress.GetComponent<Renderer>().sharedMaterial = BiomeSystem.StoneMat;
+                StripCollider(buttress);
+            }
+
+            var lintel = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            lintel.name = "MineCartPortalArch";
+            lintel.transform.SetParent(root, false);
+            lintel.transform.localPosition = new Vector3(0f, 3.7f, 0f);
+            lintel.transform.localScale = new Vector3(DeckWidth + 1.4f, 0.55f, 0.85f);
+            lintel.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+            StripCollider(lintel);
+
+            var keystone = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            keystone.name = "MineCartPortalKeystone";
+            keystone.transform.SetParent(root, false);
+            keystone.transform.localPosition = new Vector3(0f, 4.05f, 0f);
+            keystone.transform.localScale = new Vector3(0.7f, 0.45f, 0.95f);
+            keystone.GetComponent<Renderer>().sharedMaterial = JunglePalette.Stone;
+            StripCollider(keystone);
+
+            // Dark veil just inside the mouth so the tunnel reads as enclosed.
+            var veil = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            veil.name = "MineCartPortalVeil";
+            veil.transform.SetParent(root, false);
+            veil.transform.localPosition = new Vector3(0f, 2.1f, entrance ? 0.55f : -0.55f);
+            veil.transform.localScale = new Vector3(DeckWidth + 0.6f, 4.1f, 0.18f);
+            veil.GetComponent<Renderer>().sharedMaterial =
+                JunglePalette.Mat(new Color(0.04f, 0.045f, 0.05f, 0.85f), 0.05f);
+            StripCollider(veil);
+
+            // Lantern sconces flanking the mouth for readable tunnel cadence.
+            for (int side = -1; side <= 1; side += 2)
+                SpawnCaveTorchSconce(side, z + (entrance ? 0.4f : -0.4f), 2.35f);
         }
 
         /// <summary>
