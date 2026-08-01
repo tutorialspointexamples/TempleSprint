@@ -147,12 +147,14 @@ namespace TempleSprint.EditorTools
 
             var gm = Object.FindAnyObjectByType<GameManager>();
             if (!_startedRun && gm != null
-                && gm.State != GameState.Running && gm.State != GameState.PostRun)
+                && gm.State != GameState.Running && gm.State != GameState.PostRun
+                && gm.State != GameState.Opening)
             {
                 _startedRun = true;
                 try
                 {
                     gm.StartRun(RunDifficulty.Medium);
+                    gm.SkipOpening();
                     var runner = Object.FindAnyObjectByType<PlayerController>();
                     var spawner = Object.FindAnyObjectByType<TileSpawner>();
                     // Survive the whole sample window so the route can be measured.
@@ -171,6 +173,7 @@ namespace TempleSprint.EditorTools
                 try
                 {
                     gm.StartRun(RunDifficulty.Medium);
+                    gm.SkipOpening();
                     var spawner = Object.FindAnyObjectByType<TileSpawner>();
                     var runner = Object.FindAnyObjectByType<PlayerController>();
                     var capsule = runner != null ? runner.GetComponent<CapsuleCollider>() : null;
@@ -237,6 +240,22 @@ namespace TempleSprint.EditorTools
             bool riverModesOk = CheckRiverModesPresent(tiles);
             bool fireModesOk = CheckFireModesPresent(tiles)
                                || (tileSpawner != null && tileSpawner.FiresSpawnedThisRun > 0);
+            bool specialOk = CheckSpecialStagesPresent(tiles)
+                             || (tileSpawner != null
+                                 && (tileSpawner.ZiplinesSpawnedThisRun > 0
+                                     || tileSpawner.MineCartsSpawnedThisRun > 0
+                                     || tileSpawner.IceSurfsSpawnedThisRun > 0
+                                     || tileSpawner.WallRunsSpawnedThisRun > 0
+                                     || tileSpawner.LedgeGrabsSpawnedThisRun > 0
+                                     || tileSpawner.TreeBridgesSpawnedThisRun > 0
+                                     || tileSpawner.CanopyRopesSpawnedThisRun > 0
+                                     || tileSpawner.WaterfallPlungesSpawnedThisRun > 0
+                                     || tileSpawner.WaterSlidesSpawnedThisRun > 0
+                                     || tileSpawner.TempleHallsSpawnedThisRun > 0
+                                     || tileSpawner.LavaRiversSpawnedThisRun > 0
+                                     || tileSpawner.CliffNarrowsSpawnedThisRun > 0
+                                     || tileSpawner.RuinForksSpawnedThisRun > 0
+                                     || tileSpawner.BiomeTransitionsSpawnedThisRun > 0));
 
             bool ok = gm != null && ui != null && kids >= 4 && explorer != null && nature != null
                       && activeTiles > 0 && rends >= 40 && framed && humanoid
@@ -245,7 +264,7 @@ namespace TempleSprint.EditorTools
                       && (gm.State == GameState.Running || gm.State == GameState.PostRun || resolved > 0);
 
             string line = ok
-                ? $"PASS kids={kids} state={gm.State} tiles={activeTiles} rends={rends} height={height:0.00} worldH={worldH:0.00} skinned={(skinned ? 1 : 0)} camDist={camDist:0.0} anim={(animOn ? 1 : 0)} audio={(audioOk ? 1 : 0)} turns={turns} junctions={junctions} resolved={resolved} hazards={hazards} riverModes={(riverModesOk ? 1 : 0)} fireModes={(fireModesOk ? 1 : 0)} firesSpawned={(tileSpawner != null ? tileSpawner.FiresSpawnedThisRun : 0)} turnClear=1 next={nextPath:0.0} path={playerPath:0.0} explorer=1 nature=1"
+                ? $"PASS kids={kids} state={gm.State} tiles={activeTiles} rends={rends} height={height:0.00} worldH={worldH:0.00} skinned={(skinned ? 1 : 0)} camDist={camDist:0.0} anim={(animOn ? 1 : 0)} audio={(audioOk ? 1 : 0)} turns={turns} junctions={junctions} resolved={resolved} hazards={hazards} riverModes={(riverModesOk ? 1 : 0)} fireModes={(fireModesOk ? 1 : 0)} special={(specialOk ? 1 : 0)} firesSpawned={(tileSpawner != null ? tileSpawner.FiresSpawnedThisRun : 0)} zipSpawned={(tileSpawner != null ? tileSpawner.ZiplinesSpawnedThisRun : 0)} cartSpawned={(tileSpawner != null ? tileSpawner.MineCartsSpawnedThisRun : 0)} iceSpawned={(tileSpawner != null ? tileSpawner.IceSurfsSpawnedThisRun : 0)} treeSpawned={(tileSpawner != null ? tileSpawner.TreeBridgesSpawnedThisRun : 0)} canopySpawned={(tileSpawner != null ? tileSpawner.CanopyRopesSpawnedThisRun : 0)} fallSpawned={(tileSpawner != null ? tileSpawner.WaterfallPlungesSpawnedThisRun : 0)} hallSpawned={(tileSpawner != null ? tileSpawner.TempleHallsSpawnedThisRun : 0)} turnClear=1 next={nextPath:0.0} path={playerPath:0.0} explorer=1 nature=1"
                 : $"FAIL gm={gm != null} ui={ui != null} kids={kids} state={(gm != null ? gm.State.ToString() : "?")} explorer={explorer != null} height={height:0.00} worldH={worldH:0.00} drawn={drawn} skinned={skinned} parts={explorerParts} nature={nature != null} tiles={activeTiles} rends={rends} camDist={camDist:0.0} framed={framed} turns={turns} junctions={junctions} resolved={resolved} endless={endless} profileOk={profileOk} audio={audioOk} turnClear={turnClear}";
 
             try
@@ -402,7 +421,7 @@ namespace TempleSprint.EditorTools
         }
 
         static bool IsTurnOrJunction(TileKind k) =>
-            k == TileKind.TurnLeft || k == TileKind.TurnRight || k == TileKind.TJunction;
+            k == TileKind.TurnLeft || k == TileKind.TurnRight || k == TileKind.TJunction || k == TileKind.RuinFork;
 
         /// <summary>No hazardous tile may sit directly before or after a turn/junction.</summary>
         static bool CheckTurnAdjacency(TrackTile[] tiles)
@@ -431,6 +450,18 @@ namespace TempleSprint.EditorTools
                 }
             }
 
+            // Curved turns must bank mid-arc (genre-style, not sharp L corners).
+            foreach (var t in tiles)
+            {
+                if (t == null || (t.Kind != TileKind.TurnLeft && t.Kind != TileKind.TurnRight)) continue;
+                var mid = t.SampleAtPathDistance(t.PathStartDistance + t.PathLength * 0.5f);
+                if (Mathf.Abs(mid.bank) < 4f)
+                {
+                    Debug.LogWarning($"[VERIFY] turn missing bank mid-curve kind={t.Kind} bank={mid.bank:0.0}");
+                    return false;
+                }
+            }
+
             // Turn geometry itself must carry nothing lethal, decor included.
             foreach (var t in tiles)
             {
@@ -451,7 +482,7 @@ namespace TempleSprint.EditorTools
         {
             if (tiles == null) return false;
             bool anyRiver = false;
-            bool boat = false, rope = false, jump = false;
+            bool boat = false, rope = false, jump = false, swim = false;
             foreach (var t in tiles)
             {
                 if (t == null || t.Kind != TileKind.RiverCrossing) continue;
@@ -460,10 +491,11 @@ namespace TempleSprint.EditorTools
                 if (m == null) continue;
                 if (m.Mode == RiverCrossingMode.Boat) boat = true;
                 else if (m.Mode == RiverCrossingMode.Rope) rope = true;
+                else if (m.Mode == RiverCrossingMode.Swim) swim = true;
                 else jump = true;
             }
             // Soft check: at least one river tile in the live window is enough for the smoke.
-            Debug.Log($"[VERIFY] riverModes any={anyRiver} boat={boat} rope={rope} jump={jump}");
+            Debug.Log($"[VERIFY] riverModes any={anyRiver} boat={boat} rope={rope} jump={jump} swim={swim}");
             return anyRiver;
         }
 
@@ -488,6 +520,177 @@ namespace TempleSprint.EditorTools
             }
             Debug.Log($"[VERIFY] fireModes any={anyFire} jump={jump} vine={vine} dunk={dunk}");
             return anyFire;
+        }
+
+        static bool CheckSpecialStagesPresent(TrackTile[] tiles)
+        {
+            if (tiles == null) return false;
+            bool zip = false, cart = false, ice = false, wall = false, ledge = false, tree = false;
+            bool canopy = false, fall = false, slide = false, hall = false, cliff = false;
+            foreach (var t in tiles)
+            {
+                if (t == null) continue;
+                if (t.Kind == TileKind.Zipline)
+                {
+                    zip = true;
+                    if (t.GetComponent<SpecialStageMarker>() == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] Zipline at {t.PathStartDistance:0.0} missing marker");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.MineCart)
+                {
+                    cart = true;
+                    if (t.GetComponent<SpecialStageMarker>() == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] MineCart at {t.PathStartDistance:0.0} missing marker");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.IceSurf)
+                {
+                    ice = true;
+                    if (t.GetComponent<SpecialStageMarker>() == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] IceSurf at {t.PathStartDistance:0.0} missing marker");
+                        return false;
+                    }
+                    if (t.transform.Find("IceLugeWall_0") == null && t.transform.Find("IceLugeGroove") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] IceSurf at {t.PathStartDistance:0.0} missing luge half-pipe walls");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.WallRun)
+                {
+                    wall = true;
+                    if (t.GetComponent<SpecialStageMarker>() == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] WallRun at {t.PathStartDistance:0.0} missing marker");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.LedgeGrab)
+                {
+                    ledge = true;
+                    if (t.GetComponent<SpecialStageMarker>() == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] LedgeGrab at {t.PathStartDistance:0.0} missing marker");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.TreeBridge)
+                {
+                    tree = true;
+                    if (t.GetComponent<SpecialStageMarker>() == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] TreeBridge at {t.PathStartDistance:0.0} missing marker");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.CanopyRope)
+                {
+                    canopy = true;
+                    if (t.GetComponent<SpecialStageMarker>() == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] CanopyRope at {t.PathStartDistance:0.0} missing marker");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.WaterfallPlunge)
+                {
+                    fall = true;
+                    if (t.GetComponent<SpecialStageMarker>() == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] WaterfallPlunge at {t.PathStartDistance:0.0} missing marker");
+                        return false;
+                    }
+                    if (t.transform.Find("SprayCurtain_0") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] WaterfallPlunge at {t.PathStartDistance:0.0} missing spray curtains");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.WaterSlide)
+                {
+                    slide = true;
+                    if (t.GetComponent<SpecialStageMarker>() == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] WaterSlide at {t.PathStartDistance:0.0} missing marker");
+                        return false;
+                    }
+                    if (t.transform.Find("AqueductLugeWall_0") == null && t.transform.Find("AqueductLugeRim") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] WaterSlide at {t.PathStartDistance:0.0} missing aqueduct half-pipe walls");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.TempleHall)
+                {
+                    hall = true;
+                    if (t.transform.Find("HallWall") == null && t.transform.childCount < 4)
+                    {
+                        Debug.LogWarning($"[VERIFY] TempleHall at {t.PathStartDistance:0.0} missing interior shell");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.LavaRiver)
+                {
+                    if (t.transform.Find("LavaSurface") == null && t.transform.Find("LavaFlowSheet") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] LavaRiver at {t.PathStartDistance:0.0} missing lava shell");
+                        return false;
+                    }
+                    if (t.transform.Find("MagmaSplash_0") == null && t.transform.Find("MagmaBoilRing") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] LavaRiver at {t.PathStartDistance:0.0} missing magma splash columns");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.CliffNarrow)
+                {
+                    cliff = true;
+                    if (t.transform.Find("CliffNarrowStrip") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] CliffNarrow at {t.PathStartDistance:0.0} missing precipice strip");
+                        return false;
+                    }
+                    if (t.transform.Find("CliffWindStreamer") == null && t.GetComponentInChildren<CliffWindSway>() == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] CliffNarrow at {t.PathStartDistance:0.0} missing precipice wind props");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.MineCart)
+                {
+                    var telegraph = t.GetComponentInChildren<BrokenRailTelegraph>();
+                    if (telegraph != null && telegraph.transform.Find("BrokenRailSparks") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] MineCart at {t.PathStartDistance:0.0} missing broken-rail spark telegraph");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.RuinFork)
+                {
+                    if (t.transform.Find("ArmLeft") == null || t.transform.Find("ArmRight") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] RuinFork at {t.PathStartDistance:0.0} missing fork arms");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.BiomeTransitionTunnel)
+                {
+                    if (t.transform.Find("TransitionWallNear") == null
+                        && t.transform.Find("BiomeTransitionCommit") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] BiomeTransitionTunnel at {t.PathStartDistance:0.0} missing shell");
+                        return false;
+                    }
+                }
+            }
+            Debug.Log($"[VERIFY] specialStages zipline={zip} minecart={cart} icesurf={ice} wallrun={wall} ledge={ledge} tree={tree} canopy={canopy} waterfall={fall} slide={slide} hall={hall} cliff={cliff}");
+            return zip || cart || ice || wall || ledge || tree || canopy || fall || slide || hall || cliff;
         }
     }
 }
