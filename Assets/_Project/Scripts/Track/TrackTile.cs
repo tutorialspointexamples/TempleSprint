@@ -2868,7 +2868,7 @@ namespace TempleSprint
             StripCollider(frost);
         }
 
-        /// <summary>Cave runway dressing — overhanging stalactites + ore glints.</summary>
+        /// <summary>Cave runway dressing — overhanging stalactites, rock shelves, torch sconces, ore glints.</summary>
         void BuildCaveRunwayProps()
         {
             for (int i = 0; i < 4; i++)
@@ -2883,6 +2883,42 @@ namespace TempleSprint
                 spike.GetComponent<Renderer>().sharedMaterial = BiomeSystem.StoneMat;
                 StripCollider(spike);
             }
+
+            // Side rock shelves so the corridor reads enclosed (not open jungle walls).
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var shelf = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                shelf.name = "CaveRockShelf";
+                shelf.transform.SetParent(transform, false);
+                shelf.transform.localPosition = new Vector3(side * (DeckWidth * 0.5f + 1.5f), 1.6f, Length * 0.5f);
+                shelf.transform.localScale = new Vector3(2.4f, 3.4f, Length * 0.85f);
+                shelf.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
+                StripCollider(shelf);
+
+                var torch = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                torch.name = "CaveTorch";
+                torch.transform.SetParent(transform, false);
+                torch.transform.localPosition = new Vector3(side * (DeckWidth * 0.5f + 0.55f), 1.7f, Length * Random.Range(0.3f, 0.7f));
+                torch.transform.localScale = new Vector3(0.12f, 0.35f, 0.12f);
+                torch.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+                StripCollider(torch);
+
+                var flame = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                flame.transform.SetParent(torch.transform, false);
+                flame.transform.localPosition = new Vector3(0f, 1.1f, 0f);
+                flame.transform.localScale = new Vector3(1.6f, 2.2f, 1.6f);
+                flame.GetComponent<Renderer>().sharedMaterial = JunglePalette.Flame;
+                StripCollider(flame);
+
+                var light = new GameObject("TorchLight").AddComponent<Light>();
+                light.transform.SetParent(torch.transform, false);
+                light.transform.localPosition = new Vector3(0f, 1.2f, 0f);
+                light.type = LightType.Point;
+                light.color = new Color(1f, 0.55f, 0.25f);
+                light.intensity = 1.4f;
+                light.range = 6.5f;
+            }
+
             if (Random.value < 0.5f)
             {
                 var ore = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -2895,6 +2931,23 @@ namespace TempleSprint
                 ore.transform.localScale = Vector3.one * 0.35f;
                 ore.GetComponent<Renderer>().sharedMaterial = JunglePalette.GoldBright;
                 StripCollider(ore);
+            }
+
+            // Occasional floor mist so cave runs feel damp vs desert/jungle.
+            if (Random.value < 0.55f)
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    var mist = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                    mist.name = "CaveMist";
+                    mist.transform.SetParent(transform, false);
+                    mist.transform.localPosition = new Vector3(
+                        Random.Range(-1.2f, 1.2f), 0.35f, Length * ((i + 1f) / 4f));
+                    mist.transform.localScale = new Vector3(1.8f, 0.45f, 1.4f);
+                    mist.GetComponent<Renderer>().sharedMaterial =
+                        JunglePalette.Mat(new Color(0.35f, 0.4f, 0.45f, 0.35f), 0.05f);
+                    StripCollider(mist);
+                }
             }
         }
 
