@@ -17,6 +17,10 @@ namespace TempleSprint
         bool _active;
         Renderer[] _eyeGlow;
         Transform _dustWake;
+        Renderer[] _bodyRenderers;
+        Renderer[] _hazardRenderers;
+        Renderer[] _dustRenderers;
+        BiomeId _appliedBiome = (BiomeId)(-1);
         float _lunge;
         float _lastLungeTime = -10f;
         float _threat01;
@@ -61,38 +65,52 @@ namespace TempleSprint
             float[] zOff = { -0.95f, -0.35f, 0.55f, -0.45f, -1.05f };
             float[] scales = { 0.92f, 1.05f, 1.32f, 1.05f, 0.92f };
             var eyes = new System.Collections.Generic.List<Renderer>();
+            var bodies = new System.Collections.Generic.List<Renderer>();
+            var hazards = new System.Collections.Generic.List<Renderer>();
             for (int i = 0; i < 5; i++)
             {
-                _pack[i] = BuildBeast(root, new Vector3(xOff[i], 0f, zOff[i]), scales[i], eyes);
+                _pack[i] = BuildBeast(root, new Vector3(xOff[i], 0f, zOff[i]), scales[i], eyes, bodies, hazards);
                 _phase[i] = i * 0.55f;
                 _flankX[i] = xOff[i];
             }
             _eyeGlow = eyes.ToArray();
+            _bodyRenderers = bodies.ToArray();
+            _hazardRenderers = hazards.ToArray();
 
             _dustWake = new GameObject("PackDustWake").transform;
             _dustWake.SetParent(root, false);
             _dustWake.localPosition = new Vector3(0f, 0.15f, -1.4f);
+            var dust = new System.Collections.Generic.List<Renderer>(6);
             for (int i = 0; i < 6; i++)
             {
                 var puff = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                puff.name = "DustPuff_" + i;
                 puff.transform.SetParent(_dustWake, false);
                 puff.transform.localPosition = new Vector3(
                     (i % 3 - 1) * 0.45f, Random.Range(0f, 0.25f), -i * 0.22f);
                 float s = Random.Range(0.35f, 0.7f);
                 puff.transform.localScale = new Vector3(s, s * 0.55f, s);
-                puff.GetComponent<Renderer>().sharedMaterial =
-                    JunglePalette.Mat(new Color(0.45f, 0.38f, 0.28f, 0.55f), 0.05f);
+                var pr = puff.GetComponent<Renderer>();
+                pr.sharedMaterial = BiomeSystem.GuardianDustMat;
+                dust.Add(pr);
                 Object.Destroy(puff.GetComponent<Collider>());
             }
+            _dustRenderers = dust.ToArray();
+            ApplyBiomeLook(force: true);
         }
 
         static Transform BuildBeast(Transform parent, Vector3 localPos, float scale,
-            System.Collections.Generic.List<Renderer> eyeCollect)
+            System.Collections.Generic.List<Renderer> eyeCollect,
+            System.Collections.Generic.List<Renderer> bodyCollect,
+            System.Collections.Generic.List<Renderer> hazardCollect)
         {
             var root = new GameObject("IdolBeast").transform;
             root.SetParent(parent, false);
             root.localPosition = localPos;
             root.localScale = Vector3.one * scale;
+
+            Material bodyMat = BiomeSystem.GuardianBodyMat;
+            Material hazardMat = BiomeSystem.GuardianHazardMat;
 
             // Hunched torso with gold idol breastplate
             var body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
@@ -101,7 +119,9 @@ namespace TempleSprint
             body.transform.localPosition = new Vector3(0f, 0.72f, 0.12f);
             body.transform.localRotation = Quaternion.Euler(38f, 0f, 0f);
             body.transform.localScale = new Vector3(0.82f, 0.78f, 0.6f);
-            body.GetComponent<Renderer>().sharedMaterial = JunglePalette.Guardian;
+            var bodyR = body.GetComponent<Renderer>();
+            bodyR.sharedMaterial = bodyMat;
+            bodyCollect?.Add(bodyR);
             Object.Destroy(body.GetComponent<Collider>());
 
             var plate = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -127,7 +147,9 @@ namespace TempleSprint
             head.transform.SetParent(root, false);
             head.transform.localPosition = new Vector3(0f, 1.22f, 0.52f);
             head.transform.localScale = new Vector3(0.62f, 0.5f, 0.62f);
-            head.GetComponent<Renderer>().sharedMaterial = JunglePalette.Guardian;
+            var headR = head.GetComponent<Renderer>();
+            headR.sharedMaterial = bodyMat;
+            bodyCollect?.Add(headR);
             Object.Destroy(head.GetComponent<Collider>());
 
             // Mane crest
@@ -139,7 +161,9 @@ namespace TempleSprint
                 spike.transform.localPosition = new Vector3((m - 1.5f) * 0.12f, 0.35f, -0.15f + m * 0.02f);
                 spike.transform.localRotation = Quaternion.Euler(-25f - m * 8f, 0f, (m - 1.5f) * 8f);
                 spike.transform.localScale = new Vector3(0.08f, 0.35f + m * 0.04f, 0.12f);
-                spike.GetComponent<Renderer>().sharedMaterial = JunglePalette.Hazard;
+                var spikeR = spike.GetComponent<Renderer>();
+                spikeR.sharedMaterial = hazardMat;
+                hazardCollect?.Add(spikeR);
                 Object.Destroy(spike.GetComponent<Collider>());
             }
 
@@ -148,7 +172,9 @@ namespace TempleSprint
             snout.transform.SetParent(head.transform, false);
             snout.transform.localPosition = new Vector3(0f, -0.12f, 0.38f);
             snout.transform.localScale = new Vector3(0.55f, 0.4f, 0.55f);
-            snout.GetComponent<Renderer>().sharedMaterial = JunglePalette.Hazard;
+            var snoutR = snout.GetComponent<Renderer>();
+            snoutR.sharedMaterial = hazardMat;
+            hazardCollect?.Add(snoutR);
             Object.Destroy(snout.GetComponent<Collider>());
 
             // Glowing eyes
@@ -180,14 +206,18 @@ namespace TempleSprint
                 arm.transform.localPosition = new Vector3(side * 0.5f, 0.78f, 0.28f);
                 arm.transform.localRotation = Quaternion.Euler(58f, side * 18f, side * 38f);
                 arm.transform.localScale = new Vector3(0.2f, 0.68f, 0.2f);
-                arm.GetComponent<Renderer>().sharedMaterial = JunglePalette.Guardian;
+                var armR = arm.GetComponent<Renderer>();
+                armR.sharedMaterial = bodyMat;
+                bodyCollect?.Add(armR);
                 Object.Destroy(arm.GetComponent<Collider>());
 
                 var hand = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                 hand.transform.SetParent(arm.transform, false);
                 hand.transform.localPosition = new Vector3(0f, -0.9f, 0f);
                 hand.transform.localScale = new Vector3(1.5f, 1.0f, 1.5f);
-                hand.GetComponent<Renderer>().sharedMaterial = JunglePalette.Hazard;
+                var handR = hand.GetComponent<Renderer>();
+                handR.sharedMaterial = hazardMat;
+                hazardCollect?.Add(handR);
                 Object.Destroy(hand.GetComponent<Collider>());
 
                 for (int c = 0; c < 3; c++)
@@ -210,7 +240,9 @@ namespace TempleSprint
                 leg.transform.SetParent(root, false);
                 leg.transform.localPosition = new Vector3(side * 0.2f, 0.3f, -0.08f);
                 leg.transform.localScale = new Vector3(0.22f, 0.32f, 0.22f);
-                leg.GetComponent<Renderer>().sharedMaterial = JunglePalette.Guardian;
+                var legR = leg.GetComponent<Renderer>();
+                legR.sharedMaterial = bodyMat;
+                bodyCollect?.Add(legR);
                 Object.Destroy(leg.GetComponent<Collider>());
             }
 
@@ -220,10 +252,31 @@ namespace TempleSprint
             tail.transform.localPosition = new Vector3(0f, 0.55f, -0.45f);
             tail.transform.localRotation = Quaternion.Euler(55f, 0f, 0f);
             tail.transform.localScale = new Vector3(0.15f, 0.35f, 0.15f);
-            tail.GetComponent<Renderer>().sharedMaterial = JunglePalette.Guardian;
+            var tailR = tail.GetComponent<Renderer>();
+            tailR.sharedMaterial = bodyMat;
+            bodyCollect?.Add(tailR);
             Object.Destroy(tail.GetComponent<Collider>());
 
             return root;
+        }
+
+        void ApplyBiomeLook(bool force = false)
+        {
+            var biome = BiomeSystem.Current;
+            if (!force && biome == _appliedBiome) return;
+            _appliedBiome = biome;
+            var body = BiomeSystem.GuardianBodyMat;
+            var hazard = BiomeSystem.GuardianHazardMat;
+            var dust = BiomeSystem.GuardianDustMat;
+            if (_bodyRenderers != null)
+                foreach (var r in _bodyRenderers)
+                    if (r != null) r.sharedMaterial = body;
+            if (_hazardRenderers != null)
+                foreach (var r in _hazardRenderers)
+                    if (r != null) r.sharedMaterial = hazard;
+            if (_dustRenderers != null)
+                foreach (var r in _dustRenderers)
+                    if (r != null) r.sharedMaterial = dust;
         }
 
         public void BeginRun()
@@ -240,6 +293,7 @@ namespace TempleSprint
             _pressureTimer = 0f;
             _pressureCooldown = 2.5f;
             _lastPressureHit = -10f;
+            ApplyBiomeLook(force: true);
             GameUI.Instance?.HideGuardianStruggle();
             if (PlayerController.Instance != null)
             {
@@ -454,18 +508,25 @@ namespace TempleSprint
                 if (armR != null) armR.localRotation = Quaternion.Euler(55f - s * 25f - claw, 15f + claw * 0.2f, 35f);
             }
 
+            ApplyBiomeLook();
+
             if (_dustWake != null)
             {
                 float dustPulse = 0.85f + _threat01 * 0.45f + _lunge * 0.35f;
-                _dustWake.localScale = new Vector3(dustPulse, dustPulse * 0.7f, 1f + _threat01);
-                _dustWake.localPosition = new Vector3(0f, 0.12f + Mathf.Abs(Mathf.Sin(Time.time * 9f)) * 0.08f, -1.5f - _lunge * 0.3f);
+                // Volcanic ash wake lifts higher; ice frost stays low and wide.
+                float lift = BiomeSystem.Current == BiomeId.VolcanicCrater ? 0.22f
+                    : BiomeSystem.Current == BiomeId.IceCaverns ? 0.05f : 0.12f;
+                float width = BiomeSystem.Current == BiomeId.DesertTombs ? 1.15f
+                    : BiomeSystem.Current == BiomeId.IceCaverns ? 1.2f : 1f;
+                _dustWake.localScale = new Vector3(dustPulse * width, dustPulse * 0.7f, 1f + _threat01);
+                _dustWake.localPosition = new Vector3(0f, lift + Mathf.Abs(Mathf.Sin(Time.time * 9f)) * 0.08f, -1.5f - _lunge * 0.3f);
             }
 
-            // Eyes pulse hotter as the pack closes in
+            // Eyes pulse hotter as the pack closes in (biome-tinted hot color).
             if (_eyeGlow != null)
             {
                 float pulse = 0.75f + 0.25f * Mathf.Sin(Time.time * (6f + _threat01 * 8f + _lunge * 10f));
-                Color eye = Color.Lerp(new Color(0.95f, 0.95f, 0.95f), new Color(1f, 0.35f, 0.12f),
+                Color eye = Color.Lerp(new Color(0.95f, 0.95f, 0.95f), BiomeSystem.GuardianEyeHot,
                     Mathf.Clamp01(_threat01 * pulse + _lunge * 0.35f));
                 foreach (var r in _eyeGlow)
                 {

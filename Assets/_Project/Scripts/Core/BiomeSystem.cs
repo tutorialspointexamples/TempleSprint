@@ -197,6 +197,30 @@ namespace TempleSprint
         public static Material StoneMat => BiomePalette.Stone(Current);
         public static Material AccentMat => BiomePalette.Accent(Current);
         public static Material FoliageMat => BiomePalette.Foliage(Current);
+
+        /// <summary>Open-runway heat/night shimmer scale from biome + darkness events.</summary>
+        public static float TimeOfDayBlend01
+        {
+            get
+            {
+                float darkness = EnvironmentEffects.Instance != null
+                    ? EnvironmentEffects.Instance.DarknessBlend : 0f;
+                return Current switch
+                {
+                    BiomeId.NightSummit => Mathf.Clamp01(Mathf.Max(0.72f, 0.55f + darkness * 0.45f)),
+                    BiomeId.DesertTombs => Mathf.Clamp01(Mathf.Lerp(0.95f, 0.4f, darkness)),
+                    BiomeId.VolcanicCrater => Mathf.Clamp01(0.7f + darkness * 0.25f),
+                    BiomeId.IceCaverns => Mathf.Clamp01(0.35f + darkness * 0.2f),
+                    BiomeId.CaveMines => Mathf.Clamp01(0.25f + darkness * 0.35f),
+                    _ => Mathf.Clamp01(0.45f + darkness * 0.2f)
+                };
+            }
+        }
+
+        public static Material GuardianBodyMat => BiomePalette.GuardianBody(Current);
+        public static Material GuardianHazardMat => BiomePalette.GuardianHazard(Current);
+        public static Material GuardianDustMat => BiomePalette.GuardianDust(Current);
+        public static Color GuardianEyeHot => BiomePalette.GuardianEyeHot(Current);
     }
 
     public static class BiomePalette
@@ -279,6 +303,48 @@ namespace TempleSprint
             BiomeId.VolcanicCrater => Make(new Color(0.28f, 0.18f, 0.12f)),
             BiomeId.NightSummit => Make(new Color(0.18f, 0.22f, 0.32f)),
             _ => JunglePalette.Foliage
+        };
+
+        /// <summary>Idol Beast body tint per biome (original skins — not Imangi IP).</summary>
+        public static Material GuardianBody(BiomeId b) => b switch
+        {
+            BiomeId.DesertTombs => JunglePalette.Mat(new Color(0.28f, 0.18f, 0.1f), 0.4f),
+            BiomeId.IceCaverns => JunglePalette.Mat(new Color(0.18f, 0.24f, 0.32f), 0.45f),
+            BiomeId.CaveMines => JunglePalette.Mat(new Color(0.16f, 0.15f, 0.14f), 0.35f),
+            BiomeId.VolcanicCrater => JunglePalette.Mat(new Color(0.18f, 0.08f, 0.06f), 0.35f),
+            BiomeId.NightSummit => JunglePalette.Mat(new Color(0.1f, 0.12f, 0.2f), 0.4f),
+            _ => JunglePalette.Guardian
+        };
+
+        public static Material GuardianHazard(BiomeId b) => b switch
+        {
+            BiomeId.DesertTombs => JunglePalette.Mat(new Color(0.78f, 0.38f, 0.12f), 0.35f),
+            BiomeId.IceCaverns => JunglePalette.Mat(new Color(0.35f, 0.62f, 0.85f), 0.4f),
+            BiomeId.CaveMines => JunglePalette.Mat(new Color(0.7f, 0.45f, 0.18f), 0.35f),
+            BiomeId.VolcanicCrater => JunglePalette.Mat(new Color(0.92f, 0.22f, 0.08f), 0.3f),
+            BiomeId.NightSummit => JunglePalette.Mat(new Color(0.45f, 0.55f, 0.95f), 0.4f),
+            _ => JunglePalette.Hazard
+        };
+
+        /// <summary>Pack dust wake — jungle dirt, desert sand, volcano ash, frost powder, etc.</summary>
+        public static Material GuardianDust(BiomeId b) => b switch
+        {
+            BiomeId.DesertTombs => JunglePalette.Mat(new Color(0.78f, 0.62f, 0.35f, 0.55f), 0.05f),
+            BiomeId.IceCaverns => JunglePalette.Mat(new Color(0.82f, 0.9f, 0.98f, 0.5f), 0.08f),
+            BiomeId.CaveMines => JunglePalette.Mat(new Color(0.42f, 0.4f, 0.38f, 0.55f), 0.05f),
+            BiomeId.VolcanicCrater => JunglePalette.Mat(new Color(0.22f, 0.16f, 0.14f, 0.6f), 0.05f),
+            BiomeId.NightSummit => JunglePalette.Mat(new Color(0.35f, 0.4f, 0.55f, 0.5f), 0.06f),
+            _ => JunglePalette.Mat(new Color(0.45f, 0.38f, 0.28f, 0.55f), 0.05f)
+        };
+
+        public static Color GuardianEyeHot(BiomeId b) => b switch
+        {
+            BiomeId.DesertTombs => new Color(1f, 0.55f, 0.15f),
+            BiomeId.IceCaverns => new Color(0.55f, 0.85f, 1f),
+            BiomeId.CaveMines => new Color(1f, 0.75f, 0.25f),
+            BiomeId.VolcanicCrater => new Color(1f, 0.28f, 0.08f),
+            BiomeId.NightSummit => new Color(0.65f, 0.75f, 1f),
+            _ => new Color(1f, 0.35f, 0.12f)
         };
     }
 

@@ -165,6 +165,9 @@ namespace TempleSprint
         Vector3[] _baseScale;
         float[] _phase;
         Light _glow;
+        float _intensity = 1f;
+        float _glowBase = 1.1f;
+        Color _glowColor = new Color(1f, 0.72f, 0.35f);
 
         public void BindExisting(Transform parent)
         {
@@ -221,30 +224,46 @@ namespace TempleSprint
                 lightGo.transform.localPosition = new Vector3(0f, baseY + 1.2f, 0f);
                 _glow = lightGo.AddComponent<Light>();
                 _glow.type = LightType.Point;
-                _glow.color = new Color(1f, 0.72f, 0.35f);
+                _glow.color = _glowColor;
                 _glow.range = 10f;
-                _glow.intensity = 1.1f;
+                _glow.intensity = _glowBase;
                 _glow.shadows = LightShadows.None;
             }
+        }
+
+        /// <summary>Scale bob / pulse / glow from biome time-of-day blend.</summary>
+        public void ConfigureIntensity(float intensity, Color? glowColor = null)
+        {
+            _intensity = Mathf.Clamp(intensity, 0.15f, 1.6f);
+            if (glowColor.HasValue)
+            {
+                _glowColor = glowColor.Value;
+                if (_glow != null) _glow.color = _glowColor;
+            }
+            if (_glow != null)
+                _glow.intensity = _glowBase * _intensity;
         }
 
         void Update()
         {
             if (_orbs == null) return;
+            float tod = BiomeSystem.TimeOfDayBlend01;
+            float intensity = _intensity * Mathf.Lerp(0.65f, 1.15f, tod);
             for (int i = 0; i < _orbs.Length; i++)
             {
                 if (_orbs[i] == null) continue;
-                _phase[i] += Time.deltaTime * (1.1f + i * 0.07f);
+                _phase[i] += Time.deltaTime * (1.1f + i * 0.07f) * intensity;
                 var p = _origin[i];
-                p.y += Mathf.Sin(_phase[i]) * 0.22f;
-                p.x += Mathf.Sin(_phase[i] * 0.7f + i) * 0.12f;
+                p.y += Mathf.Sin(_phase[i]) * 0.22f * intensity;
+                p.x += Mathf.Sin(_phase[i] * 0.7f + i) * 0.12f * intensity;
                 _orbs[i].localPosition = p;
-                float pulse = 0.88f + 0.18f * Mathf.Sin(_phase[i] * 1.4f);
+                float pulse = 0.88f + 0.18f * Mathf.Sin(_phase[i] * 1.4f) * intensity;
                 var bs = _baseScale[i];
-                _orbs[i].localScale = new Vector3(bs.x * pulse, bs.y * (0.9f + pulse * 0.15f), bs.z * pulse);
+                float scaleMul = Mathf.Lerp(0.75f, 1.15f, intensity);
+                _orbs[i].localScale = new Vector3(bs.x * pulse * scaleMul, bs.y * (0.9f + pulse * 0.15f) * scaleMul, bs.z * pulse * scaleMul);
             }
             if (_glow != null)
-                _glow.intensity = 0.9f + Mathf.Sin(Time.time * 2.4f) * 0.25f;
+                _glow.intensity = (_glowBase * intensity) * (0.85f + Mathf.Sin(Time.time * 2.4f) * 0.2f);
         }
     }
 
