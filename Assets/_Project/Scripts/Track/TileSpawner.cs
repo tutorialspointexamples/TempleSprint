@@ -26,6 +26,7 @@ namespace TempleSprint
         int _tilesSinceTreeBridge;
         int _tilesSinceCanopyRope;
         int _tilesSinceWaterfallPlunge;
+        int _tilesSinceTempleHall;
         int _defaultBranchFlip;
         Transform _poolRoot;
         Transform _activeRoot;
@@ -54,6 +55,7 @@ namespace TempleSprint
         public int TreeBridgesSpawnedThisRun { get; private set; }
         public int CanopyRopesSpawnedThisRun { get; private set; }
         public int WaterfallPlungesSpawnedThisRun { get; private set; }
+        public int TempleHallsSpawnedThisRun { get; private set; }
 
         void Awake()
         {
@@ -93,6 +95,7 @@ namespace TempleSprint
             _tilesSinceTreeBridge = 99;
             _tilesSinceCanopyRope = 99;
             _tilesSinceWaterfallPlunge = 99;
+            _tilesSinceTempleHall = 99;
             _awaitingJunctionChoice = false;
             _pendingJunction = null;
             TurnsSpawnedThisRun = 0;
@@ -108,6 +111,7 @@ namespace TempleSprint
             TreeBridgesSpawnedThisRun = 0;
             CanopyRopesSpawnedThisRun = 0;
             WaterfallPlungesSpawnedThisRun = 0;
+            TempleHallsSpawnedThisRun = 0;
             _lastRiverMode = RiverCrossingMode.Jump;
             _lastFireMode = FireCrossingMode.Jump;
             for (int i = 0; i < preloadCount; i++)
@@ -300,6 +304,14 @@ namespace TempleSprint
             }
             else
                 _tilesSinceWaterfallPlunge++;
+
+            if (kind == TileKind.TempleHall)
+            {
+                _tilesSinceTempleHall = 0;
+                TempleHallsSpawnedThisRun++;
+            }
+            else
+                _tilesSinceTempleHall++;
 
             if (tile.IsJunction && !tile.JunctionResolved)
             {
@@ -496,7 +508,9 @@ namespace TempleSprint
                 if (index == 29) return TileKind.CanopyRope;
                 if (index == 30) return TileKind.Straight;
                 if (index == 31) return TileKind.WaterfallPlunge;
-                if (index < 32) return TileKind.Straight;
+                if (index == 32) return TileKind.Straight;
+                if (index == 33) return TileKind.TempleHall;
+                if (index < 34) return TileKind.Straight;
             }
 
             // Mutual one-tile buffer: turns and hazards never adjacent.
@@ -524,6 +538,8 @@ namespace TempleSprint
                 : _difficulty == RunDifficulty.Hard ? 12 : 14) / Mathf.Max(0.75f, BiomeSystem.CanopyRopeBias));
             int fallEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 18
                 : _difficulty == RunDifficulty.Hard ? 12 : 15) / Mathf.Max(0.75f, BiomeSystem.WaterfallPlungeBias));
+            int hallEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 14
+                : _difficulty == RunDifficulty.Hard ? 9 : 11) / Mathf.Max(0.75f, BiomeSystem.TempleHallBias));
 
             bool riverDue = allowHazard && _tilesSinceRiver >= riverEvery && index >= 5;
             bool fireDue = allowHazard && _tilesSinceFire >= fireEvery && index >= 5;
@@ -535,10 +551,11 @@ namespace TempleSprint
             bool treeDue = allowHazard && _tilesSinceTreeBridge >= treeEvery && index >= 7;
             bool canopyDue = allowHazard && _tilesSinceCanopyRope >= canopyEvery && index >= 7;
             bool fallDue = allowHazard && _tilesSinceWaterfallPlunge >= fallEvery && index >= 7;
+            bool hallDue = allowHazard && _tilesSinceTempleHall >= hallEvery && index >= 6;
 
             // Prefer the most overdue special stage when several are due.
             if (riverDue || fireDue || zipDue || cartDue || iceDue || wallDue || ledgeDue || treeDue
-                || canopyDue || fallDue)
+                || canopyDue || fallDue || hallDue)
             {
                 float best = -1f;
                 TileKind pick = TileKind.Straight;
@@ -558,6 +575,7 @@ namespace TempleSprint
                 Consider(treeDue, _tilesSinceTreeBridge, treeEvery, TileKind.TreeBridge);
                 Consider(canopyDue, _tilesSinceCanopyRope, canopyEvery, TileKind.CanopyRope);
                 Consider(fallDue, _tilesSinceWaterfallPlunge, fallEvery, TileKind.WaterfallPlunge);
+                Consider(hallDue, _tilesSinceTempleHall, hallEvery, TileKind.TempleHall);
                 if (pick != TileKind.Straight) return pick;
             }
 

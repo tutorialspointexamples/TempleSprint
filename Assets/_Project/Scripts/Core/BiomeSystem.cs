@@ -99,6 +99,11 @@ namespace TempleSprint
             (Current == BiomeId.JungleRuins || Current == BiomeId.IceCaverns ? 1.7f
                 : Current == BiomeId.VolcanicCrater ? 0.8f
                 : Current == BiomeId.CaveMines ? 0.65f : 1f) * EventService.EventStageBias(Current);
+        public static float TempleHallBias =>
+            (Current == BiomeId.JungleRuins || Current == BiomeId.DesertTombs ? 1.75f
+                : Current == BiomeId.CaveMines ? 1.45f
+                : Current == BiomeId.VolcanicCrater ? 1.1f
+                : 0.85f) * EventService.EventStageBias(Current);
 
         public static Material PathMat => BiomePalette.Path(Current);
         public static Material StoneMat => BiomePalette.Stone(Current);

@@ -246,7 +246,8 @@ namespace TempleSprint.EditorTools
                                      || tileSpawner.LedgeGrabsSpawnedThisRun > 0
                                      || tileSpawner.TreeBridgesSpawnedThisRun > 0
                                      || tileSpawner.CanopyRopesSpawnedThisRun > 0
-                                     || tileSpawner.WaterfallPlungesSpawnedThisRun > 0));
+                                     || tileSpawner.WaterfallPlungesSpawnedThisRun > 0
+                                     || tileSpawner.TempleHallsSpawnedThisRun > 0));
 
             bool ok = gm != null && ui != null && kids >= 4 && explorer != null && nature != null
                       && activeTiles > 0 && rends >= 40 && framed && humanoid
@@ -255,7 +256,7 @@ namespace TempleSprint.EditorTools
                       && (gm.State == GameState.Running || gm.State == GameState.PostRun || resolved > 0);
 
             string line = ok
-                ? $"PASS kids={kids} state={gm.State} tiles={activeTiles} rends={rends} height={height:0.00} worldH={worldH:0.00} skinned={(skinned ? 1 : 0)} camDist={camDist:0.0} anim={(animOn ? 1 : 0)} audio={(audioOk ? 1 : 0)} turns={turns} junctions={junctions} resolved={resolved} hazards={hazards} riverModes={(riverModesOk ? 1 : 0)} fireModes={(fireModesOk ? 1 : 0)} special={(specialOk ? 1 : 0)} firesSpawned={(tileSpawner != null ? tileSpawner.FiresSpawnedThisRun : 0)} zipSpawned={(tileSpawner != null ? tileSpawner.ZiplinesSpawnedThisRun : 0)} cartSpawned={(tileSpawner != null ? tileSpawner.MineCartsSpawnedThisRun : 0)} iceSpawned={(tileSpawner != null ? tileSpawner.IceSurfsSpawnedThisRun : 0)} treeSpawned={(tileSpawner != null ? tileSpawner.TreeBridgesSpawnedThisRun : 0)} canopySpawned={(tileSpawner != null ? tileSpawner.CanopyRopesSpawnedThisRun : 0)} fallSpawned={(tileSpawner != null ? tileSpawner.WaterfallPlungesSpawnedThisRun : 0)} turnClear=1 next={nextPath:0.0} path={playerPath:0.0} explorer=1 nature=1"
+                ? $"PASS kids={kids} state={gm.State} tiles={activeTiles} rends={rends} height={height:0.00} worldH={worldH:0.00} skinned={(skinned ? 1 : 0)} camDist={camDist:0.0} anim={(animOn ? 1 : 0)} audio={(audioOk ? 1 : 0)} turns={turns} junctions={junctions} resolved={resolved} hazards={hazards} riverModes={(riverModesOk ? 1 : 0)} fireModes={(fireModesOk ? 1 : 0)} special={(specialOk ? 1 : 0)} firesSpawned={(tileSpawner != null ? tileSpawner.FiresSpawnedThisRun : 0)} zipSpawned={(tileSpawner != null ? tileSpawner.ZiplinesSpawnedThisRun : 0)} cartSpawned={(tileSpawner != null ? tileSpawner.MineCartsSpawnedThisRun : 0)} iceSpawned={(tileSpawner != null ? tileSpawner.IceSurfsSpawnedThisRun : 0)} treeSpawned={(tileSpawner != null ? tileSpawner.TreeBridgesSpawnedThisRun : 0)} canopySpawned={(tileSpawner != null ? tileSpawner.CanopyRopesSpawnedThisRun : 0)} fallSpawned={(tileSpawner != null ? tileSpawner.WaterfallPlungesSpawnedThisRun : 0)} hallSpawned={(tileSpawner != null ? tileSpawner.TempleHallsSpawnedThisRun : 0)} turnClear=1 next={nextPath:0.0} path={playerPath:0.0} explorer=1 nature=1"
                 : $"FAIL gm={gm != null} ui={ui != null} kids={kids} state={(gm != null ? gm.State.ToString() : "?")} explorer={explorer != null} height={height:0.00} worldH={worldH:0.00} drawn={drawn} skinned={skinned} parts={explorerParts} nature={nature != null} tiles={activeTiles} rends={rends} camDist={camDist:0.0} framed={framed} turns={turns} junctions={junctions} resolved={resolved} endless={endless} profileOk={profileOk} audio={audioOk} turnClear={turnClear}";
 
             try
@@ -517,7 +518,7 @@ namespace TempleSprint.EditorTools
         {
             if (tiles == null) return false;
             bool zip = false, cart = false, ice = false, wall = false, ledge = false, tree = false;
-            bool canopy = false, fall = false;
+            bool canopy = false, fall = false, hall = false;
             foreach (var t in tiles)
             {
                 if (t == null) continue;
@@ -593,9 +594,18 @@ namespace TempleSprint.EditorTools
                         return false;
                     }
                 }
+                if (t.Kind == TileKind.TempleHall)
+                {
+                    hall = true;
+                    if (t.transform.Find("HallWall") == null && t.transform.childCount < 4)
+                    {
+                        Debug.LogWarning($"[VERIFY] TempleHall at {t.PathStartDistance:0.0} missing interior shell");
+                        return false;
+                    }
+                }
             }
-            Debug.Log($"[VERIFY] specialStages zipline={zip} minecart={cart} icesurf={ice} wallrun={wall} ledge={ledge} tree={tree} canopy={canopy} waterfall={fall}");
-            return zip || cart || ice || wall || ledge || tree || canopy || fall;
+            Debug.Log($"[VERIFY] specialStages zipline={zip} minecart={cart} icesurf={ice} wallrun={wall} ledge={ledge} tree={tree} canopy={canopy} waterfall={fall} hall={hall}");
+            return zip || cart || ice || wall || ledge || tree || canopy || fall || hall;
         }
     }
 }
