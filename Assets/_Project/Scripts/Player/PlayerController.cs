@@ -57,6 +57,9 @@ namespace TempleSprint
         IceBoardRide _iceBoardRide;
         WaterSlideRide _waterSlideRide;
         float _ziplineHeight;
+        float _ziplineBaseHeight;
+        float _ziplineSag;
+        float _ziplineMountTimer;
         float _swimDepth;
         Transform _swimBubbles;
         float _wallRunHeight;
@@ -179,6 +182,9 @@ namespace TempleSprint
             _iceBoardRide = null;
             _waterSlideRide = null;
             _ziplineHeight = 0f;
+            _ziplineBaseHeight = 0f;
+            _ziplineSag = 0f;
+            _ziplineMountTimer = 0f;
             _swimDepth = 0f;
             _wallRunHeight = 0f;
             _wallRunOffset = 0f;
@@ -275,13 +281,22 @@ namespace TempleSprint
             ChaseCamera.Instance?.SetTraversalBias(0.25f, 3f);
         }
 
-        public void BeginZipline(SpecialStageMarker marker, float rideHeight)
+        /// <summary>0→1 while mounting the zipline (arms reach for the handle).</summary>
+        public float ZiplineMountBlend01 =>
+            Traversal == TraversalMode.Zipline && _ziplineMountTimer > 0f
+                ? Mathf.Clamp01(_ziplineMountTimer / 0.4f)
+                : 0f;
+
+        public void BeginZipline(SpecialStageMarker marker, float rideHeight, float cableSag = 0.55f)
         {
             if (marker == null || Traversal != TraversalMode.None) return;
             Traversal = TraversalMode.Zipline;
             _specialMarker = marker;
             marker.SetOccupied(true);
+            _ziplineBaseHeight = rideHeight;
+            _ziplineSag = Mathf.Max(0f, cableSag);
             _ziplineHeight = rideHeight;
+            _ziplineMountTimer = 0.4f;
             Lane = 1;
             _laneOffset = 0f;
             _grounded = false;
@@ -1230,12 +1245,21 @@ namespace TempleSprint
                 return;
             }
 
+            if (_ziplineMountTimer > 0f)
+                _ziplineMountTimer -= Time.deltaTime;
+
             float local = PathDistance - _specialMarker.PathStartDistance;
             if (local >= _specialMarker.ChannelEnd - 0.25f)
             {
                 EndZipline(true);
                 return;
             }
+
+            float t = Mathf.InverseLerp(_specialMarker.ChannelStart, _specialMarker.ChannelEnd, local);
+            // Follow cable sag — lowest at mid-span — with a brief mount hop onto the handle.
+            float sagY = _ziplineBaseHeight - Mathf.Sin(Mathf.Clamp01(t) * Mathf.PI) * _ziplineSag;
+            float mountLift = ZiplineMountBlend01 * 0.35f;
+            _ziplineHeight = sagY + mountLift;
 
             var pos = transform.position;
             pos.y = _ziplineHeight;
@@ -1258,6 +1282,9 @@ namespace TempleSprint
             Traversal = TraversalMode.None;
             _specialMarker = null;
             _ziplineHeight = 0f;
+            _ziplineBaseHeight = 0f;
+            _ziplineSag = 0f;
+            _ziplineMountTimer = 0f;
             _grounded = true;
             _verticalVel = 0f;
             var p = transform.position;
@@ -2526,10 +2553,15 @@ namespace TempleSprint
             }
             else if (mode == TraversalMode.Zipline || mode == TraversalMode.CanopyRope)
             {
-                targetPos = new Vector3(0f, -0.15f, 0.1f);
-                targetRot = Quaternion.Euler(-8f, 0f, _laneLean * -6f);
-                float sway = Mathf.Sin(Time.time * 7f) * 4f;
+                float mount = player != null && mode == TraversalMode.Zipline
+                    ? player.ZiplineMountBlend01 : 0f;
+                // Mount: stretch up to the handle; ride: hang slightly under the cable.
+                targetPos = new Vector3(0f, Mathf.Lerp(-0.15f, 0.05f, mount), Mathf.Lerp(0.1f, 0.18f, mount));
+                targetRot = Quaternion.Euler(Mathf.Lerp(-8f, -22f, mount), 0f, _laneLean * -6f);
+                float sway = Mathf.Sin(Time.time * 7f) * Mathf.Lerp(4f, 1.5f, mount);
                 targetRot *= Quaternion.Euler(0f, 0f, sway);
+                posLerp = Mathf.Lerp(10f, 16f, mount);
+                rotLerp = Mathf.Lerp(8f, 14f, mount);
             }
             else if (mode == TraversalMode.Swim || mode == TraversalMode.WaterfallPlunge)
             {
@@ -2581,6 +2613,48 @@ namespace TempleSprint
                 1f - Mathf.Exp(-posLerp * Time.deltaTime));
             transform.localRotation = Quaternion.Slerp(transform.localRotation, targetRot,
                 1f - Mathf.Exp(-rotLerp * Time.deltaTime));
+
+            ApplyTraversalBonePose(mode, player);
+        }
+
+        void ApplyTraversalBonePose(TraversalMode mode, PlayerController player)
+        {
+            if (_anim == null || !_anim.isHuman) return;
+            if (mode != TraversalMode.Zipline && mode != TraversalMode.CanopyRope
+                && mode != TraversalMode.LedgeGrab) return;
+
+            Transform spine = _anim.GetBoneTransform(HumanBodyBones.Spine);
+            Transform head = _anim.GetBoneTransform(HumanBodyBones.Head);
+            Transform lArm = _anim.GetBoneTransform(HumanBodyBones.LeftUpperArm);
+            Transform rArm = _anim.GetBoneTransform(HumanBodyBones.RightUpperArm);
+            Transform lHand = _anim.GetBoneTransform(HumanBodyBones.LeftHand);
+            Transform rHand = _anim.GetBoneTransform(HumanBodyBones.RightHand);
+
+            void BlendLocal(Transform t, Quaternion localExtra, float blend)
+            {
+                if (t == null || blend < 0.01f) return;
+                t.localRotation = Quaternion.Slerp(t.localRotation, t.localRotation * localExtra, blend);
+            }
+
+            if (mode == TraversalMode.Zipline || mode == TraversalMode.CanopyRope)
+            {
+                float mount = player != null && mode == TraversalMode.Zipline
+                    ? player.ZiplineMountBlend01 : 0f;
+                float hold = Mathf.Lerp(0.55f, 0.95f, mount);
+                // Reach both arms up for the cable / handle; mount pulse stretches further.
+                BlendLocal(lArm, Quaternion.Euler(-95f - mount * 25f, 15f, 35f), hold);
+                BlendLocal(rArm, Quaternion.Euler(-95f - mount * 25f, -15f, -35f), hold);
+                BlendLocal(lHand, Quaternion.Euler(-20f, 0f, 25f), hold);
+                BlendLocal(rHand, Quaternion.Euler(-20f, 0f, -25f), hold);
+                BlendLocal(spine, Quaternion.Euler(-12f - mount * 8f, 0f, 0f), 0.45f + mount * 0.25f);
+                BlendLocal(head, Quaternion.Euler(-18f - mount * 10f, 0f, 0f), 0.5f);
+            }
+            else if (mode == TraversalMode.LedgeGrab)
+            {
+                BlendLocal(lArm, Quaternion.Euler(-80f, 10f, 30f), 0.7f);
+                BlendLocal(rArm, Quaternion.Euler(-80f, -10f, -30f), 0.7f);
+                BlendLocal(spine, Quaternion.Euler(-18f, 0f, 0f), 0.4f);
+            }
         }
 
         float _groundY;

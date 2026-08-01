@@ -3224,13 +3224,27 @@ namespace TempleSprint
             farPost.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
             StripCollider(farPost);
 
-            var cable = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            cable.name = "ZiplineCable";
-            cable.transform.SetParent(transform, false);
-            cable.transform.localPosition = new Vector3(0f, 3.9f, mid);
-            cable.transform.localScale = new Vector3(0.08f, 0.08f, channelLen);
-            cable.GetComponent<Renderer>().sharedMaterial = JunglePalette.Rope;
-            StripCollider(cable);
+            const float cableHighY = 3.9f;
+            const float cableSag = 0.55f;
+            BuildSaggingZiplineCable(channelStart, channelEnd, cableHighY, cableSag);
+
+            // Hand trolley / pulley at the near mount so the grab reads clearly.
+            var pulley = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            pulley.name = "ZiplinePulley";
+            pulley.transform.SetParent(transform, false);
+            pulley.transform.localPosition = new Vector3(0f, cableHighY - 0.15f, channelStart + 0.35f);
+            pulley.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+            pulley.transform.localScale = new Vector3(0.28f, 0.12f, 0.28f);
+            pulley.GetComponent<Renderer>().sharedMaterial = JunglePalette.Gold;
+            StripCollider(pulley);
+
+            var handle = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            handle.name = "ZiplineHandle";
+            handle.transform.SetParent(transform, false);
+            handle.transform.localPosition = new Vector3(0f, cableHighY - 0.55f, channelStart + 0.35f);
+            handle.transform.localScale = new Vector3(0.45f, 0.08f, 0.08f);
+            handle.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
+            StripCollider(handle);
 
             var mountGo = new GameObject("ZiplineMount");
             mountGo.transform.SetParent(transform, false);
@@ -3241,6 +3255,7 @@ namespace TempleSprint
             var mount = mountGo.AddComponent<ZiplineMount>();
             mount.Marker = marker;
             mount.RideHeight = 2.55f;
+            mount.CableSag = cableSag;
 
             // Overhead beams that require a slide while riding.
             int beams = _runDifficulty == RunDifficulty.Easy ? 1 : _runDifficulty == RunDifficulty.Hard ? 3 : 2;
@@ -3251,8 +3266,47 @@ namespace TempleSprint
             }
 
             CollectibleCoin.Create(transform, new Vector3(0f, 2.8f, channelStart + 1f));
-            CollectibleCoin.Create(transform, new Vector3(0f, 2.9f, mid));
+            CollectibleCoin.Create(transform, new Vector3(0f, 2.9f - cableSag * 0.35f, mid));
             CollectibleCoin.Create(transform, new Vector3(0f, 2.8f, channelEnd - 0.8f));
+        }
+
+        /// <summary>Segmented zipline cable with natural catenary-style sag.</summary>
+        void BuildSaggingZiplineCable(float channelStart, float channelEnd, float highY, float sag)
+        {
+            int segments = 10;
+            float span = channelEnd - channelStart;
+            for (int i = 0; i < segments; i++)
+            {
+                float t0 = i / (float)segments;
+                float t1 = (i + 1) / (float)segments;
+                float z0 = Mathf.Lerp(channelStart, channelEnd, t0);
+                float z1 = Mathf.Lerp(channelStart, channelEnd, t1);
+                float y0 = highY - Mathf.Sin(t0 * Mathf.PI) * sag;
+                float y1 = highY - Mathf.Sin(t1 * Mathf.PI) * sag;
+                float midZ = (z0 + z1) * 0.5f;
+                float midY = (y0 + y1) * 0.5f;
+                float len = Mathf.Sqrt((z1 - z0) * (z1 - z0) + (y1 - y0) * (y1 - y0));
+                float pitch = -Mathf.Atan2(y1 - y0, z1 - z0) * Mathf.Rad2Deg;
+
+                var seg = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                seg.name = i == 0 ? "ZiplineCable" : "ZiplineCableSeg_" + i;
+                seg.transform.SetParent(transform, false);
+                seg.transform.localPosition = new Vector3(0f, midY, midZ);
+                seg.transform.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+                seg.transform.localScale = new Vector3(0.08f, 0.08f, len * 1.05f);
+                seg.GetComponent<Renderer>().sharedMaterial = JunglePalette.Rope;
+                StripCollider(seg);
+            }
+
+            // Soft mist under the mid-span sag so the drop reads from chase cam.
+            var sagMist = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            sagMist.name = "ZiplineSagMist";
+            sagMist.transform.SetParent(transform, false);
+            sagMist.transform.localPosition = new Vector3(0f, highY - sag - 0.35f, (channelStart + channelEnd) * 0.5f);
+            sagMist.transform.localScale = new Vector3(1.2f, 0.45f, Mathf.Max(1.4f, span * 0.22f));
+            sagMist.GetComponent<Renderer>().sharedMaterial =
+                JunglePalette.Mat(new Color(0.75f, 0.85f, 0.9f, 0.28f), 0.05f);
+            StripCollider(sagMist);
         }
 
         void BuildMineCartStage()
@@ -3843,10 +3897,13 @@ namespace TempleSprint
             shimmerRoot.transform.SetParent(transform, false);
             shimmerRoot.transform.localPosition = new Vector3(0f, 0f, Length * 0.5f);
             var shimmer = shimmerRoot.AddComponent<HeatShimmerAnimator>();
+            float tod = BiomeSystem.TimeOfDayBlend01;
+            float alpha = Mathf.Lerp(0.12f, 0.32f, tod);
             shimmer.Build(
-                shimmerRoot.transform, 6,
+                shimmerRoot.transform, 6 + Mathf.RoundToInt(tod * 3f),
                 DeckWidth * 0.45f, Length * 0.35f, 1.1f,
-                new Color(1f, 0.78f, 0.35f, 0.22f), true);
+                new Color(1f, 0.78f, 0.35f, alpha), true);
+            shimmer.ConfigureIntensity(tod, new Color(1f, 0.72f, 0.3f));
         }
 
         /// <summary>Ice-specific deck dressing — packed snow banks + frozen arch crystals.</summary>
@@ -4739,6 +4796,18 @@ namespace TempleSprint
                     JunglePalette.Mat(new Color(0.92f, 0.94f, 1f, 0.95f), 0.85f, 0.4f);
                 StripCollider(moon);
             }
+
+            // Cold night shimmer — intensity tied to Night Summit time-of-day blend.
+            var nightShimmerRoot = new GameObject("SummitNightShimmer");
+            nightShimmerRoot.transform.SetParent(transform, false);
+            nightShimmerRoot.transform.localPosition = new Vector3(0f, 0.4f, Length * 0.5f);
+            var nightShimmer = nightShimmerRoot.AddComponent<HeatShimmerAnimator>();
+            float nightTod = BiomeSystem.TimeOfDayBlend01;
+            nightShimmer.Build(
+                nightShimmerRoot.transform, 5 + Mathf.RoundToInt(nightTod * 2f),
+                DeckWidth * 0.4f, Length * 0.32f, 1.4f,
+                new Color(0.55f, 0.7f, 1f, Mathf.Lerp(0.1f, 0.22f, nightTod)), false);
+            nightShimmer.ConfigureIntensity(nightTod * 0.85f, new Color(0.55f, 0.7f, 1f));
         }
     }
 }

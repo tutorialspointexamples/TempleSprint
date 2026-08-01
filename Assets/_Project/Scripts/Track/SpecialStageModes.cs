@@ -56,6 +56,7 @@ namespace TempleSprint
     {
         public SpecialStageMarker Marker;
         public float RideHeight = 2.4f;
+        public float CableSag = 0.55f;
         bool _used;
 
         void OnDisable() => _used = false;
@@ -69,7 +70,7 @@ namespace TempleSprint
             var player = PlayerController.Instance;
             if (player == null || player.Traversal != TraversalMode.None) return;
             _used = true;
-            player.BeginZipline(Marker, RideHeight);
+            player.BeginZipline(Marker, RideHeight, CableSag);
         }
     }
 
