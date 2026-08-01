@@ -666,7 +666,7 @@ namespace TempleSprint
         }
     }
 
-    /// <summary>Environmental modifiers: rain traction, wind drift, darkness fog.</summary>
+    /// <summary>Environmental modifiers: rain traction, wind drift, darkness fog + weather sheets.</summary>
     public class EnvironmentEffects : MonoBehaviour
     {
         public static EnvironmentEffects Instance { get; private set; }
@@ -688,8 +688,17 @@ namespace TempleSprint
         float _baseFogDensity = 0.012f;
         Color _baseFogColor = new Color(0.55f, 0.72f, 0.55f);
         float _fadeDir; // +1 fading in, -1 fading out, 0 idle
+        ParticleSystem _precipPs;
+        ParticleSystem _windPs;
+        BiomeWeatherProfile _profile = BiomeWeatherProfile.For(BiomeId.JungleRuins);
+        Transform _follow;
 
-        void Awake() => Instance = this;
+        void Awake()
+        {
+            Instance = this;
+            BuildWeatherVisuals();
+            RefreshBiomeProfile(BiomeSystem.Current);
+        }
 
         public void ResetEffects()
         {
@@ -699,8 +708,18 @@ namespace TempleSprint
             _rainCooldown = _windCooldown = _darkCooldown = 0f;
             _fadeDir = 0f;
             WindDrift = 0f;
+            SetRainVisual(false);
+            SetWindVisual(false);
             RestoreAmbientFog();
             SnapshotBaseFog();
+        }
+
+        public void RefreshBiomeProfile(BiomeId biome)
+        {
+            _profile = BiomeWeatherProfile.For(biome);
+            ApplyProfileToSystems();
+            if (RainActive) SetRainVisual(true);
+            if (WindActive) SetWindVisual(true);
         }
 
         public void Tick(float distance)
@@ -710,16 +729,20 @@ namespace TempleSprint
             if (_windCooldown > 0f) _windCooldown -= dt;
             if (_darkCooldown > 0f) _darkCooldown -= dt;
 
+            FollowPlayer();
+
             // Frame-rate-independent scheduling: countdown then roll once.
+            float rainChance = _profile.rainChance;
+            float windChance = _profile.windChance;
             if (_rainTimer <= 0f && _rainCooldown <= 0f && distance > 80f)
             {
                 _rainCooldown = Random.Range(18f, 28f);
-                if (Random.value < 0.35f) BeginRain(8f);
+                if (Random.value < rainChance) BeginRain(8f);
             }
             if (_windTimer <= 0f && _windCooldown <= 0f && distance > 120f)
             {
                 _windCooldown = Random.Range(20f, 32f);
-                if (Random.value < 0.3f) BeginWind(7f);
+                if (Random.value < windChance) BeginWind(7f);
             }
             if (_darkTimer <= 0f && _darkCooldown <= 0f && !DarknessActive && distance > 160f)
             {
@@ -729,15 +752,142 @@ namespace TempleSprint
                 if (Random.value < darkChance) BeginDarkness(BiomeSystem.Current == BiomeId.CaveMines ? 7f : 5f);
             }
 
-            if (_rainTimer > 0f) { _rainTimer -= dt; if (_rainTimer <= 0f) RainActive = false; }
+            if (_rainTimer > 0f)
+            {
+                _rainTimer -= dt;
+                if (_rainTimer <= 0f)
+                {
+                    RainActive = false;
+                    SetRainVisual(false);
+                }
+            }
             if (_windTimer > 0f)
             {
                 _windTimer -= dt;
-                WindDrift = Mathf.Sin(Time.time * 3f) * 1.8f;
-                if (_windTimer <= 0f) { WindActive = false; WindDrift = 0f; }
+                WindDrift = Mathf.Sin(Time.time * 3f) * 1.8f * _profile.windStrength;
+                if (_windTimer <= 0f)
+                {
+                    WindActive = false;
+                    WindDrift = 0f;
+                    SetWindVisual(false);
+                }
             }
 
             TickDarkness(dt);
+        }
+
+        void FollowPlayer()
+        {
+            if (PlayerController.Instance == null) return;
+            _follow = PlayerController.Instance.transform;
+            Vector3 p = _follow.position + Vector3.up * 4.5f + _follow.forward * 2f;
+            if (_precipPs != null) _precipPs.transform.position = p;
+            if (_windPs != null)
+                _windPs.transform.SetPositionAndRotation(
+                    _follow.position + Vector3.up * 1.8f - _follow.right * 1.5f,
+                    Quaternion.LookRotation(_follow.right + _follow.forward * 0.15f, Vector3.up));
+        }
+
+        void BuildWeatherVisuals()
+        {
+            var root = new GameObject("WeatherFx").transform;
+            root.SetParent(transform, false);
+
+            _precipPs = CreateSheetSystem(root, "PrecipSheet", 180);
+            _windPs = CreateSheetSystem(root, "WindSheet", 90);
+            ApplyProfileToSystems();
+            SetRainVisual(false);
+            SetWindVisual(false);
+        }
+
+        static ParticleSystem CreateSheetSystem(Transform parent, string name, int max)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            var ps = go.AddComponent<ParticleSystem>();
+            var main = ps.main;
+            main.loop = true;
+            main.playOnAwake = false;
+            main.maxParticles = max;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.startLifetime = 0.9f;
+            main.startSize = 0.08f;
+            main.startSpeed = 8f;
+            var emission = ps.emission;
+            emission.rateOverTime = 0f;
+            var shape = ps.shape;
+            shape.shapeType = ParticleSystemShapeType.Box;
+            shape.scale = new Vector3(8f, 0.2f, 10f);
+            var renderer = ps.GetComponent<ParticleSystemRenderer>();
+            renderer.renderMode = ParticleSystemRenderMode.Stretch;
+            renderer.lengthScale = 4f;
+            renderer.velocityScale = 0.12f;
+            renderer.material = new Material(Shader.Find("Particles/Standard Unlit")
+                                            ?? Shader.Find("Universal Render Pipeline/Particles/Unlit")
+                                            ?? Shader.Find("Sprites/Default")
+                                            ?? Shader.Find("Diffuse"));
+            return ps;
+        }
+
+        void ApplyProfileToSystems()
+        {
+            if (_profile.precipRate <= 0f && _profile.windRate <= 0f) return;
+            if (_precipPs != null)
+            {
+                var main = _precipPs.main;
+                main.startColor = _profile.precipColor;
+                main.startSpeed = _profile.precipSpeed;
+                main.startSize = _profile.precipSize;
+                main.gravityModifier = _profile.precipGravity;
+                var emission = _precipPs.emission;
+                emission.rateOverTime = RainActive ? _profile.precipRate : 0f;
+                var renderer = _precipPs.GetComponent<ParticleSystemRenderer>();
+                if (renderer != null && renderer.material != null)
+                    renderer.material.color = _profile.precipColor;
+            }
+            if (_windPs != null)
+            {
+                var main = _windPs.main;
+                main.startColor = _profile.windColor;
+                main.startSpeed = _profile.windSpeed;
+                main.startSize = _profile.windSize;
+                main.gravityModifier = 0.05f;
+                main.startLifetime = 0.7f;
+                var emission = _windPs.emission;
+                emission.rateOverTime = WindActive ? _profile.windRate : 0f;
+                var renderer = _windPs.GetComponent<ParticleSystemRenderer>();
+                if (renderer != null)
+                {
+                    renderer.lengthScale = 8f;
+                    if (renderer.material != null) renderer.material.color = _profile.windColor;
+                }
+            }
+        }
+
+        void SetRainVisual(bool on)
+        {
+            if (_precipPs == null) return;
+            var emission = _precipPs.emission;
+            emission.rateOverTime = on ? Mathf.Max(8f, _profile.precipRate) : 0f;
+            if (on)
+            {
+                ApplyProfileToSystems();
+                if (!_precipPs.isPlaying) _precipPs.Play();
+            }
+            else if (_precipPs.isPlaying) _precipPs.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+        }
+
+        void SetWindVisual(bool on)
+        {
+            if (_windPs == null) return;
+            var emission = _windPs.emission;
+            emission.rateOverTime = on ? Mathf.Max(6f, _profile.windRate) : 0f;
+            if (on)
+            {
+                ApplyProfileToSystems();
+                if (!_windPs.isPlaying) _windPs.Play();
+            }
+            else if (_windPs.isPlaying) _windPs.Stop(true, ParticleSystemStopBehavior.StopEmitting);
         }
 
         void TickDarkness(float dt)
@@ -772,8 +922,19 @@ namespace TempleSprint
             }
         }
 
-        void BeginRain(float d) { RainActive = true; _rainTimer = d; }
-        void BeginWind(float d) { WindActive = true; _windTimer = d; }
+        void BeginRain(float d)
+        {
+            RainActive = true;
+            _rainTimer = d;
+            SetRainVisual(true);
+        }
+
+        void BeginWind(float d)
+        {
+            WindActive = true;
+            _windTimer = d;
+            SetWindVisual(true);
+        }
 
         void BeginDarkness(float d)
         {

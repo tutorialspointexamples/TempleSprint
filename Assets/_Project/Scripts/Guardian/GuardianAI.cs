@@ -249,6 +249,33 @@ namespace TempleSprint
             }
         }
 
+        /// <summary>Stationary pack pose for the idol-theft opening beat.</summary>
+        public void BeginOpeningPose()
+        {
+            _active = false;
+            _gap = 10f;
+            _lunge = 0.35f;
+            _threat01 = 0.55f;
+            _struggle = GrabStruggleState.None;
+            gameObject.SetActive(true);
+            if (PlayerController.Instance != null)
+            {
+                var p = PlayerController.Instance.transform;
+                transform.position = p.position - p.forward * 7.5f + p.right * 0.4f;
+                transform.rotation = Quaternion.LookRotation(p.position - transform.position, Vector3.up);
+            }
+        }
+
+        public void StartChaseFromOpening()
+        {
+            BeginRun();
+            _gap = 11f;
+            _threat01 = 0.65f;
+            _lunge = 0.8f;
+            _lastLungeTime = Time.time;
+            AudioHooks.Instance?.PlayGuardianLunge();
+        }
+
         public void Stop()
         {
             _active = false;
@@ -321,6 +348,7 @@ namespace TempleSprint
             {
                 _struggle = GrabStruggleState.Failed;
                 GameUI.Instance?.HideGuardianStruggle();
+                PlayerController.Instance?.BeginOutcomeDeath(RunnerOutcomePose.Caught);
                 RunSession.Instance?.EndRun("Caught by the Idol Beast");
             }
         }

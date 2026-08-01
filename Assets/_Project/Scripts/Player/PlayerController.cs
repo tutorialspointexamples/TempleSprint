@@ -480,6 +480,8 @@ namespace TempleSprint
             _explorer?.SetOutcomePose(pose);
         }
 
+        public void ClearOutcomePose() => _explorer?.ClearOutcomePose();
+
         void Update()
         {
             if (!_deathFalling) return;
@@ -695,6 +697,7 @@ namespace TempleSprint
             _col.height = _baseColHeight * 0.45f;
             _col.center = new Vector3(0f, _col.height * 0.5f, 0f);
             _explorer?.SetPoseFlags(true, false);
+            _explorer?.SetOutcomePose(RunnerOutcomePose.Slide);
             ApplySlideVisual(true);
             AudioHooks.Instance?.PlaySlide();
         }
@@ -999,6 +1002,8 @@ namespace TempleSprint
                     IsSliding = false;
                     RestoreCollider();
                     ApplySlideVisual(false);
+                    if (_explorer != null && _explorer.CurrentOutcomePose == RunnerOutcomePose.Slide)
+                        _explorer.ClearOutcomePose();
                 }
             }
 
@@ -2045,6 +2050,8 @@ namespace TempleSprint
                     break;
             }
         }
+
+        public RunnerOutcomePose CurrentOutcomePose => _outcomePose;
 
         public void SetOutcomePose(RunnerOutcomePose pose)
         {

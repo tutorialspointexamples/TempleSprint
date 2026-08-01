@@ -147,12 +147,14 @@ namespace TempleSprint.EditorTools
 
             var gm = Object.FindAnyObjectByType<GameManager>();
             if (!_startedRun && gm != null
-                && gm.State != GameState.Running && gm.State != GameState.PostRun)
+                && gm.State != GameState.Running && gm.State != GameState.PostRun
+                && gm.State != GameState.Opening)
             {
                 _startedRun = true;
                 try
                 {
                     gm.StartRun(RunDifficulty.Medium);
+                    gm.SkipOpening();
                     var runner = Object.FindAnyObjectByType<PlayerController>();
                     var spawner = Object.FindAnyObjectByType<TileSpawner>();
                     // Survive the whole sample window so the route can be measured.
@@ -171,6 +173,7 @@ namespace TempleSprint.EditorTools
                 try
                 {
                     gm.StartRun(RunDifficulty.Medium);
+                    gm.SkipOpening();
                     var spawner = Object.FindAnyObjectByType<TileSpawner>();
                     var runner = Object.FindAnyObjectByType<PlayerController>();
                     var capsule = runner != null ? runner.GetComponent<CapsuleCollider>() : null;

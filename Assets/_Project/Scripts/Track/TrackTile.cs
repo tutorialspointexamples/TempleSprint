@@ -168,6 +168,14 @@ namespace TempleSprint
             else
                 BuildForestEdge(transform, 0f, Length);
 
+            // Cave biome: wrap most open runway tiles in a continuous corridor shell.
+            if (BiomeSystem.Current == BiomeId.CaveMines
+                && kind != TileKind.MineCart
+                && kind != TileKind.TempleHall
+                && kind != TileKind.BiomeTransitionTunnel
+                && kind != TileKind.RuinFork)
+                ApplyCaveCorridorArchitecture(kind);
+
             switch (kind)
             {
                 case TileKind.Straight:
@@ -175,8 +183,8 @@ namespace TempleSprint
                     if (Random.value < 0.12f) SpawnRelicOrGem();
                     if (Random.value < 0.22f) BuildArch();
                     if (Random.value < 0.45f) BuildHangingVines(Random.Range(1, 3));
-                    if (BiomeSystem.Current == BiomeId.CaveMines && Random.value < 0.4f) BuildMineTimberFrame();
-                    if (BiomeSystem.Current == BiomeId.CaveMines && Random.value < 0.45f) BuildCaveRunwayProps();
+                    if (BiomeSystem.Current == BiomeId.CaveMines && Random.value < 0.55f) BuildMineTimberFrame();
+                    if (BiomeSystem.Current == BiomeId.CaveMines && Random.value < 0.7f) BuildCaveRunwayProps();
                     if (BiomeSystem.Current == BiomeId.VolcanicCrater && Random.value < 0.35f) BuildVolcanicEdgeGlow();
                     if (BiomeSystem.Current == BiomeId.IceCaverns && Random.value < 0.4f) BuildIceRunwayFrost();
                     if (BiomeSystem.Current == BiomeId.DesertTombs && Random.value < 0.55f) BuildDesertRunwayProps();
@@ -2005,7 +2013,8 @@ namespace TempleSprint
                 SpawnFlameColumn(new Vector3(x, ForestFloorY, z), Random.Range(1.4f, 2.6f));
             }
 
-            for (int i = 0; i < 5; i++)
+            int smokeCount = BiomeSystem.Current == BiomeId.VolcanicCrater ? 8 : 5;
+            for (int i = 0; i < smokeCount; i++)
             {
                 var smoke = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                 smoke.name = "SmokeWisp";
@@ -2020,8 +2029,25 @@ namespace TempleSprint
                 StripCollider(smoke);
             }
 
+            // Heat shimmer orbs above the pit for stronger fire-channel read.
+            for (int i = 0; i < 4; i++)
+            {
+                var haze = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                haze.name = "FireHeatHaze";
+                haze.transform.SetParent(transform, false);
+                haze.transform.localPosition = new Vector3(
+                    Random.Range(-DeckWidth * 0.4f, DeckWidth * 0.4f),
+                    ForestFloorY + Random.Range(1.6f, 3.4f),
+                    channelStart + channelLen * Random.Range(0.2f, 0.8f));
+                float s = Random.Range(0.7f, 1.4f);
+                haze.transform.localScale = new Vector3(s, s * 0.55f, s);
+                haze.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(1f, 0.55f, 0.2f, 0.25f), 0.1f);
+                StripCollider(haze);
+            }
+
             // Rising ember sparks for heat read without particle systems.
-            for (int i = 0; i < 8; i++)
+            int sparkCount = BiomeSystem.Current == BiomeId.VolcanicCrater ? 14 : 10;
+            for (int i = 0; i < sparkCount; i++)
             {
                 var spark = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                 spark.name = "EmberSpark";
@@ -2594,6 +2620,60 @@ namespace TempleSprint
             GetSpecialChannel(out float channelStart, out float channelEnd, out _);
             BuildForestEdge(transform, 0f, channelStart);
             BuildForestEdge(transform, channelEnd, Length - channelEnd);
+        }
+
+        /// <summary>Continuous cave corridor wrap for open runway tiles (walls + ceiling cadence).</summary>
+        void ApplyCaveCorridorArchitecture(TileKind kind)
+        {
+            float z0 = 0f;
+            float z1 = Length;
+            // Leave river/fire/special channels more open so crossings stay readable.
+            if (kind == TileKind.RiverCrossing || kind == TileKind.FireCrossing || kind == TileKind.LavaRiver
+                || kind == TileKind.WaterfallPlunge || kind == TileKind.WaterSlide
+                || kind == TileKind.Zipline || kind == TileKind.WallRun || kind == TileKind.LedgeGrab
+                || kind == TileKind.TreeBridge || kind == TileKind.CanopyRope || kind == TileKind.IceSurf)
+            {
+                // Partial lips at entrance/exit only.
+                BuildCaveCorridorSegment(0f, Length * 0.22f);
+                BuildCaveCorridorSegment(Length * 0.78f, Length);
+                return;
+            }
+
+            BuildCaveCorridorSegment(z0, z1);
+            if (Random.value < 0.65f) BuildMineTimberAt(Length * 0.5f);
+        }
+
+        void BuildCaveCorridorSegment(float zStart, float zEnd)
+        {
+            float len = Mathf.Max(0.5f, zEnd - zStart);
+            float mid = (zStart + zEnd) * 0.5f;
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                wall.name = "CaveCorridorWall";
+                wall.transform.SetParent(transform, false);
+                wall.transform.localPosition = new Vector3(side * (DeckWidth * 0.5f + 1.9f), 2.1f, mid);
+                wall.transform.localScale = new Vector3(2.6f, 4.6f, len * 0.95f);
+                wall.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
+                StripCollider(wall);
+
+                // Jagged rock lip so walls don't read as flat slabs.
+                var lip = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                lip.name = "CaveRockLip";
+                lip.transform.SetParent(transform, false);
+                lip.transform.localPosition = new Vector3(side * (DeckWidth * 0.5f + 0.85f), 3.4f, mid);
+                lip.transform.localScale = new Vector3(1.1f, 0.55f, len * 0.7f);
+                lip.GetComponent<Renderer>().sharedMaterial = BiomeSystem.StoneMat;
+                StripCollider(lip);
+            }
+
+            var ceiling = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            ceiling.name = "CaveCorridorCeiling";
+            ceiling.transform.SetParent(transform, false);
+            ceiling.transform.localPosition = new Vector3(0f, 4.4f, mid);
+            ceiling.transform.localScale = new Vector3(DeckWidth + 4.2f, 0.55f, len * 0.92f);
+            ceiling.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
+            StripCollider(ceiling);
         }
 
         void BuildCaveTunnelShell()

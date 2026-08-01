@@ -8,9 +8,9 @@ namespace TempleSprint
         public static GameUI Instance { get; private set; }
 
         Canvas _canvas;
-        GameObject _boot, _menu, _hud, _post, _upgrade, _locker, _shop, _missions, _settings, _info, _tutorial, _leaderboard, _guardianQte;
+        GameObject _boot, _menu, _hud, _post, _upgrade, _locker, _shop, _missions, _settings, _info, _tutorial, _leaderboard, _guardianQte, _opening;
         Text _menuCurrency, _hudScore, _hudCoins, _hudPower, _hudCombo, _hudGhost, _postSummary, _infoBody, _tutorialText, _upgradeInfo, _missionBody;
-        Text _weeklyChallengeText, _leaderboardBody, _guardianQteText;
+        Text _weeklyChallengeText, _leaderboardBody, _guardianQteText, _openingText;
         GameObject _hudComboFrame, _hudGhostFrame;
         Image _hudPowerFill;
         Button _btnReviveAd, _btnReviveGem;
@@ -199,6 +199,30 @@ namespace TempleSprint
                 new Color(1f, 0.85f, 0.35f));
             _guardianQte.SetActive(false);
 
+            // Letterbox bars + title for idol-theft opening beat.
+            _opening = new GameObject("Opening");
+            _opening.transform.SetParent(_canvas.transform, false);
+            Stretch(_opening.AddComponent<RectTransform>());
+            var topBar = new GameObject("LetterTop", typeof(RectTransform), typeof(Image));
+            topBar.transform.SetParent(_opening.transform, false);
+            var topRt = topBar.GetComponent<RectTransform>();
+            topRt.anchorMin = new Vector2(0f, 1f);
+            topRt.anchorMax = new Vector2(1f, 1f);
+            topRt.pivot = new Vector2(0.5f, 1f);
+            topRt.sizeDelta = new Vector2(0f, 90f);
+            topBar.GetComponent<Image>().color = new Color(0.02f, 0.03f, 0.03f, 0.92f);
+            var botBar = new GameObject("LetterBot", typeof(RectTransform), typeof(Image));
+            botBar.transform.SetParent(_opening.transform, false);
+            var botRt = botBar.GetComponent<RectTransform>();
+            botRt.anchorMin = new Vector2(0f, 0f);
+            botRt.anchorMax = new Vector2(1f, 0f);
+            botRt.pivot = new Vector2(0.5f, 0f);
+            botRt.sizeDelta = new Vector2(0f, 90f);
+            botBar.GetComponent<Image>().color = new Color(0.02f, 0.03f, 0.03f, 0.92f);
+            _openingText = Title(_opening, "IDOL STOLEN!", 52, 0.55f, 0.62f);
+            Sub(_opening, "Tap to skip", 22, 0.18f, 0.24f);
+            _opening.SetActive(false);
+
             ShowOnly(_boot);
         }
 
@@ -207,7 +231,9 @@ namespace TempleSprint
             if (!_bootDone)
             {
                 // Auto-run owns boot — do not yank back to menu over a live run
-                if (GameManager.Instance != null && GameManager.Instance.State == GameState.Running)
+                if (GameManager.Instance != null
+                    && (GameManager.Instance.State == GameState.Running
+                        || GameManager.Instance.State == GameState.Opening))
                 {
                     _bootDone = true;
                     return;
@@ -220,7 +246,9 @@ namespace TempleSprint
                 {
                     _bootDone = true;
                     DailyLoginService.ClaimStatus();
-                    if (GameManager.Instance != null && GameManager.Instance.State != GameState.Running)
+                    if (GameManager.Instance != null
+                        && GameManager.Instance.State != GameState.Running
+                        && GameManager.Instance.State != GameState.Opening)
                         GameManager.Instance.EnterMainMenu();
                     if (_starterQueued) Toast("Starter Pack available in Shop!");
                 }
@@ -331,6 +359,20 @@ namespace TempleSprint
         }
 
         public void ShowHud() => ShowOnly(_hud);
+
+        public void ShowOpening(string title)
+        {
+            if (_openingText != null) _openingText.text = title;
+            if (_opening != null) _opening.SetActive(true);
+            if (_menu != null) _menu.SetActive(false);
+            if (_hud != null) _hud.SetActive(false);
+            if (_post != null) _post.SetActive(false);
+        }
+
+        public void HideOpening()
+        {
+            if (_opening != null) _opening.SetActive(false);
+        }
 
         public void ShowPostRun(RunEndPayload p)
         {
@@ -475,53 +517,41 @@ namespace TempleSprint
                 BiomeSystem.Select(BiomeId.NightSummit); Toast("Night Summit");
             });
 
-            float cy = -420f;
-            foreach (var h in CosmeticRoster.Hats)
+            float leftY = -420f;
+            float rightY = -370f;
+            void AddCosmeticButtons(CosmeticRoster.CosmeticDef[] list, CosmeticSlot slot, string prefix, ref float y, float x)
             {
-                if (h.id == "hat_none") continue;
-                // Hide off-season cosmetics unless already owned.
-                if (CosmeticRoster.IsSeasonal(h.id) && !CosmeticRoster.IsFeaturedThisWeek(h.id)
-                    && !MetaProgress.Ensure().HasCosmetic(h.id))
-                    continue;
-                var id = h.id;
-                var label = (CosmeticRoster.IsFeaturedThisWeek(id) ? "★ " : "") + h.displayName;
-                var cost = h.gemCost;
-                Btn(_locker, "HAT:" + label, new Vector2(-160, cy), () =>
+                foreach (var c in list)
                 {
-                    if (!MetaProgress.Ensure().HasCosmetic(id))
-                        Toast(CosmeticRoster.TryUnlock(id, true) ? "Hat unlocked!" : $"Need {cost} gems / not in season");
-                    else
+                    if (CosmeticRoster.IsNoneId(c.id)) continue;
+                    if (CosmeticRoster.IsSeasonal(c.id) && !CosmeticRoster.IsFeaturedThisWeek(c.id)
+                        && !MetaProgress.Ensure().HasCosmetic(c.id))
+                        continue;
+                    var id = c.id;
+                    var label = (CosmeticRoster.IsFeaturedThisWeek(id) ? "★ " : "") + c.displayName;
+                    var cost = c.gemCost;
+                    var slotLocal = slot;
+                    Btn(_locker, prefix + label, new Vector2(x, y), () =>
                     {
-                        CosmeticRoster.SelectHat(id);
-                        PlayerController.Instance?.ApplyCharacterColors();
-                        Toast("Hat: " + label);
-                    }
-                });
-                cy -= 55f;
+                        if (!MetaProgress.Ensure().HasCosmetic(id))
+                            Toast(CosmeticRoster.TryUnlock(id, slotLocal)
+                                ? prefix.TrimEnd(':') + " unlocked!"
+                                : $"Need {cost} gems / not in season");
+                        else
+                        {
+                            CosmeticRoster.Select(id, slotLocal);
+                            PlayerController.Instance?.ApplyCharacterColors();
+                            Toast(prefix + label);
+                        }
+                    });
+                    y -= 48f;
+                }
             }
-            cy = -370f;
-            foreach (var p in CosmeticRoster.Pets)
-            {
-                if (p.id == "pet_none") continue;
-                if (CosmeticRoster.IsSeasonal(p.id) && !CosmeticRoster.IsFeaturedThisWeek(p.id)
-                    && !MetaProgress.Ensure().HasCosmetic(p.id))
-                    continue;
-                var id = p.id;
-                var label = (CosmeticRoster.IsFeaturedThisWeek(id) ? "★ " : "") + p.displayName;
-                var cost = p.gemCost;
-                Btn(_locker, "PET:" + label, new Vector2(160, cy), () =>
-                {
-                    if (!MetaProgress.Ensure().HasCosmetic(id))
-                        Toast(CosmeticRoster.TryUnlock(id, false) ? "Pet unlocked!" : $"Need {cost} gems / not in season");
-                    else
-                    {
-                        CosmeticRoster.SelectPet(id);
-                        PlayerController.Instance?.ApplyCharacterColors();
-                        Toast("Pet: " + label);
-                    }
-                });
-                cy -= 55f;
-            }
+
+            AddCosmeticButtons(CosmeticRoster.Hats, CosmeticSlot.Hat, "HAT:", ref leftY, -220f);
+            AddCosmeticButtons(CosmeticRoster.Capes, CosmeticSlot.Cape, "CAPE:", ref leftY, -220f);
+            AddCosmeticButtons(CosmeticRoster.Pets, CosmeticSlot.Pet, "PET:", ref rightY, 220f);
+            AddCosmeticButtons(CosmeticRoster.Scarves, CosmeticSlot.Scarf, "SCARF:", ref rightY, 220f);
         }
 
         void ShowShop() => ShowOnly(_shop);
@@ -710,6 +740,7 @@ namespace TempleSprint
             if (_leaderboard != null) _leaderboard.SetActive(panel == _leaderboard);
             _settings.SetActive(panel == _settings);
             _info.SetActive(panel == _info);
+            if (_opening != null && panel != _opening) _opening.SetActive(false);
             if (panel != _hud)
             {
                 HideTutorial();

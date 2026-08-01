@@ -117,6 +117,8 @@ namespace TempleSprint
                     break;
             }
             NatureBackdrop.Instance?.ApplyBiomeLook();
+            EnvironmentEffects.Instance?.RefreshBiomeProfile(Current);
+            WaterFlow.ApplyBiomeTint(Current);
         }
 
         public static string DisplayName(BiomeId id) => id switch
@@ -853,5 +855,74 @@ namespace TempleSprint
             ChaseCamera.Instance?.PunchFov(2.2f);
             GameUI.Instance?.ShowTutorial("Entered " + BiomeSystem.DisplayName(BiomeSystem.Current));
         }
+    }
+
+    /// <summary>Per-biome weather particle sheet profile (rain/snow/ash + wind debris).</summary>
+    public struct BiomeWeatherProfile
+    {
+        public float rainChance;
+        public float windChance;
+        public float windStrength;
+        public float precipRate;
+        public float precipSpeed;
+        public float precipSize;
+        public float precipGravity;
+        public Color precipColor;
+        public float windRate;
+        public float windSpeed;
+        public float windSize;
+        public Color windColor;
+
+        public static BiomeWeatherProfile For(BiomeId id) => id switch
+        {
+            BiomeId.DesertTombs => new BiomeWeatherProfile
+            {
+                rainChance = 0.08f, windChance = 0.55f, windStrength = 1.35f,
+                precipRate = 20f, precipSpeed = 6f, precipSize = 0.05f, precipGravity = 0.4f,
+                precipColor = new Color(0.85f, 0.72f, 0.45f, 0.55f),
+                windRate = 55f, windSpeed = 14f, windSize = 0.12f,
+                windColor = new Color(0.9f, 0.78f, 0.5f, 0.45f)
+            },
+            BiomeId.IceCaverns => new BiomeWeatherProfile
+            {
+                rainChance = 0.5f, windChance = 0.4f, windStrength = 1.1f,
+                precipRate = 90f, precipSpeed = 3.5f, precipSize = 0.09f, precipGravity = 0.15f,
+                precipColor = new Color(0.9f, 0.96f, 1f, 0.85f),
+                windRate = 40f, windSpeed = 10f, windSize = 0.1f,
+                windColor = new Color(0.8f, 0.92f, 1f, 0.4f)
+            },
+            BiomeId.CaveMines => new BiomeWeatherProfile
+            {
+                rainChance = 0.25f, windChance = 0.2f, windStrength = 0.7f,
+                precipRate = 35f, precipSpeed = 4f, precipSize = 0.06f, precipGravity = 0.8f,
+                precipColor = new Color(0.55f, 0.6f, 0.65f, 0.5f),
+                windRate = 22f, windSpeed = 6f, windSize = 0.08f,
+                windColor = new Color(0.4f, 0.38f, 0.32f, 0.35f)
+            },
+            BiomeId.VolcanicCrater => new BiomeWeatherProfile
+            {
+                rainChance = 0.4f, windChance = 0.45f, windStrength = 1.2f,
+                precipRate = 70f, precipSpeed = 2.8f, precipSize = 0.07f, precipGravity = 0.25f,
+                precipColor = new Color(0.35f, 0.28f, 0.25f, 0.7f),
+                windRate = 48f, windSpeed = 9f, windSize = 0.1f,
+                windColor = new Color(1f, 0.45f, 0.15f, 0.4f)
+            },
+            BiomeId.NightSummit => new BiomeWeatherProfile
+            {
+                rainChance = 0.35f, windChance = 0.35f, windStrength = 1f,
+                precipRate = 55f, precipSpeed = 7f, precipSize = 0.05f, precipGravity = 1.1f,
+                precipColor = new Color(0.65f, 0.75f, 0.95f, 0.55f),
+                windRate = 30f, windSpeed = 11f, windSize = 0.07f,
+                windColor = new Color(0.55f, 0.65f, 0.9f, 0.35f)
+            },
+            _ => new BiomeWeatherProfile
+            {
+                rainChance = 0.4f, windChance = 0.3f, windStrength = 1f,
+                precipRate = 110f, precipSpeed = 10f, precipSize = 0.045f, precipGravity = 1.4f,
+                precipColor = new Color(0.7f, 0.82f, 0.95f, 0.65f),
+                windRate = 35f, windSpeed = 12f, windSize = 0.09f,
+                windColor = new Color(0.45f, 0.65f, 0.35f, 0.4f)
+            }
+        };
     }
 }

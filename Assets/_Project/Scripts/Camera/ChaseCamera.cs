@@ -18,6 +18,10 @@ namespace TempleSprint
         float _pullback;
         float _lookLift;
         float _threatPush;
+        bool _cinematic;
+        Vector3 _cinematicPos;
+        Vector3 _cinematicLook;
+        float _cinematicFov = 52f;
 
         void Awake()
         {
@@ -64,7 +68,43 @@ namespace TempleSprint
             _snapped = true;
         }
 
+        public void PunchFov(float amount = 3f) => _punchFov = amount;
+
+        /// <summary>Brief opening framing — idol theft beat before chase cam resumes.</summary>
+        public void SetCinematicPose(Vector3 worldPos, Vector3 lookAt, float fov = 52f)
+        {
+            _cinematic = true;
+            _cinematicPos = worldPos;
+            _cinematicLook = lookAt;
+            _cinematicFov = fov;
+        }
+
+        public void ClearCinematic()
+        {
+            _cinematic = false;
+            _snapped = false;
+        }
+
         void LateUpdate()
+        {
+            if (_cinematic)
+            {
+                transform.position = Vector3.Lerp(transform.position, _cinematicPos, 1f - Mathf.Exp(-10f * Time.deltaTime));
+                Vector3 dir = _cinematicLook - transform.position;
+                if (dir.sqrMagnitude > 0.001f)
+                {
+                    var lookRot = Quaternion.LookRotation(dir.normalized, Vector3.up);
+                    transform.rotation = Quaternion.Slerp(transform.rotation, lookRot, 1f - Mathf.Exp(-10f * Time.deltaTime));
+                }
+                if (_cam != null)
+                    _cam.fieldOfView = Mathf.Lerp(_cam.fieldOfView, _cinematicFov, Time.deltaTime * 5f);
+                return;
+            }
+
+            LateUpdateChase();
+        }
+
+        void LateUpdateChase()
         {
             if (_target == null) return;
             if (!_snapped) SnapNow();
@@ -101,8 +141,6 @@ namespace TempleSprint
             _cam.fieldOfView = Mathf.Lerp(_cam.fieldOfView, targetFov, Time.deltaTime * 4f);
             _punchFov = Mathf.MoveTowards(_punchFov, 0f, Time.deltaTime * 9f);
         }
-
-        public void PunchFov(float amount = 3f) => _punchFov = amount;
 
         void OnDestroy()
         {
