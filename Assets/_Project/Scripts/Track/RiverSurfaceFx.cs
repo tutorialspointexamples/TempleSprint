@@ -304,4 +304,78 @@ namespace TempleSprint
             }
         }
     }
+
+    /// <summary>Expanding foam rings after a waterfall plunge pool impact.</summary>
+    public class PoolRippleBurst : MonoBehaviour
+    {
+        Transform[] _rings;
+        float _age;
+        float _life = 1.35f;
+        Vector3[] _baseScale;
+
+        public static PoolRippleBurst Spawn(Transform parent, Vector3 localPos, float width)
+        {
+            var go = new GameObject("PoolRippleBurst");
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = localPos;
+            var burst = go.AddComponent<PoolRippleBurst>();
+            burst.Build(width);
+            return burst;
+        }
+
+        void Build(float width)
+        {
+            int count = 4;
+            _rings = new Transform[count];
+            _baseScale = new Vector3[count];
+            for (int i = 0; i < count; i++)
+            {
+                var ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                ring.name = "PoolRippleRing_" + i;
+                ring.transform.SetParent(transform, false);
+                ring.transform.localPosition = new Vector3(0f, 0.02f + i * 0.015f, 0f);
+                ring.transform.localRotation = Quaternion.identity;
+                float w = width * (0.22f + i * 0.08f);
+                var scale = new Vector3(w, 0.02f, w * 0.72f);
+                ring.transform.localScale = scale;
+                ring.GetComponent<Renderer>().sharedMaterial =
+                    JunglePalette.Mat(new Color(0.85f, 0.95f, 1f, 0.65f), 0.15f);
+                var col = ring.GetComponent<Collider>();
+                if (col != null)
+                {
+                    col.enabled = false;
+                    Destroy(col);
+                }
+                _rings[i] = ring.transform;
+                _baseScale[i] = scale;
+            }
+        }
+
+        void Update()
+        {
+            if (_rings == null) return;
+            _age += Time.deltaTime;
+            float u = Mathf.Clamp01(_age / _life);
+            for (int i = 0; i < _rings.Length; i++)
+            {
+                if (_rings[i] == null) continue;
+                float delay = i * 0.08f;
+                float t = Mathf.Clamp01((u - delay) / Mathf.Max(0.01f, 1f - delay));
+                float expand = 1f + t * (1.6f + i * 0.35f);
+                var b = _baseScale[i];
+                _rings[i].localScale = new Vector3(b.x * expand, b.y * (1f - t * 0.5f), b.z * expand);
+                var rend = _rings[i].GetComponent<Renderer>();
+                if (rend != null)
+                {
+                    var c = new Color(0.85f, 0.95f, 1f, (1f - t) * 0.7f);
+                    rend.material.color = c;
+                    if (rend.material.HasProperty("_BaseColor"))
+                        rend.material.SetColor("_BaseColor", c);
+                }
+            }
+
+            if (_age >= _life)
+                Destroy(gameObject);
+        }
+    }
 }

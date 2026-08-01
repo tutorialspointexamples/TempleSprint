@@ -1556,23 +1556,32 @@ namespace TempleSprint
 
             // Dive from the lip, then settle into the plunge pool.
             float height;
+            float diveT = 0f;
             if (u < 0.35f)
             {
-                float diveT = u / 0.35f;
+                diveT = u / 0.35f;
                 height = Mathf.Lerp(_waterfallDiveHeight, _waterfallPoolDepth, diveT * diveT);
+                // Bank the chase cam into the fall as the runner tips over the lip.
+                float tip = Mathf.SmoothStep(0f, 1f, diveT);
+                ChaseCamera.Instance?.SetBankLean(Mathf.Sin(Time.time * 3.2f) * 2.5f + tip * 9f);
+                ChaseCamera.Instance?.SetTraversalBias(0.7f + tip * 0.85f, 8f - tip * 3.5f);
             }
             else
             {
                 float bob = Mathf.Sin(Time.time * 7f) * 0.1f;
                 height = _waterfallPoolDepth + bob;
+                // Settle bank after impact while ripples read in the pool.
+                ChaseCamera.Instance?.SetBankLean(Mathf.Sin(Time.time * 2.2f) * 1.2f);
+                ChaseCamera.Instance?.SetTraversalBias(0.55f, 5.5f);
             }
 
-            // FOV punch when the dive hits the pool spray sheet.
+            // FOV punch + expanding pool ripple rings when the dive hits the spray sheet.
             if (!_waterfallPoolPunched && u >= 0.32f)
             {
                 _waterfallPoolPunched = true;
                 ChaseCamera.Instance?.PunchFov(4.2f);
                 AudioHooks.Instance?.PlaySplash();
+                SpawnWaterfallPoolRipples();
             }
 
             var pos = transform.position;
@@ -1584,6 +1593,26 @@ namespace TempleSprint
                 float pulse = 0.9f + Mathf.Sin(Time.time * 10f) * 0.2f;
                 _swimBubbles.localScale = Vector3.one * pulse;
             }
+        }
+
+        void SpawnWaterfallPoolRipples()
+        {
+            var tile = TileSpawner.Instance != null
+                ? TileSpawner.Instance.FindTileAtPathDistance(PathDistance)
+                : null;
+            Transform parent = tile != null ? tile.transform : transform;
+            float midZ = LengthHintForRipple(tile);
+            Vector3 local = parent == transform
+                ? new Vector3(0f, 0.2f, 0f)
+                : new Vector3(0f, 0.25f, midZ);
+            PoolRippleBurst.Spawn(parent, local, TrackTile.DeckWidth + 2.2f);
+        }
+
+        static float LengthHintForRipple(TrackTile tile)
+        {
+            if (tile == null || tile.GetComponent<SpecialStageMarker>() == null) return 0f;
+            var marker = tile.GetComponent<SpecialStageMarker>();
+            return (marker.ChannelStart + marker.ChannelEnd) * 0.5f;
         }
 
         /// <summary>
@@ -1623,6 +1652,7 @@ namespace TempleSprint
             _specialMarker = null;
             _waterfallDiveHeight = 0f;
             _waterfallPoolDepth = 0f;
+            _waterfallPoolPunched = false;
             if (_swimBubbles != null)
             {
                 Destroy(_swimBubbles.gameObject);
@@ -1634,6 +1664,7 @@ namespace TempleSprint
             p.y = 0f;
             transform.position = p;
             ChaseCamera.Instance?.SetTraversalBias(0f, 0f);
+            ChaseCamera.Instance?.SetBankLean(0f);
             ApplyPathPose();
         }
 

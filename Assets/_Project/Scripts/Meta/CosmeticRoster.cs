@@ -534,7 +534,9 @@ namespace TempleSprint
     {
         float _phase;
         float _amp;
+        float _intensity = 1f;
         Quaternion _baseRot;
+        Vector3 _basePos;
 
         public void Configure(string id, int segments, float amplitude)
         {
@@ -543,16 +545,44 @@ namespace TempleSprint
             _amp = Mathf.Clamp(amplitude, 0.1f, 1f);
             _phase = Random.value * Mathf.PI * 2f;
             _baseRot = transform.localRotation;
+            _basePos = transform.localPosition;
         }
 
         void LateUpdate()
         {
-            float speed = PlayerController.Instance != null && RunSession.Instance != null && RunSession.Instance.IsAlive
-                ? 9f : 3.2f;
+            bool alive = PlayerController.Instance != null && RunSession.Instance != null && RunSession.Instance.IsAlive;
+            float runSpeed = alive && DifficultyDirector.Instance != null
+                ? DifficultyDirector.Instance.CurrentSpeed
+                : 10f;
+            float speed01 = alive ? Mathf.InverseLerp(8f, 22f, runSpeed) : 0.15f;
+
+            float wind = 0f;
+            float lean = 0f;
+            if (alive && PlayerController.Instance != null && TileSpawner.Instance != null)
+            {
+                var tile = TileSpawner.Instance.FindTileAtPathDistance(PlayerController.Instance.PathDistance);
+                if (tile != null && tile.Kind == TileKind.CliffNarrow)
+                    wind = 1.35f;
+                lean = Mathf.Clamp01(Mathf.Abs(PlayerController.Instance.LaneOffset) / PlayerController.LaneWidth);
+            }
+
+            float targetIntensity = 1f + speed01 * 1.75f + wind + lean * 0.9f;
+            if (alive && PlayerController.Instance != null
+                && PlayerController.Instance.Traversal == TraversalMode.Zipline)
+                targetIntensity += 0.55f;
+            _intensity = Mathf.Lerp(_intensity, targetIntensity, 1f - Mathf.Exp(-6f * Time.deltaTime));
+
+            float speed = alive ? 7.5f + _intensity * 4.5f : 3.2f;
             _phase += Time.deltaTime * speed;
-            float pitch = Mathf.Sin(_phase) * (6f + _amp * 10f);
-            float yaw = Mathf.Sin(_phase * 0.7f) * (4f + _amp * 6f);
-            float roll = Mathf.Cos(_phase * 1.1f) * (3f + _amp * 4f);
+            float pitch = Mathf.Sin(_phase) * (6f + _amp * 10f) * _intensity;
+            float yaw = Mathf.Sin(_phase * 0.7f) * (4f + _amp * 6f) * _intensity;
+            float roll = Mathf.Cos(_phase * 1.1f) * (3f + _amp * 4f) * _intensity;
+            // Trail billow: push cape segments slightly back/up as intensity rises.
+            float billow = (_intensity - 1f) * 0.06f;
+            transform.localPosition = _basePos + new Vector3(
+                Mathf.Sin(_phase * 0.85f) * billow * 0.35f,
+                billow * 0.25f,
+                -billow);
             transform.localRotation = _baseRot * Quaternion.Euler(pitch, yaw, roll);
         }
     }

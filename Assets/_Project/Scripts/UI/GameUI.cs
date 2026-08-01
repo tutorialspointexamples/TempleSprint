@@ -14,6 +14,8 @@ namespace TempleSprint
         Text _menuEventBanner, _hudEventBanner;
         GameObject _menuEventFrame, _hudEventFrame, _hudComboFrame, _hudGhostFrame;
         Image _hudPowerFill;
+        Image[] _chaseVignette;
+        float _chaseVignetteAlpha;
         Button _btnReviveAd, _btnReviveGem;
         Button _lockerTabChars, _lockerTabCosmetics, _lockerTabBiomes;
         RectTransform _lockerScrollContent;
@@ -109,6 +111,8 @@ namespace TempleSprint
                     if (Time.timeScale > 0.1f) { Time.timeScale = 0f; Toast("Paused"); }
                     else { Time.timeScale = 1f; Toast("Resumed"); }
                 });
+
+            BuildChaseVignette(_hud.transform);
 
             _post = Panel("Post", new Color(0.05f, 0.08f, 0.06f, 0.72f));
             Title(_post, "RUN OVER", 48, 0.78f, 0.94f);
@@ -372,6 +376,82 @@ namespace TempleSprint
                         ? EventService.CurrentEventName
                         : EventService.CurrentEventName + " · +" + Mathf.RoundToInt((EventService.EventCoinBonus - 1f) * 100f) + "%";
                 }
+
+                UpdateChaseVignette();
+            }
+            else
+                FadeChaseVignette(0f);
+        }
+
+        void BuildChaseVignette(Transform hudRoot)
+        {
+            // Four soft edge strips — Idol Beast close-chase pressure without a full-screen wash.
+            _chaseVignette = new Image[4];
+            string[] names = { "ChaseVignetteL", "ChaseVignetteR", "ChaseVignetteT", "ChaseVignetteB" };
+            Vector2[] mins = { new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 1f), new Vector2(0f, 0f) };
+            Vector2[] maxs = { new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 0f) };
+            Vector2[] pivots = { new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), new Vector2(0.5f, 1f), new Vector2(0.5f, 0f) };
+            Vector2[] sizes = { new Vector2(140f, 0f), new Vector2(140f, 0f), new Vector2(0f, 110f), new Vector2(0f, 110f) };
+
+            for (int i = 0; i < 4; i++)
+            {
+                var go = new GameObject(names[i]);
+                go.transform.SetParent(hudRoot, false);
+                go.transform.SetAsFirstSibling();
+                var img = go.AddComponent<Image>();
+                img.raycastTarget = false;
+                img.color = new Color(0.12f, 0.02f, 0.02f, 0f);
+                var rt = img.rectTransform;
+                rt.anchorMin = mins[i];
+                rt.anchorMax = maxs[i];
+                rt.pivot = pivots[i];
+                rt.anchoredPosition = Vector2.zero;
+                rt.sizeDelta = sizes[i];
+                if (i < 2)
+                {
+                    rt.offsetMin = new Vector2(0f, 0f);
+                    rt.offsetMax = new Vector2(0f, 0f);
+                    rt.sizeDelta = new Vector2(sizes[i].x, 0f);
+                }
+                else
+                {
+                    rt.offsetMin = new Vector2(0f, 0f);
+                    rt.offsetMax = new Vector2(0f, 0f);
+                    rt.sizeDelta = new Vector2(0f, sizes[i].y);
+                }
+                _chaseVignette[i] = img;
+            }
+        }
+
+        void UpdateChaseVignette()
+        {
+            float threat = GuardianAI.Instance != null ? GuardianAI.Instance.Threat01 : 0f;
+            bool lunge = GuardianAI.Instance != null && GuardianAI.Instance.IsLunging;
+            float target = Mathf.SmoothStep(0f, 0.78f, Mathf.InverseLerp(0.42f, 0.96f, threat));
+            if (lunge) target = Mathf.Max(target, 0.55f + threat * 0.35f);
+            FadeChaseVignette(target);
+        }
+
+        void FadeChaseVignette(float targetAlpha)
+        {
+            _chaseVignetteAlpha = Mathf.Lerp(_chaseVignetteAlpha, targetAlpha, 1f - Mathf.Exp(-7f * Time.unscaledDeltaTime));
+            if (_chaseVignette == null) return;
+            // Outer edges denser; slight crimson pulse when the pack is lunging.
+            float pulse = GuardianAI.Instance != null && GuardianAI.Instance.IsLunging
+                ? 0.08f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 9f))
+                : 0f;
+            for (int i = 0; i < _chaseVignette.Length; i++)
+            {
+                if (_chaseVignette[i] == null) continue;
+                float edge = i < 2 ? 1f : 0.85f;
+                float a = _chaseVignetteAlpha * edge + pulse;
+                _chaseVignette[i].color = new Color(0.14f + pulse, 0.02f, 0.02f, a);
+                // Widen strips as threat climbs so the frame squeezes inward.
+                var rt = _chaseVignette[i].rectTransform;
+                if (i < 2)
+                    rt.sizeDelta = new Vector2(110f + _chaseVignetteAlpha * 70f, 0f);
+                else
+                    rt.sizeDelta = new Vector2(0f, 90f + _chaseVignetteAlpha * 50f);
             }
         }
 
