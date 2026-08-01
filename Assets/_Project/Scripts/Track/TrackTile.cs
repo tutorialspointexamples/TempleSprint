@@ -2051,9 +2051,24 @@ namespace TempleSprint
             var hazeFx = hazeRoot.AddComponent<HeatShimmerAnimator>();
             hazeFx.Build(
                 hazeRoot.transform,
-                BiomeSystem.Current == BiomeId.VolcanicCrater ? 7 : 5,
+                BiomeSystem.Current == BiomeId.VolcanicCrater ? 8 : 6,
                 DeckWidth * 0.42f, channelLen * 0.35f, 1.8f,
                 new Color(1f, 0.55f, 0.2f, 0.28f), false);
+
+            // Cracked ember crust strips so the pit reads as broken stone over coals.
+            for (int i = 0; i < 3; i++)
+            {
+                float z = channelStart + channelLen * ((i + 0.5f) / 3f);
+                float x = (i - 1) * (DeckWidth * 0.28f);
+                var crust = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                crust.name = "FireCrust";
+                crust.transform.SetParent(transform, false);
+                crust.transform.localPosition = new Vector3(x, ForestFloorY - 0.02f, z);
+                crust.transform.localRotation = Quaternion.Euler(0f, Random.Range(-25f, 25f), 0f);
+                crust.transform.localScale = new Vector3(Random.Range(0.7f, 1.3f), 0.12f, Random.Range(0.9f, 1.6f));
+                crust.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
+                StripCollider(crust);
+            }
 
             for (int i = 0; i < 5; i++)
             {
@@ -3298,6 +3313,33 @@ namespace TempleSprint
                     mist.GetComponent<Renderer>().sharedMaterial =
                         JunglePalette.Mat(new Color(0.35f, 0.4f, 0.45f, 0.35f), 0.05f);
                     StripCollider(mist);
+                }
+            }
+
+            // Ceiling drip strands — cave reads wet vs dry desert/volcano corridors.
+            if (Random.value < 0.65f)
+            {
+                int drips = Random.Range(2, 5);
+                for (int i = 0; i < drips; i++)
+                {
+                    float z = Length * Random.Range(0.15f, 0.85f);
+                    float x = Random.Range(-DeckWidth * 0.35f, DeckWidth * 0.35f);
+                    var drip = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                    drip.name = "CaveDrip";
+                    drip.transform.SetParent(transform, false);
+                    drip.transform.localPosition = new Vector3(x, 2.85f, z);
+                    drip.transform.localScale = new Vector3(0.04f, Random.Range(0.35f, 0.85f), 0.04f);
+                    drip.GetComponent<Renderer>().sharedMaterial =
+                        JunglePalette.Mat(new Color(0.45f, 0.65f, 0.75f, 0.55f), 0.7f, 0.05f);
+                    StripCollider(drip);
+
+                    var bead = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                    bead.name = "CaveDripBead";
+                    bead.transform.SetParent(drip.transform, false);
+                    bead.transform.localPosition = new Vector3(0f, -1.05f, 0f);
+                    bead.transform.localScale = new Vector3(1.8f, 0.55f, 1.8f);
+                    bead.GetComponent<Renderer>().sharedMaterial = JunglePalette.RiverWater;
+                    StripCollider(bead);
                 }
             }
         }

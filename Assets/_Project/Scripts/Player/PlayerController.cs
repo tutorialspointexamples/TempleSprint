@@ -2083,10 +2083,16 @@ namespace TempleSprint
                         Prim(PrimitiveType.Cube, "ScarfTail", new Vector3(0.12f, 1.25f, -0.28f), new Vector3(0.12f, 0.55f, 0.08f),
                             Color.Lerp(accent, Color.white, 0.15f), new Vector3(18f, 0f, 12f));
                     }
+                    Prim(PrimitiveType.Cube, "ShoulderWrap", new Vector3(-0.32f, 1.42f, 0.02f), new Vector3(0.28f, 0.16f, 0.32f),
+                        Color.Lerp(accent, new Color(0.55f, 0.4f, 0.22f), 0.4f));
                     Prim(PrimitiveType.Cube, "BootL", new Vector3(-0.18f, 0.12f, 0.05f), new Vector3(0.22f, 0.18f, 0.32f),
                         new Color(0.45f, 0.28f, 0.14f));
                     Prim(PrimitiveType.Cube, "BootR", new Vector3(0.18f, 0.12f, 0.05f), new Vector3(0.22f, 0.18f, 0.32f),
                         new Color(0.45f, 0.28f, 0.14f));
+                    Prim(PrimitiveType.Cube, "GaiterL", new Vector3(-0.18f, 0.32f, 0.02f), new Vector3(0.2f, 0.22f, 0.24f),
+                        new Color(0.62f, 0.48f, 0.28f));
+                    Prim(PrimitiveType.Cube, "GaiterR", new Vector3(0.18f, 0.32f, 0.02f), new Vector3(0.2f, 0.22f, 0.24f),
+                        new Color(0.62f, 0.48f, 0.28f));
                     break;
                 case "ice_wraith":
                     if (!capeEquipped)
@@ -2095,6 +2101,13 @@ namespace TempleSprint
                             Color.Lerp(accent, Color.white, 0.35f));
                     }
                     Prim(PrimitiveType.Sphere, "FrostOrb", new Vector3(0.38f, 1.35f, 0.05f), Vector3.one * 0.18f, accent);
+                    if (!CosmeticRoster.HasEquippedHat())
+                        Prim(PrimitiveType.Cube, "IceCrest", new Vector3(0f, 1.82f, -0.02f), new Vector3(0.28f, 0.22f, 0.12f),
+                            Color.Lerp(accent, Color.white, 0.5f), new Vector3(-12f, 0f, 0f));
+                    Prim(PrimitiveType.Cube, "FrostBootL", new Vector3(-0.18f, 0.1f, 0.06f), new Vector3(0.24f, 0.16f, 0.36f),
+                        new Color(0.65f, 0.8f, 0.92f));
+                    Prim(PrimitiveType.Cube, "FrostBootR", new Vector3(0.18f, 0.1f, 0.06f), new Vector3(0.24f, 0.16f, 0.36f),
+                        new Color(0.65f, 0.8f, 0.92f));
                     break;
                 case "jungle_ace":
                     Prim(PrimitiveType.Cube, "ArmWrapL", new Vector3(-0.42f, 1.15f, 0f), new Vector3(0.14f, 0.35f, 0.14f),
@@ -2103,6 +2116,12 @@ namespace TempleSprint
                         new Color(0.35f, 0.5f, 0.28f));
                     if (!CosmeticRoster.HasEquippedHat())
                         Prim(PrimitiveType.Cube, "LeafBand", new Vector3(0f, 1.72f, 0f), new Vector3(0.42f, 0.1f, 0.42f), accent);
+                    Prim(PrimitiveType.Cube, "VineBelt", new Vector3(0f, 0.92f, 0.02f), new Vector3(0.58f, 0.1f, 0.28f),
+                        new Color(0.28f, 0.42f, 0.2f));
+                    Prim(PrimitiveType.Sphere, "AnkleShellL", new Vector3(-0.18f, 0.22f, 0.04f), Vector3.one * 0.16f,
+                        new Color(0.4f, 0.55f, 0.3f));
+                    Prim(PrimitiveType.Sphere, "AnkleShellR", new Vector3(0.18f, 0.22f, 0.04f), Vector3.one * 0.16f,
+                        new Color(0.4f, 0.55f, 0.3f));
                     break;
                 case "cave_miner":
                     Prim(PrimitiveType.Cube, "Pack", new Vector3(0f, 1.2f, -0.32f), new Vector3(0.55f, 0.55f, 0.28f),
@@ -2111,6 +2130,17 @@ namespace TempleSprint
                         new Color(0.45f, 0.42f, 0.38f), new Vector3(0f, 0f, 35f));
                     Prim(PrimitiveType.Cube, "Lamp", new Vector3(-0.35f, 1.45f, 0.15f), new Vector3(0.16f, 0.2f, 0.16f),
                         new Color(1f, 0.85f, 0.4f));
+                    if (!CosmeticRoster.HasEquippedHat())
+                    {
+                        Prim(PrimitiveType.Cylinder, "HardHat", new Vector3(0f, 1.78f, 0f), new Vector3(0.42f, 0.14f, 0.42f),
+                            new Color(0.85f, 0.7f, 0.25f));
+                        Prim(PrimitiveType.Cube, "HatBrim", new Vector3(0f, 1.7f, 0.05f), new Vector3(0.52f, 0.05f, 0.52f),
+                            new Color(0.75f, 0.6f, 0.2f));
+                    }
+                    Prim(PrimitiveType.Cube, "KneePadL", new Vector3(-0.18f, 0.48f, 0.08f), new Vector3(0.2f, 0.16f, 0.18f),
+                        new Color(0.35f, 0.3f, 0.25f));
+                    Prim(PrimitiveType.Cube, "KneePadR", new Vector3(0.18f, 0.48f, 0.08f), new Vector3(0.2f, 0.16f, 0.18f),
+                        new Color(0.35f, 0.3f, 0.25f));
                     break;
                 case "ember_scout":
                     Prim(PrimitiveType.Cube, "Sash", new Vector3(0f, 1.05f, 0.05f), new Vector3(0.65f, 0.14f, 0.35f), accent);
@@ -2120,12 +2150,23 @@ namespace TempleSprint
                         new Color(0.25f, 0.15f, 0.12f));
                     Prim(PrimitiveType.Cube, "CuffR", new Vector3(0.38f, 0.55f, 0.05f), new Vector3(0.18f, 0.12f, 0.22f),
                         new Color(0.25f, 0.15f, 0.12f));
+                    if (!capeEquipped)
+                        Prim(PrimitiveType.Cube, "AshShred", new Vector3(0.08f, 1.0f, -0.3f), new Vector3(0.18f, 0.7f, 0.08f),
+                            new Color(0.35f, 0.16f, 0.1f), new Vector3(12f, 0f, -8f));
+                    Prim(PrimitiveType.Cube, "EmberBootL", new Vector3(-0.18f, 0.1f, 0.05f), new Vector3(0.22f, 0.16f, 0.3f),
+                        new Color(0.2f, 0.1f, 0.08f));
+                    Prim(PrimitiveType.Cube, "EmberBootR", new Vector3(0.18f, 0.1f, 0.05f), new Vector3(0.22f, 0.16f, 0.3f),
+                        new Color(0.2f, 0.1f, 0.08f));
                     break;
                 default:
                     if (!CosmeticRoster.HasEquippedHat())
                         Prim(PrimitiveType.Cube, "Bandana", new Vector3(0f, 1.68f, 0.05f), new Vector3(0.38f, 0.1f, 0.38f), accent);
                     Prim(PrimitiveType.Cube, "Satchel", new Vector3(0.32f, 1.05f, -0.05f), new Vector3(0.22f, 0.28f, 0.18f),
                         new Color(0.42f, 0.3f, 0.18f));
+                    Prim(PrimitiveType.Cube, "TrailBootL", new Vector3(-0.18f, 0.1f, 0.04f), new Vector3(0.2f, 0.14f, 0.28f),
+                        new Color(0.3f, 0.22f, 0.14f));
+                    Prim(PrimitiveType.Cube, "TrailBootR", new Vector3(0.18f, 0.1f, 0.04f), new Vector3(0.2f, 0.14f, 0.28f),
+                        new Color(0.3f, 0.22f, 0.14f));
                     break;
             }
         }
