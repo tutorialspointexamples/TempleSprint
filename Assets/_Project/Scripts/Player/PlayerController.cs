@@ -141,6 +141,7 @@ namespace TempleSprint
         public void AdvanceAfterRevive(float meters)
         {
             ClearTraversal();
+            ClearOutcomePose();
             _deathFalling = false;
             _deathFallVel = 0f;
             PathDistance += Mathf.Max(0f, meters);
