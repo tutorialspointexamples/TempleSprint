@@ -41,21 +41,121 @@ namespace TempleSprint
     public static class GhostRunService
     {
         [Serializable]
-        class GhostData { public float[] samples; public int score; }
+        class GhostData
+        {
+            public float[] samples; // legacy distance-only markers
+            public float[] times;
+            public float[] distances;
+            public int[] lanes;
+            public int score;
+        }
 
-        public static void SaveSample(List<float> samples, int score)
+        static GhostData _cached;
+        static bool _cacheLoaded;
+
+        public static void SaveTimedSample(List<float> times, List<float> distances, List<int> lanes, int score)
         {
             var meta = MetaProgress.Ensure();
             if (score < meta.Data.bestScore && !string.IsNullOrEmpty(meta.Data.ghostRunJson)) return;
-            meta.Data.ghostRunJson = JsonUtility.ToJson(new GhostData { samples = samples.ToArray(), score = score });
+            var data = new GhostData
+            {
+                times = times.ToArray(),
+                distances = distances.ToArray(),
+                lanes = lanes.ToArray(),
+                samples = distances.ToArray(),
+                score = score
+            };
+            meta.Data.ghostRunJson = JsonUtility.ToJson(data);
             meta.Save();
+            _cached = data;
+            _cacheLoaded = true;
+        }
+
+        /// <summary>Legacy distance-only save (kept for older call sites).</summary>
+        public static void SaveSample(List<float> samples, int score)
+        {
+            var times = new List<float>(samples.Count);
+            var lanes = new List<int>(samples.Count);
+            for (int i = 0; i < samples.Count; i++)
+            {
+                times.Add(i * 0.35f);
+                lanes.Add(1);
+            }
+            SaveTimedSample(times, samples, lanes, score);
         }
 
         public static bool HasGhost => !string.IsNullOrEmpty(MetaProgress.Ensure().Data.ghostRunJson);
 
+        public static bool TryLoadGhost(out float[] times, out float[] distances, out int[] lanes)
+        {
+            times = null;
+            distances = null;
+            lanes = null;
+            if (!HasGhost) return false;
+            if (!_cacheLoaded || _cached == null)
+            {
+                try { _cached = JsonUtility.FromJson<GhostData>(MetaProgress.Ensure().Data.ghostRunJson); }
+                catch { return false; }
+                _cacheLoaded = true;
+            }
+            if (_cached == null) return false;
+
+            if (_cached.times != null && _cached.distances != null && _cached.times.Length > 1
+                && _cached.times.Length == _cached.distances.Length)
+            {
+                times = _cached.times;
+                distances = _cached.distances;
+                lanes = _cached.lanes != null && _cached.lanes.Length == _cached.times.Length
+                    ? _cached.lanes
+                    : new int[_cached.times.Length];
+                return true;
+            }
+
+            // Upgrade legacy distance markers into a paced ghost.
+            if (_cached.samples == null || _cached.samples.Length < 2) return false;
+            times = new float[_cached.samples.Length];
+            distances = _cached.samples;
+            lanes = new int[_cached.samples.Length];
+            for (int i = 0; i < times.Length; i++)
+            {
+                times[i] = i * 0.35f;
+                lanes[i] = 1;
+            }
+            return true;
+        }
+
+        public static void SampleAt(float elapsed, out float distance, out int lane)
+        {
+            distance = 0f;
+            lane = 1;
+            if (!TryLoadGhost(out var times, out var distances, out var lanes)) return;
+            if (elapsed <= times[0])
+            {
+                distance = distances[0];
+                lane = lanes[0];
+                return;
+            }
+            if (elapsed >= times[times.Length - 1])
+            {
+                distance = distances[distances.Length - 1];
+                lane = lanes[lanes.Length - 1];
+                return;
+            }
+            for (int i = 1; i < times.Length; i++)
+            {
+                if (elapsed > times[i]) continue;
+                float t0 = times[i - 1];
+                float t1 = times[i];
+                float u = Mathf.InverseLerp(t0, t1, elapsed);
+                distance = Mathf.Lerp(distances[i - 1], distances[i], u);
+                lane = u < 0.5f ? lanes[i - 1] : lanes[i];
+                return;
+            }
+        }
+
         public static string Status() => HasGhost
-            ? "Ghost Run ready — race your best distance markers next run."
-            : "Complete a run to record a ghost.";
+            ? "Ghost rival ready — race your best timed run."
+            : "Complete a run to record a ghost rival.";
     }
 
     public static class ShopService

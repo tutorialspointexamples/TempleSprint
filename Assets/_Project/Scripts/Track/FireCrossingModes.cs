@@ -9,6 +9,47 @@ namespace TempleSprint
         WaterDunk = 2
     }
 
+    /// <summary>Procedural flame scale pulse for fire pit columns.</summary>
+    public class FlameFlicker : MonoBehaviour
+    {
+        float _phase;
+        float _speed;
+        Vector3[] _childBaseScales;
+        Vector3[] _childBasePos;
+
+        public void Configure(float height)
+        {
+            _phase = Random.value * Mathf.PI * 2f;
+            _speed = Random.Range(7f, 12f);
+            int n = transform.childCount;
+            _childBaseScales = new Vector3[n];
+            _childBasePos = new Vector3[n];
+            for (int i = 0; i < n; i++)
+            {
+                var c = transform.GetChild(i);
+                _childBaseScales[i] = c.localScale;
+                _childBasePos[i] = c.localPosition;
+            }
+            // height reserved for future ash rise; keep signature stable for callers
+            _ = height;
+        }
+
+        void Update()
+        {
+            if (_childBaseScales == null) return;
+            float pulse = 0.86f + Mathf.Sin(Time.time * _speed + _phase) * 0.16f
+                          + Mathf.Sin(Time.time * (_speed * 1.7f) + _phase) * 0.07f;
+            for (int i = 0; i < transform.childCount && i < _childBaseScales.Length; i++)
+            {
+                var c = transform.GetChild(i);
+                var bs = _childBaseScales[i];
+                c.localScale = new Vector3(bs.x * pulse, bs.y * (0.92f + pulse * 0.12f), bs.z * pulse);
+                var bp = _childBasePos[i];
+                c.localPosition = bp + Vector3.up * (Mathf.Sin(Time.time * _speed + _phase + i) * 0.06f);
+            }
+        }
+    }
+
     /// <summary>Per-tile fire crossing metadata; never destroyed while IsOccupied.</summary>
     public class FireCrossingMarker : MonoBehaviour
     {
