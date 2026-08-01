@@ -25,7 +25,7 @@ namespace TempleSprint
         public static Material Player => _player ??= Mat(new Color(0.78f, 0.58f, 0.35f));
         public static Material Guardian => _guardian ??= Mat(new Color(0.12f, 0.08f, 0.1f), 0.4f);
         public static Material Accent => _accent ??= Mat(new Color(0.22f, 0.42f, 0.36f));
-        // Guy Dangerous cartoon palette — saturated so he reads on the stone bridge
+        // Cartoon explorer palette — saturated so the runner reads on the stone bridge
         public static Material Skin => _skin ??= Mat(new Color(0.92f, 0.72f, 0.55f), 0.5f);
         public static Material Shirt => _shirt ??= Mat(new Color(0.92f, 0.82f, 0.45f), 0.4f); // pale yellow/tan
         public static Material Pants => _pants ??= Mat(new Color(0.18f, 0.38f, 0.18f), 0.35f); // forest green
@@ -146,6 +146,10 @@ namespace TempleSprint
 
         Vector2 _riverOff;
         Vector2 _fallOff;
+        static Color _baseRiver;
+        static Color _baseFall;
+        static Color _baseWater;
+        static bool _baseCached;
 
         public static WaterFlow Ensure()
         {
@@ -159,9 +163,9 @@ namespace TempleSprint
         void Update()
         {
             float dt = Time.deltaTime;
-            _riverOff.x += dt * 0.08f;
-            _riverOff.y += dt * 0.22f;
-            _fallOff.y -= dt * 1.4f;
+            _riverOff.x += dt * 0.14f;
+            _riverOff.y += dt * 0.38f;
+            _fallOff.y -= dt * 1.85f;
 
             ApplyOffset(JunglePalette.RiverWater, _riverOff);
             ApplyOffset(JunglePalette.FallingWater, _fallOff);
@@ -173,6 +177,62 @@ namespace TempleSprint
             if (m == null) return;
             m.mainTextureOffset = off;
             if (m.HasProperty("_BaseMap")) m.SetTextureOffset("_BaseMap", off);
+        }
+
+        /// <summary>Retint shared water materials so ice/mud/volcanic channels read as distinct biomes.</summary>
+        public static void ApplyBiomeTint(BiomeId biome)
+        {
+            CacheBases();
+            Color river = _baseRiver;
+            Color fall = _baseFall;
+            Color pool = _baseWater;
+            switch (biome)
+            {
+                case BiomeId.IceCaverns:
+                    river = new Color(0.55f, 0.78f, 0.92f);
+                    fall = new Color(0.75f, 0.92f, 1f);
+                    pool = new Color(0.35f, 0.55f, 0.7f);
+                    break;
+                case BiomeId.DesertTombs:
+                    river = new Color(0.35f, 0.48f, 0.42f);
+                    fall = new Color(0.55f, 0.7f, 0.6f);
+                    pool = new Color(0.22f, 0.32f, 0.28f);
+                    break;
+                case BiomeId.CaveMines:
+                    river = new Color(0.18f, 0.32f, 0.38f);
+                    fall = new Color(0.4f, 0.55f, 0.62f);
+                    pool = new Color(0.12f, 0.2f, 0.24f);
+                    break;
+                case BiomeId.VolcanicCrater:
+                    river = new Color(0.35f, 0.28f, 0.22f);
+                    fall = new Color(0.55f, 0.4f, 0.28f);
+                    pool = new Color(0.22f, 0.16f, 0.12f);
+                    break;
+                case BiomeId.NightSummit:
+                    river = new Color(0.2f, 0.35f, 0.55f);
+                    fall = new Color(0.45f, 0.65f, 0.85f);
+                    pool = new Color(0.12f, 0.2f, 0.35f);
+                    break;
+            }
+            SetColor(JunglePalette.RiverWater, river);
+            SetColor(JunglePalette.FallingWater, fall);
+            SetColor(JunglePalette.Water, pool);
+        }
+
+        static void CacheBases()
+        {
+            if (_baseCached) return;
+            _baseRiver = JunglePalette.RiverWater != null ? JunglePalette.RiverWater.color : new Color(0.22f, 0.55f, 0.62f);
+            _baseFall = JunglePalette.FallingWater != null ? JunglePalette.FallingWater.color : new Color(0.62f, 0.85f, 0.95f);
+            _baseWater = JunglePalette.Water != null ? JunglePalette.Water.color : new Color(0.12f, 0.28f, 0.22f);
+            _baseCached = true;
+        }
+
+        static void SetColor(Material m, Color c)
+        {
+            if (m == null) return;
+            m.color = c;
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
         }
 
         void OnDestroy()
