@@ -18,6 +18,19 @@ namespace TempleSprint
         int _tilesSinceHazard;
         int _tilesSinceRiver;
         int _tilesSinceFire;
+        int _tilesSinceZipline;
+        int _tilesSinceMineCart;
+        int _tilesSinceIceSurf;
+        int _tilesSinceWallRun;
+        int _tilesSinceLedgeGrab;
+        int _tilesSinceTreeBridge;
+        int _tilesSinceCanopyRope;
+        int _tilesSinceWaterfallPlunge;
+        int _tilesSinceWaterSlide;
+        int _tilesSinceTempleHall;
+        int _tilesSinceLavaRiver;
+        int _tilesSinceRuinFork;
+        int _tilesSinceBiomeTransition;
         int _defaultBranchFlip;
         Transform _poolRoot;
         Transform _activeRoot;
@@ -38,6 +51,19 @@ namespace TempleSprint
         public int JunctionsResolvedThisRun { get; private set; }
         public int RiversSpawnedThisRun { get; private set; }
         public int FiresSpawnedThisRun { get; private set; }
+        public int ZiplinesSpawnedThisRun { get; private set; }
+        public int MineCartsSpawnedThisRun { get; private set; }
+        public int IceSurfsSpawnedThisRun { get; private set; }
+        public int WallRunsSpawnedThisRun { get; private set; }
+        public int LedgeGrabsSpawnedThisRun { get; private set; }
+        public int TreeBridgesSpawnedThisRun { get; private set; }
+        public int CanopyRopesSpawnedThisRun { get; private set; }
+        public int WaterfallPlungesSpawnedThisRun { get; private set; }
+        public int WaterSlidesSpawnedThisRun { get; private set; }
+        public int TempleHallsSpawnedThisRun { get; private set; }
+        public int LavaRiversSpawnedThisRun { get; private set; }
+        public int RuinForksSpawnedThisRun { get; private set; }
+        public int BiomeTransitionsSpawnedThisRun { get; private set; }
 
         void Awake()
         {
@@ -69,6 +95,19 @@ namespace TempleSprint
             _tilesSinceHazard = 99;
             _tilesSinceRiver = 99;
             _tilesSinceFire = 99;
+            _tilesSinceZipline = 99;
+            _tilesSinceMineCart = 99;
+            _tilesSinceIceSurf = 99;
+            _tilesSinceWallRun = 99;
+            _tilesSinceLedgeGrab = 99;
+            _tilesSinceTreeBridge = 99;
+            _tilesSinceCanopyRope = 99;
+            _tilesSinceWaterfallPlunge = 99;
+            _tilesSinceWaterSlide = 99;
+            _tilesSinceTempleHall = 99;
+            _tilesSinceLavaRiver = 99;
+            _tilesSinceRuinFork = 99;
+            _tilesSinceBiomeTransition = 0;
             _awaitingJunctionChoice = false;
             _pendingJunction = null;
             TurnsSpawnedThisRun = 0;
@@ -76,6 +115,19 @@ namespace TempleSprint
             JunctionsResolvedThisRun = 0;
             RiversSpawnedThisRun = 0;
             FiresSpawnedThisRun = 0;
+            ZiplinesSpawnedThisRun = 0;
+            MineCartsSpawnedThisRun = 0;
+            IceSurfsSpawnedThisRun = 0;
+            WallRunsSpawnedThisRun = 0;
+            LedgeGrabsSpawnedThisRun = 0;
+            TreeBridgesSpawnedThisRun = 0;
+            CanopyRopesSpawnedThisRun = 0;
+            WaterfallPlungesSpawnedThisRun = 0;
+            WaterSlidesSpawnedThisRun = 0;
+            TempleHallsSpawnedThisRun = 0;
+            LavaRiversSpawnedThisRun = 0;
+            RuinForksSpawnedThisRun = 0;
+            BiomeTransitionsSpawnedThisRun = 0;
             _lastRiverMode = RiverCrossingMode.Jump;
             _lastFireMode = FireCrossingMode.Jump;
             for (int i = 0; i < preloadCount; i++)
@@ -150,6 +202,8 @@ namespace TempleSprint
                     if (marker != null && marker.IsOccupied) continue;
                     var fireMarker = tile.GetComponentInChildren<FireCrossingMarker>(true);
                     if (fireMarker != null && fireMarker.IsOccupied) continue;
+                    var special = tile.GetComponentInChildren<SpecialStageMarker>(true);
+                    if (special != null && special.IsOccupied) continue;
                     _active.RemoveAt(i);
                     tile.Recycle();
                     tile.transform.SetParent(_poolRoot);
@@ -203,6 +257,112 @@ namespace TempleSprint
             else
                 _tilesSinceFire++;
 
+            if (kind == TileKind.Zipline)
+            {
+                _tilesSinceZipline = 0;
+                ZiplinesSpawnedThisRun++;
+            }
+            else
+                _tilesSinceZipline++;
+
+            if (kind == TileKind.MineCart)
+            {
+                _tilesSinceMineCart = 0;
+                MineCartsSpawnedThisRun++;
+            }
+            else
+                _tilesSinceMineCart++;
+
+            if (kind == TileKind.IceSurf)
+            {
+                _tilesSinceIceSurf = 0;
+                IceSurfsSpawnedThisRun++;
+            }
+            else
+                _tilesSinceIceSurf++;
+
+            if (kind == TileKind.WallRun)
+            {
+                _tilesSinceWallRun = 0;
+                WallRunsSpawnedThisRun++;
+            }
+            else
+                _tilesSinceWallRun++;
+
+            if (kind == TileKind.LedgeGrab)
+            {
+                _tilesSinceLedgeGrab = 0;
+                LedgeGrabsSpawnedThisRun++;
+            }
+            else
+                _tilesSinceLedgeGrab++;
+
+            if (kind == TileKind.TreeBridge)
+            {
+                _tilesSinceTreeBridge = 0;
+                TreeBridgesSpawnedThisRun++;
+            }
+            else
+                _tilesSinceTreeBridge++;
+
+            if (kind == TileKind.CanopyRope)
+            {
+                _tilesSinceCanopyRope = 0;
+                CanopyRopesSpawnedThisRun++;
+            }
+            else
+                _tilesSinceCanopyRope++;
+
+            if (kind == TileKind.WaterfallPlunge)
+            {
+                _tilesSinceWaterfallPlunge = 0;
+                WaterfallPlungesSpawnedThisRun++;
+            }
+            else
+                _tilesSinceWaterfallPlunge++;
+
+            if (kind == TileKind.WaterSlide)
+            {
+                _tilesSinceWaterSlide = 0;
+                WaterSlidesSpawnedThisRun++;
+            }
+            else
+                _tilesSinceWaterSlide++;
+
+            if (kind == TileKind.TempleHall)
+            {
+                _tilesSinceTempleHall = 0;
+                TempleHallsSpawnedThisRun++;
+            }
+            else
+                _tilesSinceTempleHall++;
+
+            if (kind == TileKind.LavaRiver)
+            {
+                _tilesSinceLavaRiver = 0;
+                LavaRiversSpawnedThisRun++;
+            }
+            else
+                _tilesSinceLavaRiver++;
+
+            if (kind == TileKind.RuinFork)
+            {
+                _tilesSinceRuinFork = 0;
+                RuinForksSpawnedThisRun++;
+            }
+            else
+                _tilesSinceRuinFork++;
+
+            if (kind == TileKind.BiomeTransitionTunnel)
+            {
+                _tilesSinceBiomeTransition = 0;
+                BiomeTransitionsSpawnedThisRun++;
+                if (!BiomeSystem.TransitionActive && BiomeSystem.HasUnlockedAlternate)
+                    BiomeSystem.BeginRunTransition(BiomeSystem.PeekNextUnlockedBiome());
+            }
+            else
+                _tilesSinceBiomeTransition++;
+
             if (tile.IsJunction && !tile.JunctionResolved)
             {
                 _awaitingJunctionChoice = true;
@@ -216,7 +376,8 @@ namespace TempleSprint
         /// <summary>Turns and hazards never sit next to each other.</summary>
         TileKind EnforceTurnHazardBuffer(TileKind kind)
         {
-            bool isTurn = kind == TileKind.TurnLeft || kind == TileKind.TurnRight || kind == TileKind.TJunction;
+            bool isTurn = kind == TileKind.TurnLeft || kind == TileKind.TurnRight
+                          || kind == TileKind.TJunction || kind == TileKind.RuinFork;
             bool isHazard = TileWeightTable.IsHazardous(kind);
 
             // Hazard immediately after a turn/junction → safe filler.
@@ -232,32 +393,37 @@ namespace TempleSprint
 
         public RiverCrossingMode PickRiverMode(RunDifficulty difficulty)
         {
-            float boat, rope, jump;
+            float boat, rope, jump, swim;
+            float swimBias = BiomeSystem.SwimBias;
             switch (difficulty)
             {
                 case RunDifficulty.Easy:
-                    boat = 0.45f; rope = 0.20f; jump = 0.35f;
+                    boat = 0.35f; rope = 0.18f; jump = 0.27f; swim = 0.20f * swimBias;
                     break;
                 case RunDifficulty.Hard:
-                    boat = 0.30f; rope = 0.45f; jump = 0.25f;
+                    boat = 0.22f; rope = 0.32f; jump = 0.18f; swim = 0.28f * swimBias;
                     break;
                 default:
-                    boat = 0.40f; rope = 0.35f; jump = 0.25f;
+                    boat = 0.30f; rope = 0.26f; jump = 0.20f; swim = 0.24f * swimBias;
                     break;
             }
 
-            // Soft anti-repeat so modes feel varied across a run.
+            float total = boat + rope + jump + swim;
             RiverCrossingMode mode;
-            float r = Random.value;
+            float r = Random.value * total;
             if (r < boat) mode = RiverCrossingMode.Boat;
             else if (r < boat + rope) mode = RiverCrossingMode.Rope;
-            else mode = RiverCrossingMode.Jump;
+            else if (r < boat + rope + jump) mode = RiverCrossingMode.Jump;
+            else mode = RiverCrossingMode.Swim;
 
             if (mode == _lastRiverMode && Random.value < 0.55f)
             {
-                if (mode == RiverCrossingMode.Boat) mode = Random.value < 0.5f ? RiverCrossingMode.Rope : RiverCrossingMode.Jump;
-                else if (mode == RiverCrossingMode.Rope) mode = Random.value < 0.5f ? RiverCrossingMode.Boat : RiverCrossingMode.Jump;
-                else mode = Random.value < 0.5f ? RiverCrossingMode.Boat : RiverCrossingMode.Rope;
+                var alts = new[]
+                {
+                    RiverCrossingMode.Boat, RiverCrossingMode.Rope,
+                    RiverCrossingMode.Jump, RiverCrossingMode.Swim
+                };
+                mode = alts[Random.Range(0, alts.Length)];
             }
             _lastRiverMode = mode;
             return mode;
@@ -377,30 +543,124 @@ namespace TempleSprint
                 if (index == 13) return TileKind.FireCrossing;
                 if (index == 14) return TileKind.Straight;
                 if (index == 15) return TileKind.RiverCrossing;
-                if (index < 16) return TileKind.Straight;
+                if (index == 16) return TileKind.Straight;
+                if (index == 17) return TileKind.Zipline;
+                if (index == 18) return TileKind.Straight;
+                if (index == 19) return TileKind.MineCart;
+                if (index == 20) return TileKind.Straight;
+                if (index == 21) return TileKind.IceSurf;
+                if (index == 22) return TileKind.Straight;
+                if (index == 23) return TileKind.WallRun;
+                if (index == 24) return TileKind.Straight;
+                if (index == 25) return TileKind.LedgeGrab;
+                if (index == 26) return TileKind.Straight;
+                if (index == 27) return TileKind.TreeBridge;
+                if (index == 28) return TileKind.Straight;
+                if (index == 29) return TileKind.CanopyRope;
+                if (index == 30) return TileKind.Straight;
+                if (index == 31) return TileKind.WaterfallPlunge;
+                if (index == 32) return TileKind.Straight;
+                if (index == 33) return TileKind.WaterSlide;
+                if (index == 34) return TileKind.Straight;
+                if (index == 35) return TileKind.TempleHall;
+                if (index == 36) return TileKind.Straight;
+                if (index == 37) return TileKind.RuinFork;
+                if (index == 38) return TileKind.Straight;
+                if (index == 39) return TileKind.LavaRiver;
+                if (index == 40) return TileKind.Straight;
+                if (index == 41 && BiomeSystem.HasUnlockedAlternate) return TileKind.BiomeTransitionTunnel;
+                if (index < 42) return TileKind.Straight;
             }
 
             // Mutual one-tile buffer: turns and hazards never adjacent.
             bool allowTurn = _tilesSinceTurn >= profile.TurnCooldown && index >= 4 && _tilesSinceHazard >= 1;
             bool allowHazard = _tilesSinceHazard >= profile.HazardTileCooldown && _tilesSinceTurn >= 1;
 
-            // Soft guarantees: river ~8-12 tiles, fire ~9-14 tiles (independent cadences).
-            int riverEvery = _difficulty == RunDifficulty.Easy ? 12
-                : _difficulty == RunDifficulty.Hard ? 8 : 10;
-            int fireEvery = _difficulty == RunDifficulty.Easy ? 14
-                : _difficulty == RunDifficulty.Hard ? 9 : 11;
+            // Soft guarantees for signature stages (biome-biased spacing).
+            int riverEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 12
+                : _difficulty == RunDifficulty.Hard ? 8 : 10) / Mathf.Max(0.75f, BiomeSystem.RiverBias));
+            int fireEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 14
+                : _difficulty == RunDifficulty.Hard ? 9 : 11) / Mathf.Max(0.75f, BiomeSystem.FireBias));
+            int zipEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 16
+                : _difficulty == RunDifficulty.Hard ? 11 : 13) / Mathf.Max(0.75f, BiomeSystem.ZiplineBias));
+            int cartEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 15
+                : _difficulty == RunDifficulty.Hard ? 10 : 12) / Mathf.Max(0.75f, BiomeSystem.MineCartBias));
+            int iceEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 17
+                : _difficulty == RunDifficulty.Hard ? 11 : 14) / Mathf.Max(0.75f, BiomeSystem.IceSurfBias));
+            int wallEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 18
+                : _difficulty == RunDifficulty.Hard ? 12 : 15) / Mathf.Max(0.75f, BiomeSystem.WallRunBias));
+            int ledgeEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 19
+                : _difficulty == RunDifficulty.Hard ? 12 : 16) / Mathf.Max(0.75f, BiomeSystem.LedgeGrabBias));
+            int treeEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 16
+                : _difficulty == RunDifficulty.Hard ? 11 : 13) / Mathf.Max(0.75f, BiomeSystem.TreeBridgeBias));
+            int canopyEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 17
+                : _difficulty == RunDifficulty.Hard ? 12 : 14) / Mathf.Max(0.75f, BiomeSystem.CanopyRopeBias));
+            int fallEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 18
+                : _difficulty == RunDifficulty.Hard ? 12 : 15) / Mathf.Max(0.75f, BiomeSystem.WaterfallPlungeBias));
+            int slideEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 16
+                : _difficulty == RunDifficulty.Hard ? 11 : 13) / Mathf.Max(0.75f, BiomeSystem.WaterSlideBias));
+            int hallEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 14
+                : _difficulty == RunDifficulty.Hard ? 9 : 11) / Mathf.Max(0.75f, BiomeSystem.TempleHallBias));
+            int lavaEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 16
+                : _difficulty == RunDifficulty.Hard ? 10 : 13) / Mathf.Max(0.75f, BiomeSystem.LavaRiverBias));
+            int forkEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 15
+                : _difficulty == RunDifficulty.Hard ? 10 : 12) / Mathf.Max(0.75f, BiomeSystem.RuinForkBias));
+            int biomeEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 42
+                : _difficulty == RunDifficulty.Hard ? 30 : 36)
+                / Mathf.Max(0.85f, Mathf.Max(0.01f, BiomeSystem.BiomeTransitionBias)));
+
             bool riverDue = allowHazard && _tilesSinceRiver >= riverEvery && index >= 5;
             bool fireDue = allowHazard && _tilesSinceFire >= fireEvery && index >= 5;
-            if (riverDue && fireDue)
-                return Random.value < 0.5f ? TileKind.RiverCrossing : TileKind.FireCrossing;
-            if (riverDue) return TileKind.RiverCrossing;
-            if (fireDue) return TileKind.FireCrossing;
+            bool lavaDue = allowHazard && _tilesSinceLavaRiver >= lavaEvery && index >= 6;
+            bool zipDue = allowHazard && _tilesSinceZipline >= zipEvery && index >= 6;
+            bool cartDue = allowHazard && _tilesSinceMineCart >= cartEvery && index >= 6;
+            bool iceDue = allowHazard && _tilesSinceIceSurf >= iceEvery && index >= 6;
+            bool wallDue = allowHazard && _tilesSinceWallRun >= wallEvery && index >= 7;
+            bool ledgeDue = allowHazard && _tilesSinceLedgeGrab >= ledgeEvery && index >= 7;
+            bool treeDue = allowHazard && _tilesSinceTreeBridge >= treeEvery && index >= 7;
+            bool canopyDue = allowHazard && _tilesSinceCanopyRope >= canopyEvery && index >= 7;
+            bool fallDue = allowHazard && _tilesSinceWaterfallPlunge >= fallEvery && index >= 7;
+            bool slideDue = allowHazard && _tilesSinceWaterSlide >= slideEvery && index >= 7;
+            bool hallDue = allowHazard && _tilesSinceTempleHall >= hallEvery && index >= 6;
+            bool forkDue = allowTurn && _tilesSinceRuinFork >= forkEvery && index >= 7;
+            bool biomeDue = allowHazard && BiomeSystem.HasUnlockedAlternate && !BiomeSystem.TransitionActive
+                            && _tilesSinceBiomeTransition >= biomeEvery && index >= 18;
+
+            // Prefer the most overdue special stage when several are due.
+            if (riverDue || fireDue || lavaDue || zipDue || cartDue || iceDue || wallDue || ledgeDue || treeDue
+                || canopyDue || fallDue || slideDue || hallDue || forkDue || biomeDue)
+            {
+                float best = -1f;
+                TileKind pick = TileKind.Straight;
+                void Consider(bool due, int since, int every, TileKind kind)
+                {
+                    if (!due) return;
+                    float overdue = since / (float)Mathf.Max(1, every);
+                    if (overdue > best) { best = overdue; pick = kind; }
+                }
+                Consider(riverDue, _tilesSinceRiver, riverEvery, TileKind.RiverCrossing);
+                Consider(fireDue, _tilesSinceFire, fireEvery, TileKind.FireCrossing);
+                Consider(lavaDue, _tilesSinceLavaRiver, lavaEvery, TileKind.LavaRiver);
+                Consider(zipDue, _tilesSinceZipline, zipEvery, TileKind.Zipline);
+                Consider(cartDue, _tilesSinceMineCart, cartEvery, TileKind.MineCart);
+                Consider(iceDue, _tilesSinceIceSurf, iceEvery, TileKind.IceSurf);
+                Consider(wallDue, _tilesSinceWallRun, wallEvery, TileKind.WallRun);
+                Consider(ledgeDue, _tilesSinceLedgeGrab, ledgeEvery, TileKind.LedgeGrab);
+                Consider(treeDue, _tilesSinceTreeBridge, treeEvery, TileKind.TreeBridge);
+                Consider(canopyDue, _tilesSinceCanopyRope, canopyEvery, TileKind.CanopyRope);
+                Consider(fallDue, _tilesSinceWaterfallPlunge, fallEvery, TileKind.WaterfallPlunge);
+                Consider(slideDue, _tilesSinceWaterSlide, slideEvery, TileKind.WaterSlide);
+                Consider(hallDue, _tilesSinceTempleHall, hallEvery, TileKind.TempleHall);
+                Consider(forkDue, _tilesSinceRuinFork, forkEvery, TileKind.RuinFork);
+                Consider(biomeDue, _tilesSinceBiomeTransition, biomeEvery, TileKind.BiomeTransitionTunnel);
+                if (pick != TileKind.Straight) return pick;
+            }
 
             // Early route interest, still respecting cooldowns + adjacency buffer
             if (allowTurn && index == 4 + profile.TurnCooldown)
                 return Random.value < 0.5f ? TileKind.TurnLeft : TileKind.TurnRight;
             if (allowTurn && index == 8 + profile.TurnCooldown)
-                return TileKind.TJunction;
+                return Random.value < 0.45f * BiomeSystem.RuinForkBias ? TileKind.RuinFork : TileKind.TJunction;
 
             float obstacleBias = DifficultyDirector.Instance != null ? DifficultyDirector.Instance.ObstacleChance : 0.3f;
             int tier = DifficultyDirector.Instance != null ? DifficultyDirector.Instance.DifficultyTier : 0;

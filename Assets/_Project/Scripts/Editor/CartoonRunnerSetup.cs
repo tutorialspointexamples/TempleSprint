@@ -258,8 +258,10 @@ namespace TempleSprint.EditorTools
             runState.motion = run;
             var jumpState = sm.AddState("Jump", new Vector3(420, 40, 0));
             jumpState.motion = jump != null ? jump : run;
+            // No dedicated slide FBX in the Kenney pack — jump clip + runtime dive-crouch on Visual.
             var slideState = sm.AddState("Slide", new Vector3(200, 160, 0));
             slideState.motion = jump != null ? jump : run;
+            slideState.speed = 0.55f;
             sm.defaultState = runState;
 
             var toRun = idleState.AddTransition(runState);

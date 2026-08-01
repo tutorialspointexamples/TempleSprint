@@ -19,6 +19,7 @@ namespace TempleSprint
         PowerUpController _powers;
         ChaseCamera _camera;
         EnvironmentEffects _env;
+        GhostRivalRunner _ghost;
         float _tutorialTimer;
         int _tutorialStep = -1;
         RunEndPayload _lastPayload;
@@ -107,6 +108,8 @@ namespace TempleSprint
             var guardianGo = new GameObject("Guardian");
             guardianGo.transform.SetParent(transform);
             _guardian = guardianGo.AddComponent<GuardianAI>();
+
+            _ghost = GhostRivalRunner.Ensure(transform);
 
             var nature = NatureBackdrop.Ensure(transform);
             nature.SetFollow(_player.transform);
@@ -207,7 +210,10 @@ namespace TempleSprint
             SetRunActorsVisible(true);
             _guardian?.Stop();
             if (_guardian != null) _guardian.gameObject.SetActive(false);
+            _ghost?.Stop();
             _env?.ResetEffects();
+            BiomeSystem.ClearRunTransition();
+            AudioHooks.Instance?.StopAmbience();
             _spawner?.ShowMenuPreview();
             _player?.ResetAtStart();
             _player?.ApplyCharacterColors();
@@ -232,6 +238,7 @@ namespace TempleSprint
 
             var meta = MetaProgress.Ensure();
             bool tutorial = !meta.Data.tutorialCompleted;
+            BiomeSystem.ClearRunTransition();
             BiomeSystem.ApplyLighting();
 
             State = GameState.Running;
@@ -245,8 +252,20 @@ namespace TempleSprint
             _session.Begin();
             _spawner.BeginRun(tutorial, difficulty);
             _guardian.BeginRun();
+            _ghost?.BeginRun();
+
+            // Genre-style head-start: skip ahead past the opening tiles + boost burst.
+            if (meta.ConsumeHeadStartArm())
+            {
+                _player.AdvanceAfterRevive(28f);
+                _powers.GrantHeadStartBurst();
+                _camera?.PunchFov(5f);
+                GameUI.Instance?.ShowTutorial("HEAD START! Sprint ahead!");
+            }
+
             _camera?.SnapNow();
             _camera?.PunchFov(3f);
+            AudioHooks.Instance?.PlayBiomeAmbience(BiomeSystem.Current);
             GameUI.Instance?.ShowHud();
             AnalyticsService.Track("run_start", (int)difficulty);
 
@@ -268,11 +287,12 @@ namespace TempleSprint
             State = GameState.Running;
             Time.timeScale = 1f;
             _env?.ResetEffects();
-            _powers?.GrantReviveIFrames(1.75f);
+            _powers?.GrantReviveIFrames(2.25f);
+            if (_powers != null) _powers.Activate(PowerUpType.Shield, true);
             if (_player != null)
             {
                 _player.ClearStumble();
-                _player.AdvanceAfterRevive(4f);
+                _player.AdvanceAfterRevive(6f);
             }
             if (_guardian != null)
             {
@@ -280,8 +300,9 @@ namespace TempleSprint
                 _guardian.BeginRun();
             }
             _camera?.SnapNow();
+            _camera?.PunchFov(3.5f);
             GameUI.Instance?.ShowHud();
-            GameUI.Instance?.ShowTutorial("Revived! Keep running!");
+            GameUI.Instance?.ShowTutorial("SAVED! Shield up — keep running!");
         }
 
         void UpdateTutorial()
@@ -328,9 +349,11 @@ namespace TempleSprint
             _lastPayload = payload;
             State = GameState.PostRun;
             _guardian.Stop();
+            _ghost?.Stop();
             Time.timeScale = 1f;
             _powers?.ClearTimers();
             _env?.ResetEffects();
+            AudioHooks.Instance?.StopAmbience();
             MonetizationService.OnPostRun();
             GameUI.Instance?.ShowPostRun(payload);
         }
