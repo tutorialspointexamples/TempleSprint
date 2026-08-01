@@ -8,14 +8,17 @@ namespace TempleSprint
         public static GameUI Instance { get; private set; }
 
         Canvas _canvas;
-        GameObject _boot, _menu, _hud, _post, _upgrade, _locker, _shop, _missions, _settings, _info, _tutorial;
+        GameObject _boot, _menu, _hud, _post, _upgrade, _locker, _shop, _missions, _settings, _info, _tutorial, _leaderboard, _guardianQte;
         Text _menuCurrency, _hudScore, _hudCoins, _hudPower, _hudCombo, _hudGhost, _postSummary, _infoBody, _tutorialText, _upgradeInfo, _missionBody;
+        Text _weeklyChallengeText, _leaderboardBody, _guardianQteText;
         GameObject _hudComboFrame, _hudGhostFrame;
         Image _hudPowerFill;
         Button _btnReviveAd, _btnReviveGem;
         bool _bootDone, _starterQueued;
         float _bootTimer = 0.45f;
         float _comboPulse;
+        float _qtePulse;
+        float _qteSecondsLeft;
 
         void Awake()
         {
@@ -45,8 +48,9 @@ namespace TempleSprint
             Btn(_menu, "LOCKER", new Vector2(0, -60), ShowLocker);
             Btn(_menu, "SHOP", new Vector2(280, -60), ShowShop);
             Btn(_menu, "MISSIONS", new Vector2(-280, -150), ShowMissions);
-            Btn(_menu, "SETTINGS", new Vector2(0, -150), ShowSettings);
-            Btn(_menu, "MORE", new Vector2(280, -150), ShowMore);
+            Btn(_menu, "BOARD", new Vector2(0, -150), ShowLeaderboard);
+            Btn(_menu, "SETTINGS", new Vector2(280, -150), ShowSettings);
+            Btn(_menu, "MORE", new Vector2(0, -230), ShowMore);
             Sub(_menu, "Choose a difficulty to start  ·  SPACE = Medium", 22, 0.08f, 0.16f);
 
             _hud = new GameObject("HUD");
@@ -140,7 +144,15 @@ namespace TempleSprint
                 Toast(ArtifactHuntSystem.TryClaim() ? "Artifact claimed!" : "Hunt incomplete / claimed");
                 ShowMissions();
             });
-            Btn(_missions, "BACK", new Vector2(0, -260), () => ShowMainMenu());
+            Btn(_missions, "WEEKLY BOARD", new Vector2(0, -280), ShowLeaderboard);
+            Btn(_missions, "BACK", new Vector2(0, -350), () => ShowMainMenu());
+
+            _leaderboard = Panel("Leaderboard", new Color(0.08f, 0.1f, 0.12f, 0.86f));
+            Title(_leaderboard, "WEEKLY RUN BOARD", 42, 0.82f, 0.96f);
+            _weeklyChallengeText = Sub(_leaderboard, "", 20, 0.68f, 0.8f);
+            _leaderboardBody = Sub(_leaderboard, "", 22, 0.28f, 0.72f);
+            Btn(_leaderboard, "MISSIONS", new Vector2(-160, -340), ShowMissions);
+            Btn(_leaderboard, "BACK", new Vector2(160, -340), () => ShowMainMenu());
 
             _settings = Panel("Settings", new Color(0.09f, 0.1f, 0.12f, 0.82f));
             Title(_settings, "SETTINGS", 44, 0.82f, 0.96f);
@@ -168,6 +180,18 @@ namespace TempleSprint
             _tutorial.AddComponent<Image>().color = new Color(0, 0, 0, 0.5f);
             _tutorialText = UiFactory.CreateText(_tutorial.transform, "Tip", "", 32, TextAnchor.MiddleCenter, Color.white);
             _tutorial.SetActive(false);
+
+            _guardianQte = new GameObject("GuardianQte");
+            _guardianQte.transform.SetParent(_canvas.transform, false);
+            var qr = _guardianQte.AddComponent<RectTransform>();
+            qr.anchorMin = new Vector2(0.12f, 0.42f);
+            qr.anchorMax = new Vector2(0.88f, 0.62f);
+            qr.offsetMin = Vector2.zero;
+            qr.offsetMax = Vector2.zero;
+            _guardianQte.AddComponent<Image>().color = new Color(0.12f, 0.05f, 0.04f, 0.78f);
+            _guardianQteText = UiFactory.CreateText(_guardianQte.transform, "Qte", "", 34, TextAnchor.MiddleCenter,
+                new Color(1f, 0.85f, 0.35f));
+            _guardianQte.SetActive(false);
 
             ShowOnly(_boot);
         }
@@ -220,13 +244,19 @@ namespace TempleSprint
                                 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 8f))
                             : new Color(1f, 0.82f, 0.28f, 1f);
                     }
-                    if (PowerUpController.Instance.EnergyReady)
+                    if (PowerUpController.Instance.CharacterSkillReady)
+                        _hudPower.text = "SKILL";
+                    else if (PowerUpController.Instance.EnergyReady)
                         _hudPower.text = "READY";
-                    else if (!string.IsNullOrEmpty(PowerUpController.Instance.ActiveLabel)
-                             && PowerUpController.Instance.ActiveLabel.IndexOf('·') >= 0)
-                        _hudPower.text = Mathf.FloorToInt(fill * 100f) + "%";
                     else
                         _hudPower.text = Mathf.FloorToInt(fill * 100f) + "%";
+                }
+
+                if (_guardianQte != null && _guardianQte.activeSelf && _qtePulse > 0f)
+                {
+                    _qtePulse -= Time.unscaledDeltaTime;
+                    float s = 1f + _qtePulse * 0.2f;
+                    _guardianQte.transform.localScale = new Vector3(s, s, 1f);
                 }
                 else
                 {
@@ -287,7 +317,10 @@ namespace TempleSprint
         {
             var m = MetaProgress.Ensure().Data;
             string head = m.headStartArmed ? " · HEAD START READY" : "";
-            _menuCurrency.text = $"Coins {m.bankedCoins} · Gems {m.gems} · Relics {m.relics}{head}\n{CharacterRoster.SelectedDisplayName} · {BiomeSystem.DisplayName(BiomeSystem.Current)}";
+            string skill = string.IsNullOrEmpty(CharacterRoster.ActiveSkillLabel)
+                ? ""
+                : $" · {CharacterRoster.ActiveSkillLabel}";
+            _menuCurrency.text = $"Coins {m.bankedCoins} · Gems {m.gems} · Relics {m.relics}{head}\n{CharacterRoster.SelectedDisplayName} · {BiomeSystem.DisplayName(BiomeSystem.Current)}{skill}";
             ShowOnly(_menu);
         }
 
@@ -334,6 +367,35 @@ namespace TempleSprint
 
         public void HideTutorial() => _tutorial.SetActive(false);
 
+        public void ShowGuardianStruggle(SwipeDirection required, float seconds)
+        {
+            if (_guardianQte == null || _guardianQteText == null) return;
+            _qteSecondsLeft = seconds;
+            string arrow = required == SwipeDirection.Left ? "← SWIPE LEFT" : "SWIPE RIGHT →";
+            _guardianQteText.text = $"IDOL BEAST GRAB!\n{arrow}\nMash to break free  ·  {seconds:0.0}s";
+            _guardianQte.SetActive(true);
+            _qtePulse = 0.25f;
+        }
+
+        public void UpdateGuardianStruggle(float secondsLeft, int hits)
+        {
+            if (_guardianQteText == null || !_guardianQte.activeSelf) return;
+            _qteSecondsLeft = secondsLeft;
+            _guardianQteText.text = $"BREAK FREE!  hits {hits}/3\n{secondsLeft:0.0}s left";
+        }
+
+        public void PulseGuardianStruggle(int hits)
+        {
+            _qtePulse = 0.28f;
+            UpdateGuardianStruggle(_qteSecondsLeft, hits);
+        }
+
+        public void HideGuardianStruggle()
+        {
+            if (_guardianQte != null) _guardianQte.SetActive(false);
+            if (_guardianQte != null) _guardianQte.transform.localScale = Vector3.one;
+        }
+
         void ShowUpgrades()
         {
             RefreshUpgrade();
@@ -367,8 +429,15 @@ namespace TempleSprint
                         Toast(CharacterRoster.TryUnlock(id) ? "Unlocked!" : $"Need {c.gemCost} gems");
                     else
                     {
-                        Toast(CharacterRoster.Select(id) ? "Selected " + c.displayName : "Locked");
-                        PlayerController.Instance?.ApplyCharacterColors();
+                        if (CharacterRoster.Select(id))
+                        {
+                            string skill = string.IsNullOrEmpty(c.activeDescription) || c.activeSkill == CharacterActiveSkill.None
+                                ? c.passive
+                                : c.activeDescription;
+                            Toast("Selected " + c.displayName + " · " + skill);
+                            PlayerController.Instance?.ApplyCharacterColors();
+                        }
+                        else Toast("Locked");
                     }
                 });
                 y -= 70f;
@@ -455,10 +524,42 @@ namespace TempleSprint
         {
             if (_missionBody != null)
                 _missionBody.text = MissionSystem.Summary() + "\n\n" + ArtifactHuntSystem.Status() +
+                                    "\n\n" + LeaderboardService.WeeklyChallengeBlurb() +
                                     "\n\nAchievements:\n" + AchievementSystem.ListUnlocked() +
                                     "\n\n" + BattlePassService.Status() +
                                     "\n\n" + EventService.SeasonalLockerBlurb();
             ShowOnly(_missions);
+        }
+
+        void ShowLeaderboard()
+        {
+            if (_weeklyChallengeText != null)
+                _weeklyChallengeText.text = LeaderboardService.WeeklyChallengeBlurb();
+            if (_leaderboardBody != null)
+            {
+                var global = LeaderboardService.GetWeeklyGlobalEntries();
+                var friends = LeaderboardService.GetFriendEntries();
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine("— GLOBAL PLAQUE —");
+                for (int i = 0; i < global.Length && i < 5; i++)
+                {
+                    var e = global[i];
+                    string mark = e.isPlayer ? "★ " : "  ";
+                    sb.AppendLine($"{mark}{i + 1}. {e.name} — {e.score}");
+                }
+                sb.AppendLine();
+                sb.AppendLine("— FRIENDS PLAQUE —");
+                for (int i = 0; i < friends.Length && i < 5; i++)
+                {
+                    var e = friends[i];
+                    string mark = e.isPlayer ? "★ " : "  ";
+                    sb.AppendLine($"{mark}{i + 1}. {e.name} — {e.score}");
+                }
+                sb.AppendLine();
+                sb.Append(GhostRunService.Status());
+                _leaderboardBody.text = sb.ToString();
+            }
+            ShowOnly(_leaderboard);
         }
 
         void ShowSettings() => ShowOnly(_settings);
@@ -595,9 +696,14 @@ namespace TempleSprint
             _locker.SetActive(panel == _locker);
             _shop.SetActive(panel == _shop);
             _missions.SetActive(panel == _missions);
+            if (_leaderboard != null) _leaderboard.SetActive(panel == _leaderboard);
             _settings.SetActive(panel == _settings);
             _info.SetActive(panel == _info);
-            if (panel != _hud) HideTutorial();
+            if (panel != _hud)
+            {
+                HideTutorial();
+                HideGuardianStruggle();
+            }
         }
 
         GameObject Panel(string name, Color c)

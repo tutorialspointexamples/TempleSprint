@@ -22,9 +22,17 @@ namespace TempleSprint
         float _threat01;
         float _lastGrowlTime = -10f;
 
+        enum GrabStruggleState { None, Prompt, Success, Failed }
+        GrabStruggleState _struggle;
+        SwipeDirection _requiredSwipe;
+        float _struggleTimer;
+        int _struggleHits;
+        const float StruggleWindow = 1.2f;
+
         /// <summary>0 far → 1 about to catch (for chase cam pressure / UI).</summary>
         public float Threat01 => _threat01;
-        public bool IsLunging => _lunge > 0.05f;
+        public bool IsLunging => _lunge > 0.05f || _struggle == GrabStruggleState.Prompt;
+        public bool InGrabStruggle => _struggle == GrabStruggleState.Prompt;
 
         void Awake()
         {
@@ -207,8 +215,6 @@ namespace TempleSprint
             return root;
         }
 
-        float _lastGrowlTime = -10f;
-
         public void BeginRun()
         {
             _active = true;
@@ -216,6 +222,10 @@ namespace TempleSprint
             _lunge = 0f;
             _threat01 = 0f;
             _lastLungeTime = -10f;
+            _struggle = GrabStruggleState.None;
+            _struggleTimer = 0f;
+            _struggleHits = 0;
+            GameUI.Instance?.HideGuardianStruggle();
             if (PlayerController.Instance != null)
             {
                 var p = PlayerController.Instance.transform;
@@ -229,12 +239,101 @@ namespace TempleSprint
             _active = false;
             _lunge = 0f;
             _threat01 = 0f;
+            _struggle = GrabStruggleState.None;
+            GameUI.Instance?.HideGuardianStruggle();
+        }
+
+        public bool TryStruggleInput(SwipeDirection dir)
+        {
+            if (_struggle != GrabStruggleState.Prompt) return false;
+            // Matching the prompted swipe counts strongest; any frantic swipe/mash still helps.
+            if (dir == _requiredSwipe)
+                _struggleHits += 2;
+            else
+                _struggleHits += 1;
+            GameUI.Instance?.PulseGuardianStruggle(_struggleHits);
+            if (_struggleHits >= 3)
+                ResolveStruggleSuccess();
+            return true;
+        }
+
+        public bool TryStruggleTap()
+        {
+            if (_struggle != GrabStruggleState.Prompt) return false;
+            _struggleHits += 1;
+            GameUI.Instance?.PulseGuardianStruggle(_struggleHits);
+            if (_struggleHits >= 3)
+                ResolveStruggleSuccess();
+            return true;
+        }
+
+        void BeginGrabStruggle()
+        {
+            _struggle = GrabStruggleState.Prompt;
+            _struggleTimer = StruggleWindow;
+            _struggleHits = 0;
+            _requiredSwipe = Random.value < 0.5f ? SwipeDirection.Left : SwipeDirection.Right;
+            _gap = catchDistance + 0.35f;
+            _lunge = 1f;
+            _threat01 = 1f;
+            GameUI.Instance?.ShowGuardianStruggle(_requiredSwipe, _struggleTimer);
+            AudioHooks.Instance?.PlayGuardianLunge();
+            ChaseCamera.Instance?.PunchFov(5.5f);
+        }
+
+        void TickGrabStruggle()
+        {
+            _struggleTimer -= Time.deltaTime;
+            _lunge = Mathf.Clamp01(_struggleTimer / StruggleWindow);
+            _threat01 = 1f;
+            GameUI.Instance?.UpdateGuardianStruggle(_struggleTimer, _struggleHits);
+
+            var player = PlayerController.Instance;
+            if (player != null)
+            {
+                float displayGap = Mathf.Max(0.4f, _gap - 1.6f);
+                Vector3 desired = player.transform.position - player.transform.forward * displayGap;
+                desired.y = 0f;
+                transform.position = Vector3.Lerp(transform.position, desired, 1f - Mathf.Exp(-10f * Time.deltaTime));
+                transform.rotation = Quaternion.Slerp(transform.rotation,
+                    Quaternion.LookRotation(player.transform.forward, Vector3.up),
+                    1f - Mathf.Exp(-10f * Time.deltaTime));
+            }
+
+            if (_struggleTimer <= 0f && _struggle == GrabStruggleState.Prompt)
+            {
+                _struggle = GrabStruggleState.Failed;
+                GameUI.Instance?.HideGuardianStruggle();
+                RunSession.Instance?.EndRun("Caught by the Idol Beast");
+            }
+        }
+
+        void ResolveStruggleSuccess()
+        {
+            _struggle = GrabStruggleState.Success;
+            _gap = minGap + 3.2f;
+            _lunge = 0f;
+            _threat01 = 0.35f;
+            _lastLungeTime = Time.time;
+            GameUI.Instance?.HideGuardianStruggle();
+            RunSession.Instance?.RegisterNearMiss();
+            ChaseCamera.Instance?.PunchFov(3.2f);
+            AudioHooks.Instance?.PlayJump();
+            GameUI.Instance?.ShowTutorial("Broke free!");
+            // Brief cooldown before another grab attempt.
+            _struggle = GrabStruggleState.None;
         }
 
         void Update()
         {
             if (!_active || PlayerController.Instance == null || RunSession.Instance == null || !RunSession.Instance.IsAlive)
                 return;
+
+            if (_struggle == GrabStruggleState.Prompt)
+            {
+                TickGrabStruggle();
+                return;
+            }
 
             var player = PlayerController.Instance;
             float playerSpeed = DifficultyDirector.Instance != null ? DifficultyDirector.Instance.CurrentSpeed : 10f;
@@ -326,7 +425,7 @@ namespace TempleSprint
             }
 
             if (_gap <= catchDistance)
-                RunSession.Instance.EndRun("Caught by the Idol Beast");
+                BeginGrabStruggle();
         }
 
         void OnDestroy()

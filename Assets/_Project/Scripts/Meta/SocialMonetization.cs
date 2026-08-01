@@ -7,6 +7,13 @@ namespace TempleSprint
 {
     public static class LeaderboardService
     {
+        public struct LeaderboardEntry
+        {
+            public string name;
+            public int score;
+            public bool isPlayer;
+        }
+
         static readonly List<(string name, int score)> Friends = new List<(string, int)>
         {
             ("You", 0), ("Alex", 4200), ("Sam", 3100), ("Riley", 2800), ("Jordan", 1900)
@@ -19,22 +26,59 @@ namespace TempleSprint
             AnalyticsService.Track("leaderboard_submit", score);
         }
 
-        public static string GlobalBoard()
+        public static LeaderboardEntry[] GetWeeklyGlobalEntries()
         {
             var best = MetaProgress.Ensure().Data.bestScore;
-            return $"Weekly Global\n1. TempleAce — {Mathf.Max(9800, best + 500)}\n2. RuinRunner — {Mathf.Max(7600, best + 200)}\n3. {MetaProgress.Ensure().Data.playerName} — {best}\n(Submit via UGS Leaderboards when enabled)";
+            string you = MetaProgress.Ensure().Data.playerName;
+            return new[]
+            {
+                new LeaderboardEntry { name = "TempleAce", score = Mathf.Max(9800, best + 500), isPlayer = false },
+                new LeaderboardEntry { name = "RuinRunner", score = Mathf.Max(7600, best + 200), isPlayer = false },
+                new LeaderboardEntry { name = you, score = best, isPlayer = true },
+                new LeaderboardEntry { name = "CliffDash", score = Mathf.Max(5100, best - 400), isPlayer = false },
+                new LeaderboardEntry { name = "IdolDodger", score = Mathf.Max(3900, best - 900), isPlayer = false }
+            };
+        }
+
+        public static LeaderboardEntry[] GetFriendEntries()
+        {
+            var list = new List<LeaderboardEntry>(Friends.Count);
+            string you = MetaProgress.Ensure().Data.playerName;
+            foreach (var e in Friends)
+            {
+                bool isPlayer = e.name == "You" || e.name == you;
+                list.Add(new LeaderboardEntry
+                {
+                    name = isPlayer ? you : e.name,
+                    score = e.score,
+                    isPlayer = isPlayer
+                });
+            }
+            return list.ToArray();
+        }
+
+        public static string GlobalBoard()
+        {
+            var sb = new StringBuilder("Weekly Global\n");
+            var entries = GetWeeklyGlobalEntries();
+            for (int i = 0; i < entries.Length && i < 5; i++)
+                sb.AppendLine($"{i + 1}. {entries[i].name} — {entries[i].score}");
+            sb.Append("(Offline board · UGS when enabled)");
+            return sb.ToString();
         }
 
         public static string FriendsBoard()
         {
             var sb = new StringBuilder("Friends\n");
-            int i = 1;
-            foreach (var e in Friends)
-            {
-                sb.AppendLine($"{i}. {e.name} — {e.score}");
-                if (i++ >= 5) break;
-            }
+            var entries = GetFriendEntries();
+            for (int i = 0; i < entries.Length && i < 5; i++)
+                sb.AppendLine($"{i + 1}. {entries[i].name} — {entries[i].score}");
             return sb.ToString();
+        }
+
+        public static string WeeklyChallengeBlurb()
+        {
+            return EventService.Status() + "\n" + ArtifactHuntSystem.Status();
         }
     }
 
