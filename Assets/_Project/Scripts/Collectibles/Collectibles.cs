@@ -90,6 +90,19 @@ namespace TempleSprint
         {
             if (_collected) return;
             _collected = true;
+            int tier = 0;
+            var meta = MetaProgress.Ensure();
+            if (meta != null)
+            {
+                tier = Type switch
+                {
+                    PowerUpType.Magnet => meta.Data.magnetRadiusLevel,
+                    PowerUpType.SpeedBoost => meta.Data.boostDurationLevel,
+                    PowerUpType.Shield => meta.Data.reviveLevel,
+                    _ => Mathf.Max(meta.Data.magnetRadiusLevel, meta.Data.coinMultiplierLevel)
+                };
+            }
+            PowerUpVfx.SpawnPickupStarburst(transform.position, Type, tier);
             PowerUpController.Instance?.Activate(Type);
             AudioHooks.Instance?.PlayPower();
             gameObject.SetActive(false);

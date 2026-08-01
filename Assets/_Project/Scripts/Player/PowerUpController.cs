@@ -263,11 +263,14 @@ namespace TempleSprint
             if (Time.timeScale < 0.99f) Time.timeScale = 1f;
         }
 
+        public int MagnetUpgradeTier => _meta != null ? _meta.Data.magnetRadiusLevel : 0;
+
         void EnsureMagnetVfx()
         {
             if (PlayerController.Instance == null) return;
             if (_magnetVfx == null)
-                _magnetVfx = PowerUpVfx.AttachMagnetSwirl(PlayerController.Instance.transform, true);
+                _magnetVfx = PowerUpVfx.AttachMagnetSwirl(
+                    PlayerController.Instance.transform, true, MagnetUpgradeTier);
             _magnetVfx.gameObject.SetActive(true);
         }
 

@@ -74,11 +74,11 @@ namespace TempleSprint
             _hudScore = UiFactory.CreateHudPlaque(
                 _hud.transform, "Score",
                 new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f),
-                new Vector2(-36f, -36f), new Vector2(280f, 88f), "0");
+                new Vector2(-36f, -36f), new Vector2(280f, 88f), "0", UiFactory.UiIcon.Score);
             _hudCoins = UiFactory.CreateHudPlaque(
                 _hud.transform, "Coins",
                 new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f),
-                new Vector2(-36f, -140f), new Vector2(240f, 72f), "◆ 0");
+                new Vector2(-36f, -140f), new Vector2(240f, 72f), "0", UiFactory.UiIcon.Coin);
             var powerRing = UiFactory.CreatePowerRing(
                 _hud.transform, "Power",
                 new Vector2(0f, 1f), new Vector2(36f, -36f), 132f);
@@ -87,13 +87,13 @@ namespace TempleSprint
             _hudCombo = UiFactory.CreateHudPlaque(
                 _hud.transform, "Combo",
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -36f), new Vector2(220f, 64f), "");
+                new Vector2(0f, -36f), new Vector2(220f, 64f), "", UiFactory.UiIcon.Relic);
             _hudComboFrame = _hudCombo != null ? _hudCombo.transform.parent.parent.gameObject : null;
             if (_hudComboFrame != null) _hudComboFrame.SetActive(false);
             _hudGhost = UiFactory.CreateHudPlaque(
                 _hud.transform, "Ghost",
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -110f), new Vector2(280f, 56f), "");
+                new Vector2(0f, -110f), new Vector2(280f, 56f), "", UiFactory.UiIcon.Character);
             _hudGhostFrame = _hudGhost != null ? _hudGhost.transform.parent.parent.gameObject : null;
             if (_hudGhostFrame != null) _hudGhostFrame.SetActive(false);
             _hudEventBanner = UiFactory.CreateEventBanner(
@@ -132,19 +132,19 @@ namespace TempleSprint
             _upgrade = Panel("Upgrades", new Color(0.07f, 0.12f, 0.1f, 0.82f));
             Title(_upgrade, "UPGRADES", 44, 0.82f, 0.96f);
             _upgradeInfo = Sub(_upgrade, "", 22, 0.55f, 0.8f);
-            Btn(_upgrade, "MAGNET RADIUS", new Vector2(-160, 80), () => { MetaProgress.Ensure().TryBuyMagnet(); RefreshUpgrade(); });
-            Btn(_upgrade, "COIN MULTIPLIER", new Vector2(160, 80), () => { MetaProgress.Ensure().TryBuyCoinMultiplier(); RefreshUpgrade(); });
-            Btn(_upgrade, "STARTING SHIELD", new Vector2(-160, -10), () => { MetaProgress.Ensure().TryBuyRevive(); RefreshUpgrade(); });
-            Btn(_upgrade, "ENERGY FILL", new Vector2(160, -10), () => { MetaProgress.Ensure().TryBuyEnergyFill(); RefreshUpgrade(); });
-            Btn(_upgrade, "MAGNET TIME", new Vector2(-160, -100), () => { MetaProgress.Ensure().TryBuyMagnetDuration(); RefreshUpgrade(); });
-            Btn(_upgrade, "BOOST TIME", new Vector2(160, -100), () => { MetaProgress.Ensure().TryBuyBoostDuration(); RefreshUpgrade(); });
+            Btn(_upgrade, "MAGNET RADIUS", new Vector2(-160, 80), () => { MetaProgress.Ensure().TryBuyMagnet(); RefreshUpgrade(); }, UiFactory.UiIcon.Magnet);
+            Btn(_upgrade, "COIN MULTIPLIER", new Vector2(160, 80), () => { MetaProgress.Ensure().TryBuyCoinMultiplier(); RefreshUpgrade(); }, UiFactory.UiIcon.Coin);
+            Btn(_upgrade, "STARTING SHIELD", new Vector2(-160, -10), () => { MetaProgress.Ensure().TryBuyRevive(); RefreshUpgrade(); }, UiFactory.UiIcon.Shield);
+            Btn(_upgrade, "ENERGY FILL", new Vector2(160, -10), () => { MetaProgress.Ensure().TryBuyEnergyFill(); RefreshUpgrade(); }, UiFactory.UiIcon.Relic);
+            Btn(_upgrade, "MAGNET TIME", new Vector2(-160, -100), () => { MetaProgress.Ensure().TryBuyMagnetDuration(); RefreshUpgrade(); }, UiFactory.UiIcon.Magnet);
+            Btn(_upgrade, "BOOST TIME", new Vector2(160, -100), () => { MetaProgress.Ensure().TryBuyBoostDuration(); RefreshUpgrade(); }, UiFactory.UiIcon.Boost);
             Btn(_upgrade, "BACK", new Vector2(0, -220), BackToMenuOrPost);
 
             _locker = Panel("Locker", new Color(0.08f, 0.12f, 0.14f, 0.82f));
             Title(_locker, "LOCKER", 44, 0.86f, 0.96f);
-            _lockerTabChars = UiFactory.CreateTabButton(_locker.transform, "TabChars", "CHARS", new Vector2(-240f, 290f), new Vector2(200f, 54f));
-            _lockerTabCosmetics = UiFactory.CreateTabButton(_locker.transform, "TabCosmetics", "GEAR", new Vector2(0f, 290f), new Vector2(200f, 54f));
-            _lockerTabBiomes = UiFactory.CreateTabButton(_locker.transform, "TabBiomes", "BIOMES", new Vector2(240f, 290f), new Vector2(200f, 54f));
+            _lockerTabChars = UiFactory.CreateTabButton(_locker.transform, "TabChars", "CHARS", new Vector2(-240f, 290f), new Vector2(200f, 54f), UiFactory.UiIcon.Character);
+            _lockerTabCosmetics = UiFactory.CreateTabButton(_locker.transform, "TabCosmetics", "GEAR", new Vector2(0f, 290f), new Vector2(200f, 54f), UiFactory.UiIcon.Gear);
+            _lockerTabBiomes = UiFactory.CreateTabButton(_locker.transform, "TabBiomes", "BIOMES", new Vector2(240f, 290f), new Vector2(200f, 54f), UiFactory.UiIcon.Biome);
             _lockerTabChars.onClick.AddListener(() => ShowLockerTab(0));
             _lockerTabCosmetics.onClick.AddListener(() => ShowLockerTab(1));
             _lockerTabBiomes.onClick.AddListener(() => ShowLockerTab(2));
@@ -299,7 +299,7 @@ namespace TempleSprint
                     ? DifficultyDirector.Instance.Profile.DisplayName
                     : "RUN";
                 _hudScore.text = RunSession.Instance.Score.ToString("N0");
-                _hudCoins.text = "◆  " + RunSession.Instance.CoinsThisRun;
+                _hudCoins.text = RunSession.Instance.CoinsThisRun.ToString();
                 if (PowerUpController.Instance != null)
                 {
                     float fill = PowerUpController.Instance.EnergyFill01;
@@ -954,9 +954,9 @@ namespace TempleSprint
             return text;
         }
 
-        Button Btn(GameObject parent, string label, Vector2 pos, UnityEngine.Events.UnityAction action)
+        Button Btn(GameObject parent, string label, Vector2 pos, UnityEngine.Events.UnityAction action, UiFactory.UiIcon? icon = null)
         {
-            var b = UiFactory.CreateButton(parent.transform, label, label, pos, new Vector2(240f, 58f));
+            var b = UiFactory.CreateButton(parent.transform, label, label, pos, new Vector2(240f, 58f), icon);
             b.onClick.AddListener(action);
             return b;
         }

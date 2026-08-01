@@ -538,6 +538,22 @@ namespace TempleSprint.EditorTools
                         Debug.LogWarning($"[VERIFY] Zipline at {t.PathStartDistance:0.0} missing marker");
                         return false;
                     }
+                    if (t.transform.Find("ZiplineCable") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] Zipline at {t.PathStartDistance:0.0} missing sagging cable");
+                        return false;
+                    }
+                    if (t.transform.Find("ZiplinePulley") == null && t.transform.Find("ZiplineHandle") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] Zipline at {t.PathStartDistance:0.0} missing pulley/handle");
+                        return false;
+                    }
+                    var mount = t.GetComponentInChildren<ZiplineMount>();
+                    if (mount != null && mount.CableSag < 0.1f)
+                    {
+                        Debug.LogWarning($"[VERIFY] Zipline at {t.PathStartDistance:0.0} cable sag too flat");
+                        return false;
+                    }
                 }
                 if (t.Kind == TileKind.MineCart)
                 {
@@ -705,7 +721,39 @@ namespace TempleSprint.EditorTools
                         return false;
                     }
                 }
+                if (BiomeSystem.Current == BiomeId.DesertTombs && t.Kind == TileKind.Straight)
+                {
+                    if (t.transform.Find("DesertHeatShimmer") != null
+                        && t.GetComponentInChildren<HeatShimmerAnimator>() == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] Desert runway shimmer missing animator at {t.PathStartDistance:0.0}");
+                        return false;
+                    }
+                }
+                if (BiomeSystem.Current == BiomeId.NightSummit && t.Kind == TileKind.Straight)
+                {
+                    if (t.transform.Find("SummitNightShimmer") == null
+                        && t.transform.Find("LanternPost") == null
+                        && t.transform.Find("SummitRidge") == null)
+                    {
+                        // Optional props — only warn when night props partially exist without shimmer.
+                    }
+                    else if (t.transform.Find("SummitRidge") != null
+                             && t.transform.Find("SummitNightShimmer") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] Night Summit runway at {t.PathStartDistance:0.0} missing night shimmer");
+                        return false;
+                    }
+                }
             }
+
+            if (GuardianAI.Instance != null)
+            {
+                var dust = GuardianAI.Instance.transform.Find("IdolBeastPack/PackDustWake");
+                if (dust == null)
+                    Debug.LogWarning("[VERIFY] Idol Beast pack missing PackDustWake");
+            }
+
             Debug.Log($"[VERIFY] specialStages zipline={zip} minecart={cart} icesurf={ice} wallrun={wall} ledge={ledge} tree={tree} canopy={canopy} waterfall={fall} slide={slide} hall={hall} cliff={cliff}");
             return zip || cart || ice || wall || ledge || tree || canopy || fall || slide || hall || cliff;
         }

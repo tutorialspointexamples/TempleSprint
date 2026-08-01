@@ -95,7 +95,133 @@ namespace TempleSprint
             return text;
         }
 
-        public static Button CreateButton(Transform parent, string name, string label, Vector2 anchoredPos, Vector2 size)
+        public enum UiIcon
+        {
+            Coin,
+            Gem,
+            Relic,
+            Magnet,
+            Shield,
+            Boost,
+            SlowMo,
+            Character,
+            Biome,
+            Gear,
+            Score
+        }
+
+        static readonly System.Collections.Generic.Dictionary<UiIcon, Sprite> IconCache = new();
+
+        public static Sprite IconSprite(UiIcon icon)
+        {
+            if (IconCache.TryGetValue(icon, out var cached) && cached != null) return cached;
+            const int size = 64;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.wrapMode = TextureWrapMode.Clamp;
+            tex.filterMode = FilterMode.Bilinear;
+            float c = (size - 1) * 0.5f;
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float dx = (x - c) / c;
+                float dy = (y - c) / c;
+                float a = PaintIcon(icon, dx, dy);
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+            }
+            tex.Apply(false, true);
+            var sprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f);
+            IconCache[icon] = sprite;
+            return sprite;
+        }
+
+        static float PaintIcon(UiIcon icon, float dx, float dy)
+        {
+            float r = Mathf.Sqrt(dx * dx + dy * dy);
+            switch (icon)
+            {
+                case UiIcon.Coin:
+                    return SoftRing(r, 0.85f, 0.55f) + SoftDisk(r, 0.35f) * 0.85f;
+                case UiIcon.Gem:
+                    return SoftDiamond(dx, dy, 0.75f);
+                case UiIcon.Relic:
+                    return SoftDisk(r, 0.7f) * 0.35f + SoftDiamond(dx, dy * 1.1f, 0.55f);
+                case UiIcon.Magnet:
+                {
+                    float u = Mathf.Abs(dx);
+                    float body = (u > 0.15f && u < 0.55f && dy > -0.55f && dy < 0.45f) ? 1f : 0f;
+                    float arch = (dy > 0.2f && r < 0.75f && r > 0.35f) ? 1f : 0f;
+                    return Mathf.Clamp01(body + arch);
+                }
+                case UiIcon.Shield:
+                    return SoftDisk(new Vector2(dx, dy * 1.15f + 0.1f).magnitude, 0.7f)
+                           * (dy < 0.55f ? 1f : 0f);
+                case UiIcon.Boost:
+                    return SoftTriangle(dx, dy, 0.75f);
+                case UiIcon.SlowMo:
+                    return SoftRing(r, 0.8f, 0.55f) + SoftDisk(r, 0.18f);
+                case UiIcon.Character:
+                    return SoftDisk(new Vector2(dx, dy - 0.28f).magnitude, 0.28f)
+                           + SoftDisk(new Vector2(dx * 0.85f, dy + 0.25f).magnitude, 0.42f) * 0.9f;
+                case UiIcon.Biome:
+                    return SoftTriangle(dx, dy + 0.1f, 0.8f) * 0.85f
+                           + SoftDisk(new Vector2(dx, dy + 0.45f).magnitude, 0.22f);
+                case UiIcon.Gear:
+                {
+                    float teeth = Mathf.Abs(Mathf.Sin(Mathf.Atan2(dy, dx) * 4f)) > 0.55f && r < 0.85f && r > 0.45f ? 1f : 0f;
+                    return SoftRing(r, 0.7f, 0.4f) + teeth + SoftDisk(r, 0.22f);
+                }
+                case UiIcon.Score:
+                    return SoftDiamond(dx, dy, 0.65f) + SoftDisk(r, 0.2f);
+                default:
+                    return SoftDisk(r, 0.6f);
+            }
+        }
+
+        static float SoftDisk(float r, float radius) =>
+            Mathf.Clamp01((radius - r) / 0.08f);
+
+        static float SoftRing(float r, float outer, float inner)
+        {
+            if (r > outer + 0.08f || r < inner - 0.08f) return 0f;
+            float outerEdge = SoftDisk(r, outer);
+            float hole = SoftDisk(r, inner);
+            return Mathf.Clamp01(outerEdge * (1f - hole));
+        }
+
+        static float SoftDiamond(float dx, float dy, float size)
+        {
+            float d = (Mathf.Abs(dx) + Mathf.Abs(dy)) / size;
+            return SoftDisk(d, 1f);
+        }
+
+        static float SoftTriangle(float dx, float dy, float size)
+        {
+            float px = dx / size;
+            float py = dy / size;
+            if (py < -0.7f || py > 0.75f) return 0f;
+            float half = Mathf.Lerp(0.05f, 0.7f, (py + 0.7f) / 1.45f);
+            return SoftDisk(Mathf.Abs(px) / Mathf.Max(0.05f, half), 1f) *
+                   SoftDisk(Mathf.Abs(py), 0.85f);
+        }
+
+        public static Image CreateIcon(Transform parent, string name, UiIcon icon, Vector2 anchoredPos, Vector2 size, Color tint)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            var img = go.AddComponent<Image>();
+            img.sprite = IconSprite(icon);
+            img.color = tint;
+            img.raycastTarget = false;
+            var rt = img.rectTransform;
+            rt.anchorMin = new Vector2(0.5f, 0.5f);
+            rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = anchoredPos;
+            rt.sizeDelta = size;
+            return img;
+        }
+
+        public static Button CreateButton(Transform parent, string name, string label, Vector2 anchoredPos, Vector2 size, UiIcon? icon = null)
         {
             var go = new GameObject(name);
             go.transform.SetParent(parent, false);
@@ -126,10 +252,20 @@ namespace TempleSprint
             rt.anchoredPosition = anchoredPos;
             rt.sizeDelta = size;
 
+            float labelLeft = 8f;
+            if (icon.HasValue)
+            {
+                CreateIcon(go.transform, "Icon", icon.Value,
+                    new Vector2(-size.x * 0.32f, 0f),
+                    new Vector2(size.y * 0.48f, size.y * 0.48f),
+                    new Color(1f, 0.92f, 0.55f, 1f));
+                labelLeft = size.y * 0.42f;
+            }
+
             var text = CreateText(go.transform, "Label", label, Mathf.Clamp(Mathf.RoundToInt(size.y * 0.42f), 22, 48),
                 TextAnchor.MiddleCenter, new Color(1f, 0.97f, 0.88f, 1f));
             text.fontStyle = FontStyle.Bold;
-            text.rectTransform.offsetMin = Vector2.zero;
+            text.rectTransform.offsetMin = new Vector2(labelLeft, 0f);
             text.rectTransform.offsetMax = Vector2.zero;
             return btn;
         }
@@ -207,7 +343,7 @@ namespace TempleSprint
         }
 
         /// <summary>Ornate carved stone HUD plaque (score / coins) — genre temple-tablet chrome.</summary>
-        public static Text CreateHudPlaque(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPos, Vector2 size, string initial)
+        public static Text CreateHudPlaque(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPos, Vector2 size, string initial, UiIcon? icon = null)
         {
             var frame = new GameObject(name + "Frame");
             frame.transform.SetParent(parent, false);
@@ -259,8 +395,28 @@ namespace TempleSprint
             AddCornerGem(frame.transform, new Vector2(0f, 0f), new Vector2(6f, 6f));
             AddCornerGem(frame.transform, new Vector2(1f, 0f), new Vector2(-6f, 6f));
 
+            float textLeft = 0f;
+            if (icon.HasValue)
+            {
+                var iconGo = new GameObject("PlaqueIcon");
+                iconGo.transform.SetParent(inner.transform, false);
+                var iconImg = iconGo.AddComponent<Image>();
+                iconImg.sprite = IconSprite(icon.Value);
+                iconImg.color = new Color(1f, 0.9f, 0.45f, 1f);
+                iconImg.raycastTarget = false;
+                var iconRt = iconImg.rectTransform;
+                iconRt.anchorMin = new Vector2(0f, 0.5f);
+                iconRt.anchorMax = new Vector2(0f, 0.5f);
+                iconRt.pivot = new Vector2(0f, 0.5f);
+                iconRt.anchoredPosition = new Vector2(10f, 0f);
+                iconRt.sizeDelta = new Vector2(size.y * 0.42f, size.y * 0.42f);
+                textLeft = size.y * 0.42f + 8f;
+            }
+
             var text = CreateText(inner.transform, "Value", initial, 36, TextAnchor.MiddleCenter, new Color(1f, 0.88f, 0.35f, 1f));
             text.fontStyle = FontStyle.Bold;
+            text.rectTransform.offsetMin = new Vector2(textLeft, 0f);
+            text.rectTransform.offsetMax = Vector2.zero;
             return text;
         }
 
@@ -462,9 +618,9 @@ namespace TempleSprint
             return (scroll, contentRt);
         }
 
-        public static Button CreateTabButton(Transform parent, string name, string label, Vector2 anchoredPos, Vector2 size)
+        public static Button CreateTabButton(Transform parent, string name, string label, Vector2 anchoredPos, Vector2 size, UiIcon? icon = null)
         {
-            var btn = CreateButton(parent, name, label, anchoredPos, size);
+            var btn = CreateButton(parent, name, label, anchoredPos, size, icon);
             var img = btn.GetComponent<Image>();
             if (img != null) img.color = new Color(0.42f, 0.32f, 0.16f, 1f);
             return btn;
