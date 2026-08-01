@@ -556,6 +556,11 @@ namespace TempleSprint.EditorTools
                         Debug.LogWarning($"[VERIFY] IceSurf at {t.PathStartDistance:0.0} missing marker");
                         return false;
                     }
+                    if (t.transform.Find("IceLugeWall_0") == null && t.transform.Find("IceLugeGroove") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] IceSurf at {t.PathStartDistance:0.0} missing luge half-pipe walls");
+                        return false;
+                    }
                 }
                 if (t.Kind == TileKind.WallRun)
                 {
@@ -599,6 +604,11 @@ namespace TempleSprint.EditorTools
                     if (t.GetComponent<SpecialStageMarker>() == null)
                     {
                         Debug.LogWarning($"[VERIFY] WaterfallPlunge at {t.PathStartDistance:0.0} missing marker");
+                        return false;
+                    }
+                    if (t.transform.Find("SprayCurtain_0") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] WaterfallPlunge at {t.PathStartDistance:0.0} missing spray curtains");
                         return false;
                     }
                 }

@@ -193,6 +193,8 @@ namespace TempleSprint
                     if (BiomeSystem.Current == BiomeId.DesertTombs && Random.value < 0.55f) BuildDesertRunwayProps();
                     if (BiomeSystem.Current == BiomeId.IceCaverns && Random.value < 0.5f) BuildIceRunwayProps();
                     if (BiomeSystem.Current == BiomeId.NightSummit && Random.value < 0.55f) BuildNightSummitProps();
+                    if (EventService.IsFeaturedBiome(BiomeSystem.Current) && Random.value < 0.7f)
+                        BuildSeasonalEventDressing();
                     break;
                 case TileKind.CoinLane:
                     ScatterCoins(10);
@@ -2255,6 +2257,70 @@ namespace TempleSprint
             CollectibleCoin.Create(transform, new Vector3(0f, 1.4f, channelEnd - 0.4f));
         }
 
+        /// <summary>Layered translucent spray curtains for waterfall plunge stages.</summary>
+        void BuildWaterfallSprayCurtains(float channelStart, float channelEnd, float mid, float channelLen)
+        {
+            var sprayMat = JunglePalette.Mat(new Color(0.78f, 0.9f, 0.96f, 0.35f), 0.08f);
+            var dropletMat = JunglePalette.Mat(new Color(0.85f, 0.95f, 1f, 0.55f), 0.12f);
+            float sheetZ = channelStart + channelLen * 0.32f;
+
+            for (int layer = 0; layer < 4; layer++)
+            {
+                float z = sheetZ + layer * 0.45f;
+                float h = 4.2f - layer * 0.55f;
+                float y = 2.5f - layer * 0.35f;
+                var curtain = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                curtain.name = "SprayCurtain_" + layer;
+                curtain.transform.SetParent(transform, false);
+                curtain.transform.localPosition = new Vector3(0f, y, z);
+                curtain.transform.localScale = new Vector3(DeckWidth + 1.2f + layer * 0.35f, h, 0.18f);
+                curtain.GetComponent<Renderer>().sharedMaterial = sprayMat;
+                StripCollider(curtain);
+                curtain.AddComponent<RiverSurfaceScroll>();
+            }
+
+            // Side spray plumes + splash droplets around the plunge pool.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                for (int i = 0; i < 5; i++)
+                {
+                    float z = Mathf.Lerp(channelStart + 0.6f, mid + 1.2f, (i + 0.5f) / 5f);
+                    var plume = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    plume.name = "SprayPlume";
+                    plume.transform.SetParent(transform, false);
+                    plume.transform.localPosition = new Vector3(side * (DeckWidth * 0.45f + 0.4f), 1.1f + (i % 3) * 0.35f, z);
+                    plume.transform.localRotation = Quaternion.Euler(Random.Range(-12f, 12f), 0f, side * Random.Range(8f, 22f));
+                    plume.transform.localScale = new Vector3(0.35f, Random.Range(1.4f, 2.4f), 0.28f);
+                    plume.GetComponent<Renderer>().sharedMaterial = sprayMat;
+                    StripCollider(plume);
+                }
+            }
+
+            for (int i = 0; i < 10; i++)
+            {
+                var drop = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                drop.name = "SprayDroplet";
+                drop.transform.SetParent(transform, false);
+                drop.transform.localPosition = new Vector3(
+                    Random.Range(-DeckWidth * 0.55f, DeckWidth * 0.55f),
+                    Random.Range(0.4f, 2.8f),
+                    Mathf.Lerp(sheetZ - 0.2f, mid + 0.8f, Random.value));
+                float s = Random.Range(0.12f, 0.28f);
+                drop.transform.localScale = Vector3.one * s;
+                drop.GetComponent<Renderer>().sharedMaterial = dropletMat;
+                StripCollider(drop);
+            }
+
+            // Extra foam ring at impact.
+            var impactFoam = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            impactFoam.name = "PlungeImpactFoam";
+            impactFoam.transform.SetParent(transform, false);
+            impactFoam.transform.localPosition = new Vector3(0f, 0.42f, mid);
+            impactFoam.transform.localScale = new Vector3(DeckWidth * 1.15f, 0.12f, DeckWidth * 0.85f);
+            impactFoam.GetComponent<Renderer>().sharedMaterial = JunglePalette.Foam;
+            StripCollider(impactFoam);
+        }
+
         /// <summary>
         /// Cascading waterfall sheet with plunge foam. side = bank facing (-1 / +1).
         /// </summary>
@@ -3195,6 +3261,70 @@ namespace TempleSprint
                 GemPickup.Create(transform, new Vector3(trackX, 1.55f, mid + 1f));
         }
 
+        /// <summary>
+        /// Ice-surf half-pipe luge walls — curved banked tube rails (not open crevasse lips).
+        /// </summary>
+        void BuildIceLugeTube(float midZ, float channelLen)
+        {
+            var iceWall = JunglePalette.Mat(new Color(0.7f, 0.86f, 0.97f), 0.62f, 0.3f);
+            var rimIce = JunglePalette.Mat(new Color(0.82f, 0.92f, 1f), 0.75f, 0.18f);
+            // Three stacked slabs per side approximate a curved half-pipe wall.
+            float[] angles = { 28f, 52f, 78f };
+            float[] heights = { 0.35f, 0.95f, 1.55f };
+            float[] radii = { DeckWidth * 0.42f, DeckWidth * 0.48f, DeckWidth * 0.52f };
+            float[] thicknesses = { 0.55f, 0.48f, 0.4f };
+
+            for (int side = -1; side <= 1; side += 2)
+            {
+                for (int tier = 0; tier < angles.Length; tier++)
+                {
+                    var slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    slab.name = "IceLugeWall_" + tier;
+                    slab.transform.SetParent(transform, false);
+                    slab.transform.localPosition = new Vector3(side * radii[tier], heights[tier], midZ);
+                    slab.transform.localRotation = Quaternion.Euler(6f, 0f, side * angles[tier]);
+                    slab.transform.localScale = new Vector3(thicknesses[tier], 0.55f, channelLen * 0.96f);
+                    slab.GetComponent<Renderer>().sharedMaterial = iceWall;
+                    StripCollider(slab);
+                }
+
+                // Tube rim lip so the half-pipe silhouette reads against the sky.
+                var rim = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                rim.name = "IceLugeRim";
+                rim.transform.SetParent(transform, false);
+                rim.transform.localPosition = new Vector3(side * (DeckWidth * 0.56f), 1.95f, midZ);
+                rim.transform.localRotation = Quaternion.Euler(6f, 0f, side * 8f);
+                rim.transform.localScale = new Vector3(0.35f, 0.22f, channelLen * 0.94f);
+                rim.GetComponent<Renderer>().sharedMaterial = rimIce;
+                StripCollider(rim);
+
+                // Frost ribs along the tube for depth while surfing.
+                for (int i = 0; i < 3; i++)
+                {
+                    float z = Mathf.Lerp(midZ - channelLen * 0.35f, midZ + channelLen * 0.35f, (i + 0.5f) / 3f);
+                    var rib = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    rib.name = "IceLugeRib";
+                    rib.transform.SetParent(transform, false);
+                    rib.transform.localPosition = new Vector3(side * (DeckWidth * 0.46f), 0.85f, z);
+                    rib.transform.localRotation = Quaternion.Euler(0f, 0f, side * 45f);
+                    rib.transform.localScale = new Vector3(0.18f, 1.4f, 0.35f);
+                    rib.GetComponent<Renderer>().sharedMaterial = rimIce;
+                    StripCollider(rib);
+                }
+            }
+
+            // Center packed-snow channel groove.
+            var groove = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            groove.name = "IceLugeGroove";
+            groove.transform.SetParent(transform, false);
+            groove.transform.localPosition = new Vector3(0f, 0.02f, midZ);
+            groove.transform.localRotation = Quaternion.Euler(6f, 0f, 0f);
+            groove.transform.localScale = new Vector3(DeckWidth * 0.55f, 0.08f, channelLen * 0.92f);
+            groove.GetComponent<Renderer>().sharedMaterial =
+                JunglePalette.Mat(new Color(0.78f, 0.9f, 0.98f), 0.55f, 0.22f);
+            StripCollider(groove);
+        }
+
         void BuildIceSlopeShell()
         {
             // Snow banks flanking the iced slope.
@@ -3341,6 +3471,93 @@ namespace TempleSprint
                     bead.GetComponent<Renderer>().sharedMaterial = JunglePalette.RiverWater;
                     StripCollider(bead);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Limited-time live-event runway props for the featured biome week
+        /// (festival banners, garlands, lanterns — original Temple Sprint dressing).
+        /// </summary>
+        void BuildSeasonalEventDressing()
+        {
+            var accent = EventService.FestivalAccent;
+            var trim = EventService.FestivalTrim;
+            var accentMat = JunglePalette.Mat(accent, 0.45f, 0.15f);
+            var trimMat = JunglePalette.Mat(trim, 0.55f, 0.1f);
+
+            // Overhead festival banner spanning the deck.
+            var banner = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            banner.name = "EventFestivalBanner";
+            banner.transform.SetParent(transform, false);
+            banner.transform.localPosition = new Vector3(0f, 3.15f, Length * 0.5f);
+            banner.transform.localScale = new Vector3(DeckWidth * 0.95f, 0.55f, 0.12f);
+            banner.GetComponent<Renderer>().sharedMaterial = accentMat;
+            StripCollider(banner);
+
+            var bannerTrim = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            bannerTrim.name = "EventBannerTrim";
+            bannerTrim.transform.SetParent(banner.transform, false);
+            bannerTrim.transform.localPosition = new Vector3(0f, -0.65f, 0f);
+            bannerTrim.transform.localScale = new Vector3(0.92f, 0.22f, 1.2f);
+            bannerTrim.GetComponent<Renderer>().sharedMaterial = trimMat;
+            StripCollider(bannerTrim);
+
+            // Side post lanterns / garland ribbons.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var post = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                post.name = "EventFestivalPost";
+                post.transform.SetParent(transform, false);
+                post.transform.localPosition = new Vector3(side * (DeckWidth * 0.5f + 0.35f), 1.4f, Length * 0.5f);
+                post.transform.localScale = new Vector3(0.14f, 1.4f, 0.14f);
+                post.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+                StripCollider(post);
+
+                var lantern = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                lantern.name = "EventFestivalLantern";
+                lantern.transform.SetParent(post.transform, false);
+                lantern.transform.localPosition = new Vector3(0f, 1.05f, 0f);
+                lantern.transform.localScale = new Vector3(1.8f, 2.1f, 1.8f);
+                lantern.GetComponent<Renderer>().sharedMaterial = accentMat;
+                StripCollider(lantern);
+
+                var light = new GameObject("EventLanternLight").AddComponent<Light>();
+                light.transform.SetParent(lantern.transform, false);
+                light.transform.localPosition = Vector3.zero;
+                light.type = LightType.Point;
+                light.color = Color.Lerp(accent, Color.white, 0.35f);
+                light.range = 5.5f;
+                light.intensity = 1.4f;
+                light.shadows = LightShadows.None;
+
+                for (int i = 0; i < 3; i++)
+                {
+                    float z = Length * ((i + 0.5f) / 3f);
+                    var ribbon = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    ribbon.name = "EventGarland";
+                    ribbon.transform.SetParent(transform, false);
+                    ribbon.transform.localPosition = new Vector3(side * (DeckWidth * 0.48f + 0.2f), 2.4f + (i % 2) * 0.15f, z);
+                    ribbon.transform.localRotation = Quaternion.Euler(0f, 0f, side * 18f);
+                    ribbon.transform.localScale = new Vector3(0.08f, 0.85f, 0.35f);
+                    ribbon.GetComponent<Renderer>().sharedMaterial = (i % 2 == 0) ? accentMat : trimMat;
+                    StripCollider(ribbon);
+                }
+            }
+
+            // Deck confetti petals / event markers at the near lip.
+            for (int i = 0; i < 4; i++)
+            {
+                var petal = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                petal.name = "EventPetal";
+                petal.transform.SetParent(transform, false);
+                petal.transform.localPosition = new Vector3(
+                    Random.Range(-DeckWidth * 0.35f, DeckWidth * 0.35f),
+                    0.08f,
+                    Length * Random.Range(0.15f, 0.85f));
+                petal.transform.localRotation = Quaternion.Euler(0f, Random.Range(0f, 180f), 0f);
+                petal.transform.localScale = new Vector3(0.28f, 0.04f, 0.18f);
+                petal.GetComponent<Renderer>().sharedMaterial = (i % 2 == 0) ? accentMat : trimMat;
+                StripCollider(petal);
             }
         }
 
@@ -3644,34 +3861,26 @@ namespace TempleSprint
             slope.transform.SetParent(transform, false);
             slope.transform.localPosition = new Vector3(0f, -0.08f, mid);
             slope.transform.localRotation = Quaternion.Euler(6f, 0f, 0f);
-            slope.transform.localScale = new Vector3(DeckWidth * 0.98f, 0.22f, channelLen);
+            slope.transform.localScale = new Vector3(DeckWidth * 0.72f, 0.22f, channelLen);
             slope.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.72f, 0.86f, 0.96f), 0.65f, 0.25f);
             StripCollider(slope);
 
-            // Crevasse lips + true off-deck kill strips (outer lanes stay rideable).
+            // Half-pipe luge tube walls — stacked banked slabs, distinct from open-runway crevasse lips.
+            BuildIceLugeTube(mid, channelLen);
+
             for (int side = -1; side <= 1; side += 2)
             {
-                var lip = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                lip.name = "IceSurfCrevasseLip";
-                lip.transform.SetParent(transform, false);
-                lip.transform.localPosition = new Vector3(side * (DeckWidth * 0.52f), -0.02f, mid);
-                lip.transform.localRotation = Quaternion.Euler(6f, 0f, side * 14f);
-                lip.transform.localScale = new Vector3(0.45f, 0.3f, channelLen * 0.95f);
-                lip.GetComponent<Renderer>().sharedMaterial =
-                    JunglePalette.Mat(new Color(0.68f, 0.84f, 0.95f), 0.55f, 0.28f);
-                StripCollider(lip);
-
                 var abyss = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 abyss.name = "IceSurfAbyss";
                 abyss.transform.SetParent(transform, false);
-                abyss.transform.localPosition = new Vector3(side * (DeckWidth * 0.5f + 2.6f), ForestFloorY - 0.9f, mid);
-                abyss.transform.localScale = new Vector3(2.4f, 5.8f, channelLen + 1.2f);
+                abyss.transform.localPosition = new Vector3(side * (DeckWidth * 0.5f + 2.8f), ForestFloorY - 0.9f, mid);
+                abyss.transform.localScale = new Vector3(2.6f, 5.8f, channelLen + 1.2f);
                 abyss.GetComponent<Renderer>().sharedMaterial =
                     JunglePalette.Mat(new Color(0.14f, 0.22f, 0.32f), 0.12f);
                 StripCollider(abyss);
 
                 GapKillZone.CreateEdge(
-                    transform, mid, side * (DeckWidth * 0.5f + 1.65f),
+                    transform, mid, side * (DeckWidth * 0.5f + 1.85f),
                     channelLen * 0.95f, 2.5f, "Slid off the ice", allowDuringMount: true);
             }
 
@@ -4065,6 +4274,9 @@ namespace TempleSprint
             mist.transform.localScale = new Vector3(DeckWidth + 3f, 1.8f, channelLen * 0.7f);
             mist.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.7f, 0.85f, 0.9f, 0.28f), 0.05f);
             StripCollider(mist);
+
+            // Dense spray curtains through the dive sheet — reads as a true waterfall plunge.
+            BuildWaterfallSprayCurtains(channelStart, channelEnd, mid, channelLen);
 
             var mountGo = new GameObject("WaterfallPlungeMount");
             mountGo.transform.SetParent(transform, false);
