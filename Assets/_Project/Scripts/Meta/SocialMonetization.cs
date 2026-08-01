@@ -7,6 +7,13 @@ namespace TempleSprint
 {
     public static class LeaderboardService
     {
+        public struct LeaderboardEntry
+        {
+            public string name;
+            public int score;
+            public bool isPlayer;
+        }
+
         static readonly List<(string name, int score)> Friends = new List<(string, int)>
         {
             ("You", 0), ("Alex", 4200), ("Sam", 3100), ("Riley", 2800), ("Jordan", 1900)
@@ -14,48 +21,259 @@ namespace TempleSprint
 
         public static void Submit(int score, float distance)
         {
-            Friends[0] = (MetaProgress.Ensure().Data.playerName, Mathf.Max(Friends[0].score, score));
+            var meta = MetaProgress.Ensure();
+            Friends[0] = (meta.Data.playerName, Mathf.Max(Friends[0].score, score));
             Friends.Sort((a, b) => b.score.CompareTo(a.score));
+            EnsureWeeklyWindow();
+            if (score > meta.Data.weeklyBoardBestScore)
+            {
+                meta.Data.weeklyBoardBestScore = score;
+                meta.Save();
+            }
             AnalyticsService.Track("leaderboard_submit", score);
+        }
+
+        public static int WeekSeed => DateTime.UtcNow.Year * 100 + EventService.WeekIndex;
+
+        public static void EnsureWeeklyWindow()
+        {
+            var meta = MetaProgress.Ensure();
+            if (meta.Data.weeklyBoardWeekSeed == WeekSeed) return;
+            meta.Data.weeklyBoardWeekSeed = WeekSeed;
+            meta.Data.weeklyBoardBestScore = 0;
+            meta.Save();
+        }
+
+        public static bool CanClaimWeeklyReward()
+        {
+            EnsureWeeklyWindow();
+            var m = MetaProgress.Ensure().Data;
+            return m.weeklyBoardClaimWeek != WeekSeed && m.weeklyBoardBestScore >= 500;
+        }
+
+        public static bool TryClaimWeeklyReward(out string message)
+        {
+            EnsureWeeklyWindow();
+            var meta = MetaProgress.Ensure();
+            if (meta.Data.weeklyBoardClaimWeek == WeekSeed)
+            {
+                message = "Weekly board already claimed";
+                return false;
+            }
+            if (meta.Data.weeklyBoardBestScore < 500)
+            {
+                message = "Score 500+ this week to claim";
+                return false;
+            }
+
+            int score = meta.Data.weeklyBoardBestScore;
+            int coins = 40 + Mathf.Min(120, score / 80);
+            int gems = score >= 5000 ? 4 : score >= 2000 ? 2 : 1;
+            meta.Data.weeklyBoardClaimWeek = WeekSeed;
+            meta.BankCoins(coins);
+            meta.AddGems(gems);
+            message = $"Weekly claim: +{coins} coins +{gems} gems";
+            AnalyticsService.Track("weekly_board_claim", score);
+            return true;
+        }
+
+        /// <summary>Login streak flame glyphs for the weekly board plaque.</summary>
+        public static string StreakFlameLine()
+        {
+            int streak = Mathf.Max(0, MetaProgress.Ensure().Data.loginStreak);
+            int lit = Mathf.Clamp(streak, 0, 7);
+            var sb = new StringBuilder("STREAK ");
+            for (int i = 0; i < 7; i++)
+                sb.Append(i < lit ? "▲" : "△");
+            sb.Append($"  Day {streak}");
+            if (streak > 0 && streak % 7 == 0) sb.Append(" · BONUS");
+            return sb.ToString();
+        }
+
+        public static string WeeklyClaimStatus()
+        {
+            EnsureWeeklyWindow();
+            var m = MetaProgress.Ensure().Data;
+            if (m.weeklyBoardClaimWeek == WeekSeed) return "Reward claimed this week";
+            if (m.weeklyBoardBestScore < 500)
+                return $"Best this week: {m.weeklyBoardBestScore} (need 500)";
+            return $"Best this week: {m.weeklyBoardBestScore} — READY TO CLAIM";
+        }
+
+        public static LeaderboardEntry[] GetWeeklyGlobalEntries()
+        {
+            var best = MetaProgress.Ensure().Data.bestScore;
+            string you = MetaProgress.Ensure().Data.playerName;
+            return new[]
+            {
+                new LeaderboardEntry { name = "TempleAce", score = Mathf.Max(9800, best + 500), isPlayer = false },
+                new LeaderboardEntry { name = "RuinRunner", score = Mathf.Max(7600, best + 200), isPlayer = false },
+                new LeaderboardEntry { name = you, score = best, isPlayer = true },
+                new LeaderboardEntry { name = "CliffDash", score = Mathf.Max(5100, best - 400), isPlayer = false },
+                new LeaderboardEntry { name = "IdolDodger", score = Mathf.Max(3900, best - 900), isPlayer = false }
+            };
+        }
+
+        public static LeaderboardEntry[] GetFriendEntries()
+        {
+            var list = new List<LeaderboardEntry>(Friends.Count);
+            string you = MetaProgress.Ensure().Data.playerName;
+            foreach (var e in Friends)
+            {
+                bool isPlayer = e.name == "You" || e.name == you;
+                list.Add(new LeaderboardEntry
+                {
+                    name = isPlayer ? you : e.name,
+                    score = e.score,
+                    isPlayer = isPlayer
+                });
+            }
+            return list.ToArray();
         }
 
         public static string GlobalBoard()
         {
-            var best = MetaProgress.Ensure().Data.bestScore;
-            return $"Weekly Global\n1. TempleAce — {Mathf.Max(9800, best + 500)}\n2. RuinRunner — {Mathf.Max(7600, best + 200)}\n3. {MetaProgress.Ensure().Data.playerName} — {best}\n(Submit via UGS Leaderboards when enabled)";
+            var sb = new StringBuilder("Weekly Global\n");
+            var entries = GetWeeklyGlobalEntries();
+            for (int i = 0; i < entries.Length && i < 5; i++)
+                sb.AppendLine($"{i + 1}. {entries[i].name} — {entries[i].score}");
+            sb.Append("(Offline board · UGS when enabled)");
+            return sb.ToString();
         }
 
         public static string FriendsBoard()
         {
             var sb = new StringBuilder("Friends\n");
-            int i = 1;
-            foreach (var e in Friends)
-            {
-                sb.AppendLine($"{i}. {e.name} — {e.score}");
-                if (i++ >= 5) break;
-            }
+            var entries = GetFriendEntries();
+            for (int i = 0; i < entries.Length && i < 5; i++)
+                sb.AppendLine($"{i + 1}. {entries[i].name} — {entries[i].score}");
             return sb.ToString();
+        }
+
+        public static string WeeklyChallengeBlurb()
+        {
+            return EventService.Status() + "\n" + ArtifactHuntSystem.Status();
         }
     }
 
     public static class GhostRunService
     {
         [Serializable]
-        class GhostData { public float[] samples; public int score; }
+        class GhostData
+        {
+            public float[] samples; // legacy distance-only markers
+            public float[] times;
+            public float[] distances;
+            public int[] lanes;
+            public int score;
+        }
 
-        public static void SaveSample(List<float> samples, int score)
+        static GhostData _cached;
+        static bool _cacheLoaded;
+
+        public static void SaveTimedSample(List<float> times, List<float> distances, List<int> lanes, int score)
         {
             var meta = MetaProgress.Ensure();
             if (score < meta.Data.bestScore && !string.IsNullOrEmpty(meta.Data.ghostRunJson)) return;
-            meta.Data.ghostRunJson = JsonUtility.ToJson(new GhostData { samples = samples.ToArray(), score = score });
+            var data = new GhostData
+            {
+                times = times.ToArray(),
+                distances = distances.ToArray(),
+                lanes = lanes.ToArray(),
+                samples = distances.ToArray(),
+                score = score
+            };
+            meta.Data.ghostRunJson = JsonUtility.ToJson(data);
             meta.Save();
+            _cached = data;
+            _cacheLoaded = true;
+        }
+
+        /// <summary>Legacy distance-only save (kept for older call sites).</summary>
+        public static void SaveSample(List<float> samples, int score)
+        {
+            var times = new List<float>(samples.Count);
+            var lanes = new List<int>(samples.Count);
+            for (int i = 0; i < samples.Count; i++)
+            {
+                times.Add(i * 0.35f);
+                lanes.Add(1);
+            }
+            SaveTimedSample(times, samples, lanes, score);
         }
 
         public static bool HasGhost => !string.IsNullOrEmpty(MetaProgress.Ensure().Data.ghostRunJson);
 
+        public static bool TryLoadGhost(out float[] times, out float[] distances, out int[] lanes)
+        {
+            times = null;
+            distances = null;
+            lanes = null;
+            if (!HasGhost) return false;
+            if (!_cacheLoaded || _cached == null)
+            {
+                try { _cached = JsonUtility.FromJson<GhostData>(MetaProgress.Ensure().Data.ghostRunJson); }
+                catch { return false; }
+                _cacheLoaded = true;
+            }
+            if (_cached == null) return false;
+
+            if (_cached.times != null && _cached.distances != null && _cached.times.Length > 1
+                && _cached.times.Length == _cached.distances.Length)
+            {
+                times = _cached.times;
+                distances = _cached.distances;
+                lanes = _cached.lanes != null && _cached.lanes.Length == _cached.times.Length
+                    ? _cached.lanes
+                    : new int[_cached.times.Length];
+                return true;
+            }
+
+            // Upgrade legacy distance markers into a paced ghost.
+            if (_cached.samples == null || _cached.samples.Length < 2) return false;
+            times = new float[_cached.samples.Length];
+            distances = _cached.samples;
+            lanes = new int[_cached.samples.Length];
+            for (int i = 0; i < times.Length; i++)
+            {
+                times[i] = i * 0.35f;
+                lanes[i] = 1;
+            }
+            return true;
+        }
+
+        public static void SampleAt(float elapsed, out float distance, out int lane)
+        {
+            distance = 0f;
+            lane = 1;
+            if (!TryLoadGhost(out var times, out var distances, out var lanes)) return;
+            if (elapsed <= times[0])
+            {
+                distance = distances[0];
+                lane = lanes[0];
+                return;
+            }
+            if (elapsed >= times[times.Length - 1])
+            {
+                distance = distances[distances.Length - 1];
+                lane = lanes[lanes.Length - 1];
+                return;
+            }
+            for (int i = 1; i < times.Length; i++)
+            {
+                if (elapsed > times[i]) continue;
+                float t0 = times[i - 1];
+                float t1 = times[i];
+                float u = Mathf.InverseLerp(t0, t1, elapsed);
+                distance = Mathf.Lerp(distances[i - 1], distances[i], u);
+                lane = u < 0.5f ? lanes[i - 1] : lanes[i];
+                return;
+            }
+        }
+
         public static string Status() => HasGhost
-            ? "Ghost Run ready — race your best distance markers next run."
-            : "Complete a run to record a ghost.";
+            ? "Ghost rival ready — race your best timed run."
+            : "Complete a run to record a ghost rival.";
     }
 
     public static class ShopService
