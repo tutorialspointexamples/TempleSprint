@@ -2020,6 +2020,22 @@ namespace TempleSprint
                 StripCollider(smoke);
             }
 
+            // Rising ember sparks for heat read without particle systems.
+            for (int i = 0; i < 8; i++)
+            {
+                var spark = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                spark.name = "EmberSpark";
+                spark.transform.SetParent(transform, false);
+                spark.transform.localPosition = new Vector3(
+                    Random.Range(-DeckWidth * 0.5f, DeckWidth * 0.5f),
+                    ForestFloorY + Random.Range(0.8f, 3.2f),
+                    channelStart + channelLen * Random.Range(0.1f, 0.9f));
+                float s = Random.Range(0.12f, 0.28f);
+                spark.transform.localScale = Vector3.one * s;
+                spark.GetComponent<Renderer>().sharedMaterial = JunglePalette.FlameCore;
+                StripCollider(spark);
+            }
+
             for (int i = 0; i < 5; i++)
             {
                 int side = Random.value < 0.5f ? -1 : 1;
