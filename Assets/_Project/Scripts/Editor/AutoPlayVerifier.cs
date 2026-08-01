@@ -250,7 +250,8 @@ namespace TempleSprint.EditorTools
                                      || tileSpawner.WaterSlidesSpawnedThisRun > 0
                                      || tileSpawner.TempleHallsSpawnedThisRun > 0
                                      || tileSpawner.LavaRiversSpawnedThisRun > 0
-                                     || tileSpawner.RuinForksSpawnedThisRun > 0));
+                                     || tileSpawner.RuinForksSpawnedThisRun > 0
+                                     || tileSpawner.BiomeTransitionsSpawnedThisRun > 0));
 
             bool ok = gm != null && ui != null && kids >= 4 && explorer != null && nature != null
                       && activeTiles > 0 && rends >= 40 && framed && humanoid
@@ -628,6 +629,15 @@ namespace TempleSprint.EditorTools
                     if (t.transform.Find("ArmLeft") == null || t.transform.Find("ArmRight") == null)
                     {
                         Debug.LogWarning($"[VERIFY] RuinFork at {t.PathStartDistance:0.0} missing fork arms");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.BiomeTransitionTunnel)
+                {
+                    if (t.transform.Find("TransitionWallNear") == null
+                        && t.transform.Find("BiomeTransitionCommit") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] BiomeTransitionTunnel at {t.PathStartDistance:0.0} missing shell");
                         return false;
                     }
                 }

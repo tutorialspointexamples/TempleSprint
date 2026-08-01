@@ -212,6 +212,7 @@ namespace TempleSprint
             if (_guardian != null) _guardian.gameObject.SetActive(false);
             _ghost?.Stop();
             _env?.ResetEffects();
+            BiomeSystem.ClearRunTransition();
             _spawner?.ShowMenuPreview();
             _player?.ResetAtStart();
             _player?.ApplyCharacterColors();
@@ -236,6 +237,7 @@ namespace TempleSprint
 
             var meta = MetaProgress.Ensure();
             bool tutorial = !meta.Data.tutorialCompleted;
+            BiomeSystem.ClearRunTransition();
             BiomeSystem.ApplyLighting();
 
             State = GameState.Running;

@@ -16,6 +16,55 @@ namespace TempleSprint
     public static class BiomeSystem
     {
         public static BiomeId Current { get; private set; } = BiomeId.JungleRuins;
+        public static BiomeId PendingTransitionTarget { get; private set; } = BiomeId.JungleRuins;
+        public static bool TransitionActive { get; private set; }
+
+        public static bool HasUnlockedAlternate
+        {
+            get
+            {
+                foreach (BiomeId id in System.Enum.GetValues(typeof(BiomeId)))
+                    if (id != Current && IsUnlocked(id)) return true;
+                return false;
+            }
+        }
+
+        public static BiomeId PeekNextUnlockedBiome()
+        {
+            var values = (BiomeId[])System.Enum.GetValues(typeof(BiomeId));
+            int start = ((int)Current + 1) % values.Length;
+            for (int i = 0; i < values.Length; i++)
+            {
+                var id = values[(start + i) % values.Length];
+                if (id != Current && IsUnlocked(id)) return id;
+            }
+            return Current;
+        }
+
+        public static void BeginRunTransition(BiomeId target)
+        {
+            if (!IsUnlocked(target) || target == Current)
+            {
+                TransitionActive = false;
+                PendingTransitionTarget = Current;
+                return;
+            }
+            PendingTransitionTarget = target;
+            TransitionActive = true;
+        }
+
+        public static void CompleteRunTransition()
+        {
+            if (!TransitionActive) return;
+            Select(PendingTransitionTarget);
+            TransitionActive = false;
+        }
+
+        public static void ClearRunTransition()
+        {
+            TransitionActive = false;
+            PendingTransitionTarget = Current;
+        }
 
         public static bool IsUnlocked(BiomeId id)
         {
@@ -127,6 +176,11 @@ namespace TempleSprint
                 : Current == BiomeId.VolcanicCrater ? 1.1f
                 : Current == BiomeId.NightSummit ? 1.4f
                 : 0.85f) * EventService.EventStageBias(Current);
+
+        public static float BiomeTransitionBias =>
+            HasUnlockedAlternate
+                ? (Current == BiomeId.JungleRuins || Current == BiomeId.CaveMines ? 1.35f : 1.1f)
+                : 0f;
 
         public static Material PathMat => BiomePalette.Path(Current);
         public static Material StoneMat => BiomePalette.Stone(Current);
@@ -774,6 +828,29 @@ namespace TempleSprint
         void OnDestroy()
         {
             if (Instance == this) Instance = null;
+        }
+    }
+
+    /// <summary>Commits a mid-run biome crossfade when the runner exits the transition tunnel.</summary>
+    public class BiomeTransitionCommitTrigger : MonoBehaviour
+    {
+        public BiomeId Target;
+        bool _done;
+
+        void OnTriggerEnter(Collider other)
+        {
+            if (_done) return;
+            if (other.GetComponentInParent<PlayerController>() == null
+                && other.GetComponent<PlayerController>() == null)
+                return;
+            _done = true;
+            if (BiomeSystem.TransitionActive)
+                BiomeSystem.CompleteRunTransition();
+            else
+                BiomeSystem.Select(Target);
+            AudioHooks.Instance?.PlayPickup();
+            ChaseCamera.Instance?.PunchFov(2.2f);
+            GameUI.Instance?.ShowTutorial("Entered " + BiomeSystem.DisplayName(BiomeSystem.Current));
         }
     }
 }
