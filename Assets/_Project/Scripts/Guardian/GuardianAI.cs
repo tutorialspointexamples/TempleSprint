@@ -16,6 +16,13 @@ namespace TempleSprint
         float[] _phase;
         bool _active;
         Renderer[] _eyeGlow;
+        float _lunge;
+        float _lastLungeTime = -10f;
+        float _threat01;
+
+        /// <summary>0 far → 1 about to catch (for chase cam pressure / UI).</summary>
+        public float Threat01 => _threat01;
+        public bool IsLunging => _lunge > 0.05f;
 
         void Awake()
         {
@@ -186,6 +193,9 @@ namespace TempleSprint
         {
             _active = true;
             _gap = 16f;
+            _lunge = 0f;
+            _threat01 = 0f;
+            _lastLungeTime = -10f;
             if (PlayerController.Instance != null)
             {
                 var p = PlayerController.Instance.transform;
@@ -194,7 +204,12 @@ namespace TempleSprint
             }
         }
 
-        public void Stop() => _active = false;
+        public void Stop()
+        {
+            _active = false;
+            _lunge = 0f;
+            _threat01 = 0f;
+        }
 
         void Update()
         {
@@ -214,39 +229,57 @@ namespace TempleSprint
             else if (gapError < -2f) catchUp = playerSpeed * 0.75f;
             if (player.IsStumbling) catchUp = playerSpeed * 1.45f;
 
-            _gap = Mathf.MoveTowards(_gap, targetGap, Time.deltaTime * 2.5f);
+            // Grab telegraph: when close, snap forward with a clawing lunge then recoil.
+            _threat01 = Mathf.Clamp01(Mathf.InverseLerp(maxGap, catchDistance, _gap));
+            if (_lunge > 0f)
+                _lunge = Mathf.MoveTowards(_lunge, 0f, Time.deltaTime * 1.35f);
+            else if (_threat01 > 0.62f && Time.time - _lastLungeTime > 2.4f)
+            {
+                _lunge = 1f;
+                _lastLungeTime = Time.time;
+                _gap = Mathf.Max(catchDistance + 0.35f, _gap - 2.8f);
+                ChaseCamera.Instance?.PunchFov(4.5f);
+                AudioHooks.Instance?.PlayGuardian();
+            }
+
+            float closeBoost = _lunge > 0f ? 3.8f : (_threat01 > 0.55f ? 1.4f : 1f);
+            _gap = Mathf.MoveTowards(_gap, targetGap, Time.deltaTime * 2.5f * closeBoost);
             _gap = Mathf.Max(0.8f, _gap);
 
+            float displayGap = Mathf.Max(0.55f, _gap - _lunge * 2.2f);
             var pt = player.transform;
-            Vector3 desired = pt.position - pt.forward * _gap;
+            Vector3 desired = pt.position - pt.forward * displayGap;
             desired.y = 0f;
-            transform.position = Vector3.Lerp(transform.position, desired, 1f - Mathf.Exp(-6f * Time.deltaTime));
+            float chaseSnap = 6f + _threat01 * 4f + _lunge * 8f;
+            transform.position = Vector3.Lerp(transform.position, desired, 1f - Mathf.Exp(-chaseSnap * Time.deltaTime));
             transform.rotation = Quaternion.Slerp(transform.rotation,
                 Quaternion.LookRotation(pt.forward, Vector3.up),
                 1f - Mathf.Exp(-8f * Time.deltaTime));
 
-            // Gallop cycle
+            // Gallop cycle + claw reach during lunge
             for (int i = 0; i < _pack.Length; i++)
             {
                 if (_pack[i] == null) continue;
-                _phase[i] += Time.deltaTime * 11f;
+                _phase[i] += Time.deltaTime * (11f + _threat01 * 4f + _lunge * 6f);
                 float s = Mathf.Sin(_phase[i]);
                 var lp = _pack[i].localPosition;
-                _pack[i].localPosition = new Vector3(lp.x, Mathf.Abs(s) * 0.18f, lp.z);
-                _pack[i].localRotation = Quaternion.Euler(s * 12f, 0f, s * 4f);
+                float reach = _lunge * (0.55f + (i == 1 ? 0.35f : 0.15f));
+                _pack[i].localPosition = new Vector3(lp.x, Mathf.Abs(s) * 0.18f + _lunge * 0.12f, lp.z + reach);
+                _pack[i].localRotation = Quaternion.Euler(s * 12f - _lunge * 28f, 0f, s * 4f);
 
                 var armL = _pack[i].Find("ArmL");
                 var armR = _pack[i].Find("ArmR");
-                if (armL != null) armL.localRotation = Quaternion.Euler(55f + s * 25f, -15f, -35f);
-                if (armR != null) armR.localRotation = Quaternion.Euler(55f - s * 25f, 15f, 35f);
+                float claw = _lunge * 55f;
+                if (armL != null) armL.localRotation = Quaternion.Euler(55f + s * 25f - claw, -15f - claw * 0.2f, -35f);
+                if (armR != null) armR.localRotation = Quaternion.Euler(55f - s * 25f - claw, 15f + claw * 0.2f, 35f);
             }
 
             // Eyes pulse hotter as the pack closes in
             if (_eyeGlow != null)
             {
-                float threat = Mathf.InverseLerp(maxGap, catchDistance, _gap);
-                float pulse = 0.75f + 0.25f * Mathf.Sin(Time.time * (6f + threat * 8f));
-                Color eye = Color.Lerp(new Color(0.95f, 0.95f, 0.95f), new Color(1f, 0.55f, 0.2f), threat * pulse);
+                float pulse = 0.75f + 0.25f * Mathf.Sin(Time.time * (6f + _threat01 * 8f + _lunge * 10f));
+                Color eye = Color.Lerp(new Color(0.95f, 0.95f, 0.95f), new Color(1f, 0.35f, 0.12f),
+                    Mathf.Clamp01(_threat01 * pulse + _lunge * 0.35f));
                 foreach (var r in _eyeGlow)
                 {
                     if (r == null) continue;
