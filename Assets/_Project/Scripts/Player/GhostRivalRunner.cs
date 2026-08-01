@@ -5,6 +5,7 @@ namespace TempleSprint
     /// <summary>
     /// Visible ghost rival that races the player's best timed distance samples.
     /// Original silhouette — not a clone of any third-party character.
+    /// Soft-dodges live lane hazards so the rival looks aware of the track.
     /// </summary>
     public class GhostRivalRunner : MonoBehaviour
     {
@@ -16,6 +17,7 @@ namespace TempleSprint
         bool _active;
         float _ghostDist;
         int _ghostLane = 1;
+        int _dodgeLane = 1;
         float _laneOffset;
         string _label = "";
 
@@ -72,6 +74,7 @@ namespace TempleSprint
             _elapsed = 0f;
             _ghostDist = 0f;
             _ghostLane = 1;
+            _dodgeLane = 1;
             _laneOffset = 0f;
             _active = GhostRunService.TryLoadGhost(out _, out _, out _);
             SetVisible(_active);
@@ -116,7 +119,8 @@ namespace TempleSprint
                 : null;
             if (tile != null) pose = tile.SampleAtPathDistance(_ghostDist);
 
-            float targetLane = (_ghostLane - 1) * PlayerController.LaneWidth;
+            _dodgeLane = ChooseSafeLane(tile, _ghostDist, _ghostLane);
+            float targetLane = (_dodgeLane - 1) * PlayerController.LaneWidth;
             _laneOffset = Mathf.Lerp(_laneOffset, targetLane, 1f - Mathf.Exp(-10f * Time.deltaTime));
 
             Vector3 pos = pose.position + pose.Right * _laneOffset;
@@ -131,6 +135,70 @@ namespace TempleSprint
             }
 
             SetVisible(true);
+        }
+
+        /// <summary>
+        /// Prefer the recorded lane; if a live lane hazard sits ahead on that lane,
+        /// pick the nearest clear side so the ghost weaves instead of clipping props.
+        /// </summary>
+        static int ChooseSafeLane(TrackTile tile, float pathDist, int preferred)
+        {
+            preferred = Mathf.Clamp(preferred, 0, 2);
+            if (tile == null) return preferred;
+
+            float local = pathDist - tile.PathStartDistance;
+            int blocked = ProbeBlockedMask(tile, local, 3.8f);
+            if ((blocked & (1 << preferred)) == 0) return preferred;
+
+            // Prefer center, then the side closer to the preferred lane.
+            int[] order = preferred == 1
+                ? new[] { 0, 2 }
+                : preferred == 0
+                    ? new[] { 1, 2 }
+                    : new[] { 1, 0 };
+            for (int i = 0; i < order.Length; i++)
+            {
+                if ((blocked & (1 << order[i])) == 0)
+                    return order[i];
+            }
+            return preferred;
+        }
+
+        static int ProbeBlockedMask(TrackTile tile, float localZ, float lookAhead)
+        {
+            int mask = 0;
+            var obstacles = tile.GetComponentsInChildren<Obstacle>(true);
+            for (int i = 0; i < obstacles.Length; i++)
+            {
+                var o = obstacles[i];
+                if (o == null || !o.gameObject.activeInHierarchy) continue;
+                // Slide beams are duckable — ghost can stay in lane visually.
+                if (o.RequiresSlide) continue;
+                float dz = o.transform.localPosition.z - localZ;
+                if (dz < -0.4f || dz > lookAhead) continue;
+                if (o.Lane < 0)
+                {
+                    // Full-width jump/block: treat as all lanes blocked for weave purposes.
+                    mask |= 0b111;
+                }
+                else
+                    mask |= 1 << Mathf.Clamp(o.Lane, 0, 2);
+            }
+
+            var gaps = tile.GetComponentsInChildren<GapKillZone>(true);
+            for (int i = 0; i < gaps.Length; i++)
+            {
+                var g = gaps[i];
+                if (g == null || !g.gameObject.activeInHierarchy) continue;
+                float dz = g.transform.localPosition.z - localZ;
+                float half = 1.2f;
+                var box = g.GetComponent<BoxCollider>();
+                if (box != null) half = box.size.z * 0.5f;
+                if (dz + half < -0.2f || dz - half > lookAhead) continue;
+                mask |= 1 << Mathf.Clamp(g.Lane, 0, 2);
+            }
+
+            return mask;
         }
 
         void OnDestroy()

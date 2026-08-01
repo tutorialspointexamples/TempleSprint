@@ -11,6 +11,7 @@ namespace TempleSprint
         GameObject _boot, _menu, _hud, _post, _upgrade, _locker, _shop, _missions, _settings, _info, _tutorial;
         Text _menuCurrency, _hudScore, _hudCoins, _hudPower, _hudCombo, _hudGhost, _postSummary, _infoBody, _tutorialText, _upgradeInfo, _missionBody;
         GameObject _hudComboFrame, _hudGhostFrame;
+        Image _hudPowerFill;
         Button _btnReviveAd, _btnReviveGem;
         bool _bootDone, _starterQueued;
         float _bootTimer = 0.45f;
@@ -60,10 +61,11 @@ namespace TempleSprint
                 _hud.transform, "Coins",
                 new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f),
                 new Vector2(-36f, -140f), new Vector2(240f, 72f), "◆ 0");
-            _hudPower = UiFactory.CreateHudPlaque(
+            var powerRing = UiFactory.CreatePowerRing(
                 _hud.transform, "Power",
-                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(36f, -36f), new Vector2(200f, 88f), "");
+                new Vector2(0f, 1f), new Vector2(36f, -36f), 132f);
+            _hudPowerFill = powerRing.fill;
+            _hudPower = powerRing.label;
             _hudCombo = UiFactory.CreateHudPlaque(
                 _hud.transform, "Combo",
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
@@ -206,10 +208,30 @@ namespace TempleSprint
                     : "RUN";
                 _hudScore.text = RunSession.Instance.Score.ToString("N0");
                 _hudCoins.text = "◆  " + RunSession.Instance.CoinsThisRun;
-                string power = PowerUpController.Instance != null ? PowerUpController.Instance.ActiveLabel : "";
-                if (PowerUpController.Instance != null && PowerUpController.Instance.EnergyReady)
-                    power = "READY · " + power;
-                _hudPower.text = string.IsNullOrEmpty(power) ? diff : power;
+                if (PowerUpController.Instance != null)
+                {
+                    float fill = PowerUpController.Instance.EnergyFill01;
+                    if (_hudPowerFill != null)
+                    {
+                        _hudPowerFill.fillAmount = fill;
+                        _hudPowerFill.color = PowerUpController.Instance.EnergyReady
+                            ? Color.Lerp(new Color(1f, 0.9f, 0.35f), new Color(1f, 0.55f, 0.15f),
+                                0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 8f))
+                            : new Color(1f, 0.82f, 0.28f, 1f);
+                    }
+                    if (PowerUpController.Instance.EnergyReady)
+                        _hudPower.text = "READY";
+                    else if (!string.IsNullOrEmpty(PowerUpController.Instance.ActiveLabel)
+                             && PowerUpController.Instance.ActiveLabel.IndexOf('·') >= 0)
+                        _hudPower.text = Mathf.FloorToInt(fill * 100f) + "%";
+                    else
+                        _hudPower.text = Mathf.FloorToInt(fill * 100f) + "%";
+                }
+                else
+                {
+                    if (_hudPowerFill != null) _hudPowerFill.fillAmount = 0f;
+                    _hudPower.text = diff;
+                }
 
                 if (_hudCombo != null && _hudComboFrame != null)
                 {

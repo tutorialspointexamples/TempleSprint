@@ -265,6 +265,103 @@ namespace TempleSprint
             return img;
         }
 
+        /// <summary>Temple Run-style power meter: stone disc with radial gold fill + center label.</summary>
+        public static (Image fill, Text label) CreatePowerRing(Transform parent, string name, Vector2 anchor, Vector2 anchoredPos, float diameter)
+        {
+            var frame = new GameObject(name + "Ring");
+            frame.transform.SetParent(parent, false);
+            var frameImg = frame.AddComponent<Image>();
+            frameImg.color = new Color(0.14f, 0.1f, 0.07f, 0.95f);
+            var frt = frame.GetComponent<RectTransform>();
+            frt.anchorMin = anchor;
+            frt.anchorMax = anchor;
+            frt.pivot = anchor;
+            frt.anchoredPosition = anchoredPos;
+            frt.sizeDelta = new Vector2(diameter, diameter);
+
+            var rim = new GameObject("GoldRim");
+            rim.transform.SetParent(frame.transform, false);
+            var rimImg = rim.AddComponent<Image>();
+            rimImg.color = new Color(0.9f, 0.72f, 0.28f, 1f);
+            var rrt = rim.GetComponent<RectTransform>();
+            rrt.anchorMin = Vector2.zero;
+            rrt.anchorMax = Vector2.one;
+            rrt.offsetMin = new Vector2(-8f, -8f);
+            rrt.offsetMax = new Vector2(8f, 8f);
+            rim.transform.SetAsFirstSibling();
+
+            var track = new GameObject("Track");
+            track.transform.SetParent(frame.transform, false);
+            var trackImg = track.AddComponent<Image>();
+            trackImg.sprite = RadialSprite();
+            trackImg.type = Image.Type.Simple;
+            trackImg.color = new Color(0.22f, 0.18f, 0.12f, 0.95f);
+            var trt = track.GetComponent<RectTransform>();
+            trt.anchorMin = Vector2.zero;
+            trt.anchorMax = Vector2.one;
+            trt.offsetMin = new Vector2(10f, 10f);
+            trt.offsetMax = new Vector2(-10f, -10f);
+
+            var fillGo = new GameObject("Fill");
+            fillGo.transform.SetParent(frame.transform, false);
+            var fill = fillGo.AddComponent<Image>();
+            fill.sprite = RadialSprite();
+            fill.type = Image.Type.Filled;
+            fill.fillMethod = Image.FillMethod.Radial360;
+            fill.fillOrigin = (int)Image.Origin360.Top;
+            fill.fillClockwise = true;
+            fill.fillAmount = 0f;
+            fill.color = new Color(1f, 0.82f, 0.28f, 1f);
+            var fillRt = fill.GetComponent<RectTransform>();
+            fillRt.anchorMin = Vector2.zero;
+            fillRt.anchorMax = Vector2.one;
+            fillRt.offsetMin = new Vector2(10f, 10f);
+            fillRt.offsetMax = new Vector2(-10f, -10f);
+
+            var core = new GameObject("Core");
+            core.transform.SetParent(frame.transform, false);
+            var coreImg = core.AddComponent<Image>();
+            coreImg.color = new Color(0.08f, 0.06f, 0.04f, 0.98f);
+            var crt = core.GetComponent<RectTransform>();
+            crt.anchorMin = new Vector2(0.5f, 0.5f);
+            crt.anchorMax = new Vector2(0.5f, 0.5f);
+            crt.sizeDelta = new Vector2(diameter * 0.48f, diameter * 0.48f);
+
+            var label = CreateText(core.transform, "Label", "PWR", 26, TextAnchor.MiddleCenter,
+                new Color(1f, 0.9f, 0.45f, 1f));
+            label.fontStyle = FontStyle.Bold;
+            return (fill, label);
+        }
+
+        static Sprite _radialSprite;
+
+        static Sprite RadialSprite()
+        {
+            if (_radialSprite != null) return _radialSprite;
+            const int size = 64;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.wrapMode = TextureWrapMode.Clamp;
+            tex.filterMode = FilterMode.Bilinear;
+            float c = (size - 1) * 0.5f;
+            float outer = c - 1f;
+            float inner = outer * 0.55f;
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float dx = x - c;
+                float dy = y - c;
+                float d = Mathf.Sqrt(dx * dx + dy * dy);
+                float a = 0f;
+                if (d <= outer && d >= inner) a = 1f;
+                else if (d < inner && d > inner - 1.5f) a = Mathf.Clamp01(d - (inner - 1.5f));
+                else if (d > outer && d < outer + 1.5f) a = Mathf.Clamp01((outer + 1.5f) - d);
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+            }
+            tex.Apply(false, true);
+            _radialSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f);
+            return _radialSprite;
+        }
+
         public static Button CreateCircleButton(Transform parent, string name, string label, Vector2 anchor, Vector2 anchoredPos, float diameter, UnityEngine.Events.UnityAction onClick)
         {
             var go = new GameObject(name);
