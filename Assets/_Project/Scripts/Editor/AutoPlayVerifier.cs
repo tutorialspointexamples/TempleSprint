@@ -620,6 +620,11 @@ namespace TempleSprint.EditorTools
                         Debug.LogWarning($"[VERIFY] WaterSlide at {t.PathStartDistance:0.0} missing marker");
                         return false;
                     }
+                    if (t.transform.Find("AqueductLugeWall_0") == null && t.transform.Find("AqueductLugeRim") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] WaterSlide at {t.PathStartDistance:0.0} missing aqueduct half-pipe walls");
+                        return false;
+                    }
                 }
                 if (t.Kind == TileKind.TempleHall)
                 {
@@ -637,6 +642,11 @@ namespace TempleSprint.EditorTools
                         Debug.LogWarning($"[VERIFY] LavaRiver at {t.PathStartDistance:0.0} missing lava shell");
                         return false;
                     }
+                    if (t.transform.Find("MagmaSplash_0") == null && t.transform.Find("MagmaBoilRing") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] LavaRiver at {t.PathStartDistance:0.0} missing magma splash columns");
+                        return false;
+                    }
                 }
                 if (t.Kind == TileKind.CliffNarrow)
                 {
@@ -644,6 +654,20 @@ namespace TempleSprint.EditorTools
                     if (t.transform.Find("CliffNarrowStrip") == null)
                     {
                         Debug.LogWarning($"[VERIFY] CliffNarrow at {t.PathStartDistance:0.0} missing precipice strip");
+                        return false;
+                    }
+                    if (t.transform.Find("CliffWindStreamer") == null && t.GetComponentInChildren<CliffWindSway>() == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] CliffNarrow at {t.PathStartDistance:0.0} missing precipice wind props");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.MineCart)
+                {
+                    var telegraph = t.GetComponentInChildren<BrokenRailTelegraph>();
+                    if (telegraph != null && telegraph.transform.Find("BrokenRailSparks") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] MineCart at {t.PathStartDistance:0.0} missing broken-rail spark telegraph");
                         return false;
                     }
                 }

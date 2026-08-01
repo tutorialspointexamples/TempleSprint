@@ -18,6 +18,8 @@ namespace TempleSprint
         float _pullback;
         float _lookLift;
         float _threatPush;
+        float _bankLean;
+        float _bankLeanTarget;
         bool _cinematic;
         Vector3 _cinematicPos;
         Vector3 _cinematicLook;
@@ -56,6 +58,9 @@ namespace TempleSprint
             _pullback = pullback;
             _lookLift = lookLift;
         }
+
+        /// <summary>Precipice / half-pipe camera bank lean in degrees (positive = lean right).</summary>
+        public void SetBankLean(float degrees) => _bankLeanTarget = degrees;
 
         public void SnapNow()
         {
@@ -133,7 +138,9 @@ namespace TempleSprint
             // Slight rear glance bias when the pack lunges so the threat reads in-frame.
             if (_threatPush > 0.35f)
                 look -= _target.forward * (_threatPush * 0.35f);
-            var lookRot = Quaternion.LookRotation(look - transform.position, Vector3.up);
+            _bankLean = Mathf.Lerp(_bankLean, _bankLeanTarget, 1f - Mathf.Exp(-7f * Time.deltaTime));
+            var lookRot = Quaternion.LookRotation(look - transform.position, Vector3.up)
+                          * Quaternion.Euler(0f, 0f, -_bankLean);
             transform.rotation = Quaternion.Slerp(transform.rotation, lookRot, 1f - Mathf.Exp(-16f * Time.deltaTime));
 
             float targetFov = _baseFov + Mathf.Clamp((speed - 10f) * 0.35f, 0f, 8f)

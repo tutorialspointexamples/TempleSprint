@@ -200,6 +200,8 @@ namespace TempleSprint
                 _swimBubbles = null;
             }
             ChaseCamera.Instance?.SetTraversalBias(0f, 0f);
+            ChaseCamera.Instance?.SetBankLean(0f);
+            _cliffWindSway = 0f;
         }
 
         public void BeginBoatRide(RiverCrossingMarker marker, RiverBoatRide ride)
@@ -458,18 +460,30 @@ namespace TempleSprint
             go.transform.SetParent(transform, false);
             go.transform.localPosition = new Vector3(0f, 0.2f, 0f);
             _dunkSteam = go.transform;
-            for (int i = 0; i < 3; i++)
+            var steamMat = JunglePalette.Mat(DunkSteamTintForBiome(BiomeSystem.Current), 0.2f);
+            for (int i = 0; i < 4; i++)
             {
                 var puff = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                puff.name = "DunkSteamPuff";
                 puff.transform.SetParent(_dunkSteam, false);
                 puff.transform.localPosition = new Vector3(
-                    Random.Range(-0.35f, 0.35f), 0.4f + i * 0.35f, Random.Range(-0.2f, 0.2f));
-                float s = Random.Range(0.45f, 0.8f);
+                    Random.Range(-0.4f, 0.4f), 0.35f + i * 0.32f, Random.Range(-0.25f, 0.25f));
+                float s = Random.Range(0.45f, 0.85f);
                 puff.transform.localScale = new Vector3(s, s * 0.7f, s);
-                puff.GetComponent<Renderer>().sharedMaterial = JunglePalette.Foam;
+                puff.GetComponent<Renderer>().sharedMaterial = steamMat;
                 Object.Destroy(puff.GetComponent<Collider>());
             }
         }
+
+        static Color DunkSteamTintForBiome(BiomeId biome) => biome switch
+        {
+            BiomeId.VolcanicCrater => new Color(0.58f, 0.4f, 0.32f, 0.8f),
+            BiomeId.IceCaverns => new Color(0.72f, 0.9f, 1f, 0.85f),
+            BiomeId.DesertTombs => new Color(0.88f, 0.74f, 0.48f, 0.75f),
+            BiomeId.CaveMines => new Color(0.48f, 0.5f, 0.52f, 0.8f),
+            BiomeId.NightSummit => new Color(0.58f, 0.6f, 0.78f, 0.8f),
+            _ => new Color(0.9f, 0.97f, 0.95f, 0.85f)
+        };
 
         /// <summary>Drop the runner out of the world after a gap death so the fall is visible.</summary>
         public void BeginDeathFall()
@@ -1624,6 +1638,7 @@ namespace TempleSprint
         }
 
         float _pathBank;
+        float _cliffWindSway;
 
         void ApplyPathPose()
         {
@@ -1636,11 +1651,19 @@ namespace TempleSprint
 
             FacingYaw = pose.yaw;
             _pathBank = Mathf.Lerp(_pathBank, pose.bank, 1f - Mathf.Exp(-10f * Time.deltaTime));
-            Vector3 lateral = pose.Right * _laneOffset;
+
+            // CliffNarrow precipice: wind sway + camera lean so the sky-bridge feels exposed.
+            bool onCliff = tile != null && tile.Kind == TileKind.CliffNarrow && Traversal == TraversalMode.None;
+            float windTarget = onCliff ? Mathf.Sin(Time.time * 2.4f) * 0.28f : 0f;
+            _cliffWindSway = Mathf.Lerp(_cliffWindSway, windTarget, 1f - Mathf.Exp(-6f * Time.deltaTime));
+            float lean = onCliff ? Mathf.Clamp(_laneOffset * 3.2f + _cliffWindSway * 8f, -7f, 7f) : 0f;
+            ChaseCamera.Instance?.SetBankLean(lean);
+
+            Vector3 lateral = pose.Right * (_laneOffset + _cliffWindSway);
             Vector3 pos = pose.position + lateral;
             pos.y = transform.position.y;
             // Bank into curved turns; slide crouch is applied on Visual separately.
-            transform.SetPositionAndRotation(pos, Quaternion.Euler(0f, FacingYaw, _pathBank));
+            transform.SetPositionAndRotation(pos, Quaternion.Euler(0f, FacingYaw, _pathBank + lean * 0.35f));
         }
 
         void OnTriggerEnter(Collider other)

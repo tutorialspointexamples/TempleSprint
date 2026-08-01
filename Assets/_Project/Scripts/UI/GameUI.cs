@@ -11,7 +11,8 @@ namespace TempleSprint
         GameObject _boot, _menu, _hud, _post, _upgrade, _locker, _shop, _missions, _settings, _info, _tutorial, _leaderboard, _guardianQte, _opening;
         Text _menuCurrency, _hudScore, _hudCoins, _hudPower, _hudCombo, _hudGhost, _postSummary, _infoBody, _tutorialText, _upgradeInfo, _missionBody;
         Text _weeklyChallengeText, _leaderboardBody, _guardianQteText, _openingText;
-        GameObject _hudComboFrame, _hudGhostFrame;
+        Text _menuEventBanner, _hudEventBanner;
+        GameObject _menuEventFrame, _hudEventFrame, _hudComboFrame, _hudGhostFrame;
         Image _hudPowerFill;
         Button _btnReviveAd, _btnReviveGem;
         Button _lockerTabChars, _lockerTabCosmetics, _lockerTabBiomes;
@@ -43,6 +44,13 @@ namespace TempleSprint
             AddChromeBar(_menu, false);
             Title(_menu, "TEMPLE SPRINT", 56, 0.82f, 0.96f);
             _menuCurrency = Sub(_menu, "", 24, 0.74f, 0.82f);
+            _menuEventBanner = UiFactory.CreateEventBanner(
+                _menu.transform, "MenuEvent",
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 165f), new Vector2(540f, 52f),
+                EventService.CurrentEventName,
+                EventService.FestivalAccent, EventService.FestivalTrim);
+            _menuEventFrame = _menuEventBanner != null ? _menuEventBanner.transform.parent.parent.gameObject : null;
             Btn(_menu, "EASY", new Vector2(-280, 90), () => GameManager.Instance?.StartRun(RunDifficulty.Easy));
             Btn(_menu, "MEDIUM", new Vector2(0, 90), () => GameManager.Instance?.StartRun(RunDifficulty.Medium));
             Btn(_menu, "HARD", new Vector2(280, 90), () => GameManager.Instance?.StartRun(RunDifficulty.Hard));
@@ -86,6 +94,13 @@ namespace TempleSprint
                 new Vector2(0f, -110f), new Vector2(280f, 56f), "");
             _hudGhostFrame = _hudGhost != null ? _hudGhost.transform.parent.parent.gameObject : null;
             if (_hudGhostFrame != null) _hudGhostFrame.SetActive(false);
+            _hudEventBanner = UiFactory.CreateEventBanner(
+                _hud.transform, "HudEvent",
+                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(36f, -200f), new Vector2(280f, 48f),
+                EventService.CurrentEventName,
+                EventService.FestivalAccent, EventService.FestivalTrim);
+            _hudEventFrame = _hudEventBanner != null ? _hudEventBanner.transform.parent.parent.gameObject : null;
             UiFactory.CreateCircleButton(
                 _hud.transform, "Pause", "Ⅱ",
                 new Vector2(1f, 0f), new Vector2(-40f, 40f), 96f,
@@ -348,6 +363,15 @@ namespace TempleSprint
                     else
                         _hudGhostFrame.SetActive(false);
                 }
+
+                if (_hudEventBanner != null)
+                {
+                    bool featured = EventService.IsFeaturedBiome(BiomeSystem.Current);
+                    if (_hudEventFrame != null) _hudEventFrame.SetActive(true);
+                    _hudEventBanner.text = featured
+                        ? EventService.CurrentEventName
+                        : EventService.CurrentEventName + " · +" + Mathf.RoundToInt((EventService.EventCoinBonus - 1f) * 100f) + "%";
+                }
             }
         }
 
@@ -369,6 +393,12 @@ namespace TempleSprint
                 ? ""
                 : $" · {CharacterRoster.ActiveSkillLabel}";
             _menuCurrency.text = $"Coins {m.bankedCoins} · Gems {m.gems} · Relics {m.relics}{head}\n{CharacterRoster.SelectedDisplayName} · {BiomeSystem.DisplayName(BiomeSystem.Current)}{skill}";
+            if (_menuEventBanner != null)
+            {
+                if (_menuEventFrame != null) _menuEventFrame.SetActive(true);
+                _menuEventBanner.text =
+                    $"{EventService.CurrentEventName} · {BiomeSystem.DisplayName(EventService.FeaturedBiome)}";
+            }
             ShowOnly(_menu);
         }
 

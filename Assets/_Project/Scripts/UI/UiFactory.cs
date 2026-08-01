@@ -150,6 +150,62 @@ namespace TempleSprint
             return img;
         }
 
+        /// <summary>Seasonal live-event banner for menu / HUD — accent-colored festival plaque.</summary>
+        public static Text CreateEventBanner(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax,
+            Vector2 pivot, Vector2 anchoredPos, Vector2 size, string initial, Color accent, Color trim)
+        {
+            var frame = new GameObject(name + "Frame");
+            frame.transform.SetParent(parent, false);
+            var frameImg = frame.AddComponent<Image>();
+            frameImg.color = new Color(accent.r * 0.25f, accent.g * 0.22f, accent.b * 0.18f, 0.92f);
+            var frt = frame.GetComponent<RectTransform>();
+            frt.anchorMin = anchorMin;
+            frt.anchorMax = anchorMax;
+            frt.pivot = pivot;
+            frt.anchoredPosition = anchoredPos;
+            frt.sizeDelta = size;
+
+            var rim = new GameObject("EventRim");
+            rim.transform.SetParent(frame.transform, false);
+            var rimImg = rim.AddComponent<Image>();
+            rimImg.color = accent;
+            rimImg.raycastTarget = false;
+            var rrt = rim.GetComponent<RectTransform>();
+            rrt.anchorMin = Vector2.zero;
+            rrt.anchorMax = Vector2.one;
+            rrt.offsetMin = new Vector2(-6f, -6f);
+            rrt.offsetMax = new Vector2(6f, 6f);
+            rim.transform.SetAsFirstSibling();
+
+            var trimGo = new GameObject("EventTrim");
+            trimGo.transform.SetParent(frame.transform, false);
+            var trimImg = trimGo.AddComponent<Image>();
+            trimImg.color = trim;
+            trimImg.raycastTarget = false;
+            var trt = trimGo.GetComponent<RectTransform>();
+            trt.anchorMin = Vector2.zero;
+            trt.anchorMax = Vector2.one;
+            trt.offsetMin = new Vector2(-3f, -3f);
+            trt.offsetMax = new Vector2(3f, 3f);
+            trimGo.transform.SetAsFirstSibling();
+            rim.transform.SetAsFirstSibling();
+
+            var inner = new GameObject("Inner");
+            inner.transform.SetParent(frame.transform, false);
+            var iImg = inner.AddComponent<Image>();
+            iImg.color = new Color(0.06f, 0.07f, 0.08f, 0.94f);
+            var irt = inner.GetComponent<RectTransform>();
+            irt.anchorMin = Vector2.zero;
+            irt.anchorMax = Vector2.one;
+            irt.offsetMin = new Vector2(6f, 6f);
+            irt.offsetMax = new Vector2(-6f, -6f);
+
+            var text = CreateText(inner.transform, "Value", initial, 26, TextAnchor.MiddleCenter,
+                new Color(Mathf.Min(1f, accent.r + 0.15f), Mathf.Min(1f, accent.g + 0.1f), accent.b, 1f));
+            text.fontStyle = FontStyle.Bold;
+            return text;
+        }
+
         /// <summary>Ornate carved stone HUD plaque (score / coins) — genre temple-tablet chrome.</summary>
         public static Text CreateHudPlaque(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPos, Vector2 size, string initial)
         {

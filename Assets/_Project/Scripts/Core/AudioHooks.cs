@@ -35,6 +35,8 @@ namespace TempleSprint
         AudioClip _splashClip;
         AudioClip _whooshClip;
         AudioClip _smashClip;
+        AudioClip _brokenRailWarnClip;
+        AudioClip _brokenRailFallClip;
         readonly AudioClip[] _biomeBeds = new AudioClip[6];
         BiomeId _ambienceBiome = (BiomeId)(-1);
 
@@ -109,6 +111,10 @@ namespace TempleSprint
         public void PlayRopeRelease() => PlaySfx(_ropeReleaseClip, 0.55f);
         public void PlaySplash() => PlaySfx(_splashClip, 0.6f);
         public void PlaySmash() => PlaySfx(_smashClip, 0.65f);
+        /// <summary>Metallic crackle telegraph before a dual-track broken rail gap.</summary>
+        public void PlayBrokenRailWarn() => PlaySfx(_brokenRailWarnClip, 0.72f);
+        /// <summary>Wood/metal snap when the cart drops through a broken rail.</summary>
+        public void PlayBrokenRailFall() => PlaySfx(_brokenRailFallClip, 0.85f);
 
         /// <summary>Start / crossfade a procedural looping bed for the active biome.</summary>
         public void PlayBiomeAmbience(BiomeId biome)
@@ -162,6 +168,8 @@ namespace TempleSprint
             _splashClip = BuildSplash();
             _whooshClip = BuildWhoosh();
             _smashClip = BuildSmash();
+            _brokenRailWarnClip = BuildBrokenRailWarn();
+            _brokenRailFallClip = BuildBrokenRailFall();
             for (int i = 0; i < _biomeBeds.Length; i++)
                 _biomeBeds[i] = BuildBiomeBed((BiomeId)i);
         }
@@ -178,6 +186,39 @@ namespace TempleSprint
                 data[i] = (noise * 0.65f + crack * 0.35f) * env * 0.75f;
             }
             return Finish("sfx_smash", data);
+        }
+
+        static AudioClip BuildBrokenRailWarn()
+        {
+            var data = NewBuffer(0.38f, out int n);
+            for (int i = 0; i < n; i++)
+            {
+                float progress = i / (float)n;
+                float t = i / (float)SampleRate;
+                float ring = Mathf.Sin(2f * Mathf.PI * Mathf.Lerp(880f, 240f, progress) * t);
+                float spark = (Random.value - 0.5f) * 2f * Mathf.Exp(-6f * progress);
+                float grind = Mathf.Sin(2f * Mathf.PI * 55f * t) * (0.4f + progress);
+                float env = Mathf.Sin(Mathf.PI * Mathf.Clamp01(progress * 1.15f));
+                data[i] = (ring * 0.45f + spark * 0.35f + grind * 0.3f) * env * 0.8f;
+            }
+            return Finish("sfx_broken_rail_warn", data);
+        }
+
+        static AudioClip BuildBrokenRailFall()
+        {
+            var data = NewBuffer(0.55f, out int n);
+            float phase = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float progress = i / (float)n;
+                float freq = Mathf.Lerp(320f, 48f, progress);
+                phase += 2f * Mathf.PI * freq / SampleRate;
+                float snap = (Random.value - 0.5f) * Mathf.Exp(-18f * progress);
+                float wood = Mathf.Sin(phase) * 0.7f;
+                float env = Mathf.Exp(-3.5f * progress);
+                data[i] = (wood + snap) * env * 0.9f;
+            }
+            return Finish("sfx_broken_rail_fall", data);
         }
 
         /// <summary>Short seamless loop — distinct tonal beds per biome without external audio assets.</summary>
