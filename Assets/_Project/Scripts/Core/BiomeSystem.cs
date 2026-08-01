@@ -6,10 +6,12 @@ namespace TempleSprint
     {
         JungleRuins = 0,
         DesertTombs = 1,
-        IceCaverns = 2
+        IceCaverns = 2,
+        CaveMines = 3,
+        VolcanicCrater = 4
     }
 
-    /// <summary>Biome unlock + visual palette for Jungle / Desert / Ice.</summary>
+    /// <summary>Biome unlock + visual palette for Jungle / Desert / Ice / Cave / Volcano.</summary>
     public static class BiomeSystem
     {
         public static BiomeId Current { get; private set; } = BiomeId.JungleRuins;
@@ -20,6 +22,8 @@ namespace TempleSprint
             if (id == BiomeId.JungleRuins) return true;
             if (id == BiomeId.DesertTombs) return m.desertUnlocked || m.totalRuns >= 3 || m.totalDistance >= 500f;
             if (id == BiomeId.IceCaverns) return m.iceUnlocked || m.totalRuns >= 8 || m.totalDistance >= 2000f;
+            if (id == BiomeId.CaveMines) return m.caveUnlocked || m.totalRuns >= 12 || m.totalDistance >= 3500f || m.relics >= 12;
+            if (id == BiomeId.VolcanicCrater) return m.volcanoUnlocked || m.totalRuns >= 18 || m.totalDistance >= 6000f || m.relics >= 18;
             return false;
         }
 
@@ -48,6 +52,12 @@ namespace TempleSprint
                 case BiomeId.IceCaverns:
                     RenderSettings.ambientLight = new Color(0.45f, 0.58f, 0.72f);
                     break;
+                case BiomeId.CaveMines:
+                    RenderSettings.ambientLight = new Color(0.28f, 0.3f, 0.34f);
+                    break;
+                case BiomeId.VolcanicCrater:
+                    RenderSettings.ambientLight = new Color(0.62f, 0.32f, 0.18f);
+                    break;
                 default:
                     RenderSettings.ambientLight = new Color(0.42f, 0.5f, 0.42f);
                     break;
@@ -59,8 +69,51 @@ namespace TempleSprint
         {
             BiomeId.DesertTombs => "Desert Tombs",
             BiomeId.IceCaverns => "Ice Caverns",
+            BiomeId.CaveMines => "Cave Mines",
+            BiomeId.VolcanicCrater => "Volcanic Crater",
             _ => "Jungle Ruins"
         };
+
+        /// <summary>Stage bias for special crossings — cave favors carts, volcano favors fire, jungle favors river/zipline.</summary>
+        public static float MineCartBias => Current == BiomeId.CaveMines ? 1.8f : Current == BiomeId.IceCaverns ? 1.2f : 1f;
+        public static float ZiplineBias => Current == BiomeId.JungleRuins || Current == BiomeId.DesertTombs ? 1.4f : 1f;
+        public static float FireBias => Current == BiomeId.VolcanicCrater ? 1.7f : 1f;
+        public static float LavaRiverBias =>
+            (Current == BiomeId.VolcanicCrater ? 2.1f
+                : Current == BiomeId.DesertTombs ? 0.7f
+                : Current == BiomeId.CaveMines ? 0.85f
+                : 0.45f) * EventService.EventStageBias(Current);
+        public static float RuinForkBias =>
+            (Current == BiomeId.JungleRuins || Current == BiomeId.DesertTombs ? 1.65f
+                : Current == BiomeId.CaveMines ? 1.35f
+                : Current == BiomeId.VolcanicCrater ? 1.05f
+                : 0.8f) * EventService.EventStageBias(Current);
+        public static float RiverBias => Current == BiomeId.JungleRuins || Current == BiomeId.IceCaverns ? 1.3f : 0.85f;
+        public static float IceSurfBias => Current == BiomeId.IceCaverns ? 1.9f : Current == BiomeId.CaveMines ? 0.6f : 0.85f;
+        public static float SwimBias => Current == BiomeId.JungleRuins || Current == BiomeId.IceCaverns ? 1.35f : 0.9f;
+        public static float WallRunBias =>
+            (Current == BiomeId.CaveMines || Current == BiomeId.JungleRuins ? 1.55f
+                : Current == BiomeId.VolcanicCrater ? 1.25f : 0.9f) * EventService.EventStageBias(Current);
+        public static float LedgeGrabBias =>
+            (Current == BiomeId.DesertTombs || Current == BiomeId.JungleRuins ? 1.5f
+                : Current == BiomeId.IceCaverns ? 1.2f : 0.85f) * EventService.EventStageBias(Current);
+        public static float TreeBridgeBias =>
+            (Current == BiomeId.JungleRuins ? 1.85f
+                : Current == BiomeId.DesertTombs ? 1.15f
+                : Current == BiomeId.CaveMines ? 0.7f : 0.9f) * EventService.EventStageBias(Current);
+        public static float CanopyRopeBias =>
+            (Current == BiomeId.JungleRuins ? 1.9f
+                : Current == BiomeId.DesertTombs ? 0.85f
+                : Current == BiomeId.IceCaverns ? 0.7f : 0.75f) * EventService.EventStageBias(Current);
+        public static float WaterfallPlungeBias =>
+            (Current == BiomeId.JungleRuins || Current == BiomeId.IceCaverns ? 1.7f
+                : Current == BiomeId.VolcanicCrater ? 0.8f
+                : Current == BiomeId.CaveMines ? 0.65f : 1f) * EventService.EventStageBias(Current);
+        public static float TempleHallBias =>
+            (Current == BiomeId.JungleRuins || Current == BiomeId.DesertTombs ? 1.75f
+                : Current == BiomeId.CaveMines ? 1.45f
+                : Current == BiomeId.VolcanicCrater ? 1.1f
+                : 0.85f) * EventService.EventStageBias(Current);
 
         public static Material PathMat => BiomePalette.Path(Current);
         public static Material StoneMat => BiomePalette.Stone(Current);
@@ -81,24 +134,59 @@ namespace TempleSprint
             return m;
         }
 
-        public static Material Path(BiomeId b) => b switch
+        public static Material Path(BiomeId b)
         {
-            BiomeId.DesertTombs => Make(new Color(0.78f, 0.62f, 0.35f)),
-            BiomeId.IceCaverns => Make(new Color(0.72f, 0.82f, 0.9f)),
-            _ => JunglePalette.Path
-        };
+            if (b == BiomeId.JungleRuins) return JunglePalette.Path;
+            Color c = b switch
+            {
+                BiomeId.DesertTombs => new Color(0.78f, 0.62f, 0.35f),
+                BiomeId.IceCaverns => new Color(0.72f, 0.82f, 0.9f),
+                BiomeId.CaveMines => new Color(0.38f, 0.36f, 0.34f),
+                BiomeId.VolcanicCrater => new Color(0.42f, 0.28f, 0.22f),
+                _ => new Color(0.62f, 0.54f, 0.42f)
+            };
+            var m = Make(c);
+            // Original authored path texture, tinted per biome (not a TR2 asset).
+            ApplyTex(m, Resources.Load<Texture2D>("Nature/temple_path"), new Vector2(1.4f, 2.8f), c);
+            return m;
+        }
 
-        public static Material Stone(BiomeId b) => b switch
+        public static Material Stone(BiomeId b)
         {
-            BiomeId.DesertTombs => Make(new Color(0.55f, 0.4f, 0.25f)),
-            BiomeId.IceCaverns => Make(new Color(0.55f, 0.65f, 0.75f)),
-            _ => JunglePalette.Stone
-        };
+            if (b == BiomeId.JungleRuins) return JunglePalette.Stone;
+            Color c = b switch
+            {
+                BiomeId.DesertTombs => new Color(0.55f, 0.4f, 0.25f),
+                BiomeId.IceCaverns => new Color(0.55f, 0.65f, 0.75f),
+                BiomeId.CaveMines => new Color(0.32f, 0.34f, 0.38f),
+                BiomeId.VolcanicCrater => new Color(0.35f, 0.22f, 0.18f),
+                _ => new Color(0.42f, 0.36f, 0.28f)
+            };
+            var m = Make(c);
+            ApplyTex(m, Resources.Load<Texture2D>("Nature/moss_stone"), new Vector2(1.5f, 1.5f), c);
+            return m;
+        }
+
+        static void ApplyTex(Material m, Texture2D tex, Vector2 tiling, Color tint)
+        {
+            if (m == null || tex == null) return;
+            m.mainTexture = tex;
+            m.mainTextureScale = tiling;
+            m.color = tint;
+            if (m.HasProperty("_BaseMap"))
+            {
+                m.SetTexture("_BaseMap", tex);
+                m.SetTextureScale("_BaseMap", tiling);
+            }
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", tint);
+        }
 
         public static Material Accent(BiomeId b) => b switch
         {
             BiomeId.DesertTombs => Make(new Color(0.85f, 0.45f, 0.15f)),
             BiomeId.IceCaverns => Make(new Color(0.35f, 0.7f, 0.85f)),
+            BiomeId.CaveMines => Make(new Color(0.75f, 0.55f, 0.2f)),
+            BiomeId.VolcanicCrater => Make(new Color(1f, 0.4f, 0.12f)),
             _ => JunglePalette.Accent
         };
 
@@ -106,6 +194,8 @@ namespace TempleSprint
         {
             BiomeId.DesertTombs => Make(new Color(0.65f, 0.5f, 0.2f)),
             BiomeId.IceCaverns => Make(new Color(0.85f, 0.92f, 0.98f)),
+            BiomeId.CaveMines => Make(new Color(0.22f, 0.24f, 0.28f)),
+            BiomeId.VolcanicCrater => Make(new Color(0.28f, 0.18f, 0.12f)),
             _ => JunglePalette.Foliage
         };
     }
@@ -120,7 +210,9 @@ namespace TempleSprint
         Transform[] _treeClusters;
         Transform _scenicRoot;
         Renderer _waterRend;
+        Renderer _groundRend;
         Material _waterMatInstance;
+        Material _groundMatInstance;
         Transform _vineCurtain;
         float _treeSpacing = 16f;
         Vector2 _waterOffset;
@@ -153,35 +245,7 @@ namespace TempleSprint
 
         void BuildSky()
         {
-            // Panoramic skybox only — a textured sphere fought it and seamed down the meridian.
-            var skyTex = Resources.Load<Texture2D>("Nature/temple_ruins_sky")
-                         ?? Resources.Load<Texture2D>("Nature/jungle_sky");
-            if (skyTex != null)
-            {
-                var panoramic = Shader.Find("Skybox/Panoramic")
-                                ?? Shader.Find("Skybox/Cubemap")
-                                ?? Shader.Find("Skybox/6 Sided");
-                if (panoramic != null)
-                {
-                    var box = new Material(panoramic);
-                    box.SetTexture("_MainTex", skyTex);
-                    if (box.HasProperty("_Tex")) box.SetTexture("_Tex", skyTex);
-                    RenderSettings.skybox = box;
-                }
-            }
-            else
-            {
-                // Flat distant colour dome when no sky texture is available.
-                var dome = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                dome.name = "SkyColourDome";
-                dome.transform.SetParent(transform, false);
-                dome.transform.localScale = new Vector3(-280f, 280f, 280f);
-                Object.Destroy(dome.GetComponent<Collider>());
-                var rend = dome.GetComponent<Renderer>();
-                rend.sharedMaterial = UnlitMat(new Color(0.55f, 0.68f, 0.78f));
-                rend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                rend.receiveShadows = false;
-            }
+            ApplyBiomeSkybox(BiomeId.JungleRuins);
 
             DynamicGI.UpdateEnvironment();
 
@@ -195,6 +259,35 @@ namespace TempleSprint
             RenderSettings.ambientGroundColor = new Color(0.28f, 0.32f, 0.24f);
         }
 
+        static string SkyResource(BiomeId id) => id switch
+        {
+            BiomeId.DesertTombs => "Nature/sky_desert",
+            BiomeId.IceCaverns => "Nature/sky_ice",
+            BiomeId.CaveMines => "Nature/sky_cave",
+            BiomeId.VolcanicCrater => "Nature/sky_volcano",
+            _ => "Nature/sky_jungle"
+        };
+
+        void ApplyBiomeSkybox(BiomeId id)
+        {
+            var skyTex = Resources.Load<Texture2D>(SkyResource(id))
+                         ?? Resources.Load<Texture2D>("Nature/temple_ruins_sky")
+                         ?? Resources.Load<Texture2D>("Nature/jungle_sky");
+            if (skyTex == null) return;
+
+            var panoramic = Shader.Find("Skybox/Panoramic")
+                            ?? Shader.Find("Skybox/Cubemap")
+                            ?? Shader.Find("Skybox/6 Sided");
+            if (panoramic == null) return;
+
+            var box = RenderSettings.skybox != null && RenderSettings.skybox.shader == panoramic
+                ? RenderSettings.skybox
+                : new Material(panoramic);
+            box.SetTexture("_MainTex", skyTex);
+            if (box.HasProperty("_Tex")) box.SetTexture("_Tex", skyTex);
+            RenderSettings.skybox = box;
+        }
+
         /// <summary>Forest floor stretching to the fog line; the causeway is raised above it.</summary>
         void BuildForestGround()
         {
@@ -203,7 +296,9 @@ namespace TempleSprint
             ground.transform.SetParent(transform, false);
             ground.transform.localPosition = new Vector3(0f, GroundY - 1f, 0f);
             ground.transform.localScale = new Vector3(320f, 2f, 320f);
-            ground.GetComponent<Renderer>().sharedMaterial = JunglePalette.Grass;
+            _groundRend = ground.GetComponent<Renderer>();
+            _groundMatInstance = new Material(JunglePalette.Grass);
+            _groundRend.sharedMaterial = _groundMatInstance;
             Object.Destroy(ground.GetComponent<Collider>());
 
             // Slow-drifting mist just above the floor, reusing the scrolling water material.
@@ -288,15 +383,25 @@ namespace TempleSprint
 
         void SpawnTree(Transform parent, Vector3 localPos, float scale = 1f)
         {
+            // Distant ring matches selected biome so Desert/Ice/Cave/Volcano don't keep jungle trees.
+            Material trunkMat = BiomeSystem.Current switch
+            {
+                BiomeId.DesertTombs => BiomeSystem.FoliageMat,
+                BiomeId.IceCaverns => JunglePalette.Mat(new Color(0.75f, 0.9f, 1f), 0.6f, 0.15f),
+                BiomeId.CaveMines => BiomeSystem.StoneMat,
+                BiomeId.VolcanicCrater => JunglePalette.Charcoal,
+                _ => JunglePalette.Bark
+            };
+            Material canopyMat = BiomeSystem.FoliageMat;
+
             float trunkH = Random.Range(3.2f, 4.6f) * scale;
             var trunk = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             trunk.transform.SetParent(parent, false);
             trunk.transform.localPosition = localPos + new Vector3(0f, trunkH * 0.5f - 0.3f, 0f);
             trunk.transform.localScale = new Vector3(0.32f * scale, trunkH * 0.5f, 0.32f * scale);
-            trunk.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+            trunk.GetComponent<Renderer>().sharedMaterial = trunkMat;
             Object.Destroy(trunk.GetComponent<Collider>());
 
-            // Overlapping tiers — no gap between trunk top and canopy.
             const int tiers = 3;
             for (int i = 0; i < tiers; i++)
             {
@@ -307,10 +412,7 @@ namespace TempleSprint
                 canopy.transform.localPosition = localPos
                     + new Vector3(Random.Range(-0.2f, 0.2f), trunkH * 0.62f + i * 1.05f * scale, Random.Range(-0.2f, 0.2f));
                 canopy.transform.localScale = new Vector3(s, s * 0.88f, s);
-                canopy.GetComponent<Renderer>().sharedMaterial =
-                    i == 0 ? JunglePalette.FoliageDark
-                    : i == tiers - 1 ? JunglePalette.FoliageLight
-                    : JunglePalette.Foliage;
+                canopy.GetComponent<Renderer>().sharedMaterial = canopyMat;
                 Object.Destroy(canopy.GetComponent<Collider>());
             }
         }
@@ -395,6 +497,9 @@ namespace TempleSprint
 
         public void ApplyBiomeLook()
         {
+            Color ground;
+            Color mist;
+            Color skyTint;
             switch (BiomeSystem.Current)
             {
                 case BiomeId.DesertTombs:
@@ -403,6 +508,9 @@ namespace TempleSprint
                     RenderSettings.ambientSkyColor = new Color(0.9f, 0.75f, 0.45f);
                     RenderSettings.ambientEquatorColor = new Color(0.7f, 0.58f, 0.38f);
                     RenderSettings.ambientGroundColor = new Color(0.4f, 0.3f, 0.18f);
+                    ground = new Color(0.62f, 0.48f, 0.28f);
+                    mist = new Color(0.72f, 0.58f, 0.32f, 1f);
+                    skyTint = new Color(1f, 0.92f, 0.7f);
                     break;
                 case BiomeId.IceCaverns:
                     RenderSettings.fogColor = new Color(0.7f, 0.82f, 0.92f);
@@ -410,6 +518,33 @@ namespace TempleSprint
                     RenderSettings.ambientSkyColor = new Color(0.65f, 0.78f, 0.95f);
                     RenderSettings.ambientEquatorColor = new Color(0.55f, 0.65f, 0.78f);
                     RenderSettings.ambientGroundColor = new Color(0.35f, 0.42f, 0.5f);
+                    ground = new Color(0.72f, 0.84f, 0.92f);
+                    mist = new Color(0.78f, 0.9f, 0.98f, 1f);
+                    skyTint = new Color(0.75f, 0.88f, 1f);
+                    break;
+                case BiomeId.CaveMines:
+                    RenderSettings.fog = true;
+                    RenderSettings.fogMode = FogMode.ExponentialSquared;
+                    RenderSettings.fogColor = new Color(0.18f, 0.2f, 0.24f);
+                    RenderSettings.fogDensity = 0.018f;
+                    RenderSettings.ambientSkyColor = new Color(0.28f, 0.32f, 0.38f);
+                    RenderSettings.ambientEquatorColor = new Color(0.22f, 0.24f, 0.28f);
+                    RenderSettings.ambientGroundColor = new Color(0.12f, 0.12f, 0.14f);
+                    ground = new Color(0.22f, 0.22f, 0.24f);
+                    mist = new Color(0.16f, 0.18f, 0.22f, 1f);
+                    skyTint = new Color(0.35f, 0.38f, 0.45f);
+                    break;
+                case BiomeId.VolcanicCrater:
+                    RenderSettings.fog = true;
+                    RenderSettings.fogMode = FogMode.ExponentialSquared;
+                    RenderSettings.fogColor = new Color(0.55f, 0.28f, 0.16f);
+                    RenderSettings.fogDensity = 0.014f;
+                    RenderSettings.ambientSkyColor = new Color(0.75f, 0.4f, 0.22f);
+                    RenderSettings.ambientEquatorColor = new Color(0.5f, 0.28f, 0.18f);
+                    RenderSettings.ambientGroundColor = new Color(0.22f, 0.1f, 0.08f);
+                    ground = new Color(0.28f, 0.14f, 0.1f);
+                    mist = new Color(0.45f, 0.18f, 0.1f, 1f);
+                    skyTint = new Color(0.95f, 0.55f, 0.3f);
                     break;
                 default:
                     RenderSettings.fog = true;
@@ -419,7 +554,51 @@ namespace TempleSprint
                     RenderSettings.ambientSkyColor = new Color(0.62f, 0.72f, 0.78f);
                     RenderSettings.ambientEquatorColor = new Color(0.52f, 0.58f, 0.5f);
                     RenderSettings.ambientGroundColor = new Color(0.28f, 0.32f, 0.24f);
+                    ground = new Color(0.22f, 0.42f, 0.18f);
+                    mist = new Color(0.35f, 0.42f, 0.36f, 1f);
+                    skyTint = new Color(0.85f, 0.92f, 0.95f);
                     break;
+            }
+
+            if (_groundMatInstance != null)
+            {
+                _groundMatInstance.color = ground;
+                if (_groundMatInstance.HasProperty("_BaseColor"))
+                    _groundMatInstance.SetColor("_BaseColor", ground);
+            }
+            if (_waterMatInstance != null)
+            {
+                _waterMatInstance.color = mist;
+                if (_waterMatInstance.HasProperty("_BaseColor"))
+                    _waterMatInstance.SetColor("_BaseColor", mist);
+            }
+            ApplyBiomeSkybox(BiomeSystem.Current);
+            if (RenderSettings.skybox != null && RenderSettings.skybox.HasProperty("_Tint"))
+                RenderSettings.skybox.SetColor("_Tint", skyTint);
+            else if (RenderSettings.skybox != null && RenderSettings.skybox.HasProperty("_SkyTint"))
+                RenderSettings.skybox.SetColor("_SkyTint", skyTint);
+            DynamicGI.UpdateEnvironment();
+
+            // Retint distant hill billboards so each biome reads from the first second of a run.
+            if (_billboards != null)
+            {
+                Color hill = BiomeSystem.Current switch
+                {
+                    BiomeId.DesertTombs => new Color(0.72f, 0.55f, 0.3f),
+                    BiomeId.IceCaverns => new Color(0.65f, 0.78f, 0.88f),
+                    BiomeId.CaveMines => new Color(0.22f, 0.24f, 0.28f),
+                    BiomeId.VolcanicCrater => new Color(0.4f, 0.18f, 0.12f),
+                    _ => new Color(0.3f, 0.42f, 0.28f)
+                };
+                foreach (var b in _billboards)
+                {
+                    if (b == null) continue;
+                    var r = b.GetComponent<Renderer>();
+                    if (r == null || r.sharedMaterial == null) continue;
+                    var m = r.material;
+                    m.color = hill;
+                    if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", hill);
+                }
             }
         }
 

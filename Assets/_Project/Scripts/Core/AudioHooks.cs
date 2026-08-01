@@ -19,22 +19,29 @@ namespace TempleSprint
 
         AudioClip _coinClip;
         AudioClip _pickupClip;
+        AudioClip _gemClip;
+        AudioClip _powerClip;
         AudioClip _jumpClip;
+        AudioClip _slideClip;
+        AudioClip _nearMissClip;
         AudioClip _hitClip;
         AudioClip _deathClip;
         AudioClip _fallClip;
         AudioClip _guardianClip;
+        AudioClip _guardianLungeClip;
         AudioClip _boatClip;
         AudioClip _ropeGrabClip;
         AudioClip _ropeReleaseClip;
         AudioClip _splashClip;
+        AudioClip _whooshClip;
 
         float _lastCoinTime = -10f;
         int _coinCombo;
 
         public bool HasRunClips =>
             _coinClip != null && _hitClip != null && _deathClip != null
-            && _fallClip != null && _jumpClip != null && _pickupClip != null;
+            && _fallClip != null && _jumpClip != null && _pickupClip != null
+            && _gemClip != null && _slideClip != null && _nearMissClip != null;
 
         void Awake()
         {
@@ -63,6 +70,9 @@ namespace TempleSprint
         }
 
         public void PlayJump() => PlaySfx(_jumpClip, 0.45f);
+        public void PlaySlide() => PlaySfx(_slideClip, 0.5f);
+        public void PlayNearMiss() => PlaySfx(_nearMissClip, 0.55f);
+        public void PlayWhoosh() => PlaySfx(_whooshClip, 0.45f);
 
         /// <summary>Coin chime; pitch steps up while collecting a streak.</summary>
         public void PlayCoin()
@@ -79,12 +89,20 @@ namespace TempleSprint
         }
 
         public void PlayPickup() => PlaySfx(_pickupClip, 0.6f);
+        public void PlayGem() => PlaySfx(_gemClip, 0.65f);
+        public void PlayPower() => PlaySfx(_powerClip, 0.7f);
         public void PlayHit() => PlaySfx(_hitClip, 0.8f);
         public void PlayDeath() => PlaySfx(_deathClip, 0.7f);
         public void PlayFall() => PlaySfx(_fallClip, 0.7f);
         public void PlayGuardian() => PlaySfx(_guardianClip, 0.6f);
+        /// <summary>Sharp pack stinger for Idol Beast grab lunges (distinct from ambient growl).</summary>
+        public void PlayGuardianLunge() => PlaySfx(_guardianLungeClip, 0.78f);
         public void PlayBoatMount() => PlaySfx(_boatClip, 0.55f);
-        public void PlayRopeGrab() => PlaySfx(_ropeGrabClip, 0.5f);
+        public void PlayRopeGrab()
+        {
+            PlaySfx(_ropeGrabClip, 0.5f);
+            PlaySfx(_whooshClip, 0.35f);
+        }
         public void PlayRopeRelease() => PlaySfx(_ropeReleaseClip, 0.55f);
         public void PlaySplash() => PlaySfx(_splashClip, 0.6f);
 
@@ -92,15 +110,21 @@ namespace TempleSprint
         {
             _coinClip = BuildCoin();
             _pickupClip = BuildPickup();
+            _gemClip = BuildGem();
+            _powerClip = BuildPower();
             _jumpClip = BuildJump();
+            _slideClip = BuildSlide();
+            _nearMissClip = BuildNearMiss();
             _hitClip = BuildHit();
             _deathClip = BuildDeath();
             _fallClip = BuildFall();
             _guardianClip = BuildGuardian();
+            _guardianLungeClip = BuildGuardianLunge();
             _boatClip = BuildBoat();
             _ropeGrabClip = BuildRopeGrab();
             _ropeReleaseClip = BuildRopeRelease();
             _splashClip = BuildSplash();
+            _whooshClip = BuildWhoosh();
         }
 
         static AudioClip BuildCoin()
@@ -110,7 +134,6 @@ namespace TempleSprint
             {
                 float t = i / (float)SampleRate;
                 float progress = i / (float)n;
-                // Two-note sparkle: the upper octave enters slightly late.
                 float bell = Mathf.Sin(2f * Mathf.PI * 1568f * t);
                 float shimmer = Mathf.Sin(2f * Mathf.PI * 2349f * t) * Mathf.Clamp01(progress * 4f);
                 float env = Mathf.Exp(-14f * progress);
@@ -134,6 +157,38 @@ namespace TempleSprint
             return Finish("sfx_pickup", data);
         }
 
+        static AudioClip BuildGem()
+        {
+            var data = NewBuffer(0.42f, out int n);
+            float[] steps = { 880f, 1174.7f, 1396.9f, 1760f };
+            for (int i = 0; i < n; i++)
+            {
+                float t = i / (float)SampleRate;
+                float progress = i / (float)n;
+                int step = Mathf.Min(steps.Length - 1, Mathf.FloorToInt(progress * steps.Length));
+                float shimmer = Mathf.Sin(2f * Mathf.PI * steps[step] * 2f * t) * 0.35f;
+                float env = Mathf.Exp(-2.8f * progress);
+                data[i] = (Mathf.Sin(2f * Mathf.PI * steps[step] * t) + shimmer) * env * 0.65f;
+            }
+            return Finish("sfx_gem", data);
+        }
+
+        static AudioClip BuildPower()
+        {
+            var data = NewBuffer(0.48f, out int n);
+            float phase = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float progress = i / (float)n;
+                float freq = Mathf.Lerp(180f, 640f, progress);
+                phase += 2f * Mathf.PI * freq / SampleRate;
+                float swirl = Mathf.Sin(2f * Mathf.PI * 12f * progress) * 0.2f;
+                float env = Mathf.Sin(Mathf.PI * Mathf.Clamp01(progress * 1.2f));
+                data[i] = (Mathf.Sin(phase) + swirl) * env * 0.7f;
+            }
+            return Finish("sfx_power", data);
+        }
+
         static AudioClip BuildJump()
         {
             var data = NewBuffer(0.2f, out int n);
@@ -148,6 +203,49 @@ namespace TempleSprint
                 data[i] = (Mathf.Sin(phase) * 0.7f + air * 0.3f) * env * 0.7f;
             }
             return Finish("sfx_jump", data);
+        }
+
+        static AudioClip BuildSlide()
+        {
+            var data = NewBuffer(0.28f, out int n);
+            for (int i = 0; i < n; i++)
+            {
+                float progress = i / (float)n;
+                float noise = (Random.value - 0.5f) * 2f;
+                float rumble = Mathf.Sin(2f * Mathf.PI * 70f * (i / (float)SampleRate));
+                float env = Mathf.Exp(-5f * progress) * (0.5f + progress);
+                data[i] = (noise * 0.55f + rumble * 0.45f) * env * 0.7f;
+            }
+            return Finish("sfx_slide", data);
+        }
+
+        static AudioClip BuildNearMiss()
+        {
+            var data = NewBuffer(0.18f, out int n);
+            float phase = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float progress = i / (float)n;
+                float freq = Mathf.Lerp(980f, 420f, progress);
+                phase += 2f * Mathf.PI * freq / SampleRate;
+                float env = Mathf.Exp(-9f * progress);
+                data[i] = Mathf.Sin(phase) * env * 0.55f;
+            }
+            return Finish("sfx_nearmiss", data);
+        }
+
+        static AudioClip BuildWhoosh()
+        {
+            var data = NewBuffer(0.32f, out int n);
+            for (int i = 0; i < n; i++)
+            {
+                float progress = i / (float)n;
+                float noise = (Random.value - 0.5f) * 2f;
+                float band = Mathf.Sin(2f * Mathf.PI * Mathf.Lerp(900f, 220f, progress) * (i / (float)SampleRate));
+                float env = Mathf.Sin(Mathf.PI * progress);
+                data[i] = (noise * 0.65f + band * 0.35f) * env * 0.55f;
+            }
+            return Finish("sfx_whoosh", data);
         }
 
         static AudioClip BuildHit()
@@ -214,6 +312,28 @@ namespace TempleSprint
             return Finish("sfx_guardian", data);
         }
 
+        static AudioClip BuildGuardianLunge()
+        {
+            var data = NewBuffer(0.42f, out int n);
+            float phase = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float progress = i / (float)n;
+                // Rising bark into a short pack snarl — reads as a grab telegraph.
+                float freq = Mathf.Lerp(140f, 320f, Mathf.Clamp01(progress * 1.8f));
+                if (progress > 0.45f) freq = Mathf.Lerp(320f, 90f, (progress - 0.45f) / 0.55f);
+                phase += 2f * Mathf.PI * freq / SampleRate;
+                float bark = Mathf.Sin(phase);
+                float grit = (Random.value - 0.5f) * (progress < 0.35f ? 0.55f : 0.25f);
+                float slap = progress < 0.12f ? Mathf.Sin(2f * Mathf.PI * 60f * (i / (float)SampleRate)) * 0.5f : 0f;
+                float env = progress < 0.2f
+                    ? progress / 0.2f
+                    : Mathf.Exp(-5.5f * (progress - 0.2f));
+                data[i] = (bark * 0.75f + grit + slap) * env * 0.95f;
+            }
+            return Finish("sfx_guardian_lunge", data);
+        }
+
         static AudioClip BuildBoat()
         {
             var data = NewBuffer(0.35f, out int n);
@@ -276,7 +396,6 @@ namespace TempleSprint
 
         static AudioClip Finish(string name, float[] data)
         {
-            // Short fade-out prevents the click a truncated waveform would make.
             int fade = Mathf.Min(data.Length, SampleRate / 200);
             for (int i = 0; i < fade; i++)
                 data[data.Length - 1 - i] *= i / (float)fade;
