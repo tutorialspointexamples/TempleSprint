@@ -1591,6 +1591,8 @@ namespace TempleSprint
             _explorer.SetAccentColor(c.color);
             _explorer.ApplyCharacterKit(c.id, c.color);
             CosmeticRoster.ApplyToRunner(_explorer.transform);
+            if (GameManager.Instance != null && GameManager.Instance.State == GameState.MainMenu)
+                _explorer.ApplyMenuShowcase();
         }
 
         void OnDestroy()
@@ -1899,7 +1901,10 @@ namespace TempleSprint
             _anim.SetBool(SlideHash, sliding);
             bool running = RunSession.Instance != null && RunSession.Instance.IsAlive && !sliding;
             if (GameManager.Instance != null && GameManager.Instance.State == GameState.MainMenu)
-                running = !sliding;
+            {
+                // Menu uses character showcase poses — light jog, not full sprint.
+                running = !sliding && _menuShowcasePhase < 0.55f;
+            }
             _anim.SetBool(RunningHash, running);
         }
 
@@ -1911,9 +1916,18 @@ namespace TempleSprint
 
         public void SetLaneLean(float lean01) => _laneLean = Mathf.Clamp(lean01, -1.2f, 1.2f);
 
+        /// <summary>Refresh menu causeway showcase when locker character changes.</summary>
+        public void ApplyMenuShowcase()
+        {
+            _menuShowcasePhase = 0f;
+            _menuPoseSeed = CharacterRoster.SelectedId?.GetHashCode() ?? 0;
+            SetPoseFlags(false, false);
+        }
+
         public void ResetPose()
         {
             _laneLean = 0f;
+            _menuShowcasePhase = 0f;
             if (_anim == null) return;
             _anim.SetBool(SlideHash, false);
             _anim.SetBool(RunningHash, false);
@@ -1922,9 +1936,13 @@ namespace TempleSprint
 
         void LateUpdate()
         {
+            bool onMenu = GameManager.Instance != null && GameManager.Instance.State == GameState.MainMenu;
             bool running = RunSession.Instance != null && RunSession.Instance.IsAlive;
-            if (GameManager.Instance != null && GameManager.Instance.State == GameState.MainMenu)
-                running = true;
+            if (onMenu)
+            {
+                _menuShowcasePhase = Mathf.Repeat(_menuShowcasePhase + Time.deltaTime * 0.35f, 1f);
+                running = _menuShowcasePhase < 0.55f;
+            }
 
             bool animPlaying = _anim != null && _anim.enabled && _anim.runtimeAnimatorController != null;
             if (animPlaying)
@@ -1958,7 +1976,60 @@ namespace TempleSprint
                 _model.localPosition = lp;
             }
 
-            ApplyTraversalPose(running);
+            if (onMenu)
+                ApplyMenuShowcasePose();
+            else
+                ApplyTraversalPose(running);
+        }
+
+        void ApplyMenuShowcasePose()
+        {
+            // Per-character causeway poses: lean, ready crouch, or proud idle between jogs.
+            string id = _kitId ?? CharacterRoster.SelectedId;
+            float t = _menuShowcasePhase;
+            Vector3 targetPos = Vector3.zero;
+            Quaternion targetRot = Quaternion.identity;
+            float lean = Mathf.Sin(Time.time * 1.4f + (_menuPoseSeed % 7)) * 0.35f;
+
+            switch (id)
+            {
+                case "desert_runner":
+                    targetPos = new Vector3(0f, t > 0.55f ? -0.08f : 0f, 0.05f);
+                    targetRot = Quaternion.Euler(t > 0.7f ? 8f : 0f, lean * 18f, lean * -6f);
+                    break;
+                case "ice_wraith":
+                    targetPos = new Vector3(0f, Mathf.Abs(Mathf.Sin(Time.time * 2f)) * 0.04f, 0f);
+                    targetRot = Quaternion.Euler(-6f, lean * 22f, lean * 4f);
+                    break;
+                case "jungle_ace":
+                    targetPos = new Vector3(0f, t > 0.6f ? -0.18f : 0f, t > 0.6f ? 0.12f : 0f);
+                    targetRot = Quaternion.Euler(t > 0.6f ? 28f : 0f, 0f, lean * -10f);
+                    break;
+                case "cave_miner":
+                    targetPos = new Vector3(0f, 0f, 0.02f);
+                    targetRot = Quaternion.Euler(4f, -12f + lean * 10f, 0f);
+                    break;
+                case "ember_scout":
+                    targetPos = new Vector3(0f, 0f, 0.04f);
+                    targetRot = Quaternion.Euler(t > 0.65f ? -10f : 2f, lean * 16f, lean * -8f);
+                    break;
+                default:
+                    targetPos = new Vector3(0f, 0f, 0f);
+                    targetRot = Quaternion.Euler(0f, lean * 14f, lean * -5f);
+                    break;
+            }
+
+            // Kit props get a light sway so locker swaps read on the causeway.
+            if (_kitRoot != null)
+            {
+                float sway = Mathf.Sin(Time.time * 2.2f) * 3f;
+                _kitRoot.localRotation = Quaternion.Euler(0f, sway, sway * 0.4f);
+            }
+
+            transform.localPosition = Vector3.Lerp(transform.localPosition, targetPos,
+                1f - Mathf.Exp(-8f * Time.deltaTime));
+            transform.localRotation = Quaternion.Slerp(transform.localRotation, targetRot,
+                1f - Mathf.Exp(-7f * Time.deltaTime));
         }
 
         void ApplyTraversalPose(bool running)
@@ -2038,5 +2109,7 @@ namespace TempleSprint
         }
 
         float _groundY;
+        float _menuShowcasePhase;
+        int _menuPoseSeed;
     }
 }

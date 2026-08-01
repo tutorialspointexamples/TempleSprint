@@ -239,7 +239,7 @@ namespace TempleSprint
                 _lastLungeTime = Time.time;
                 _gap = Mathf.Max(catchDistance + 0.35f, _gap - 2.8f);
                 ChaseCamera.Instance?.PunchFov(4.5f);
-                AudioHooks.Instance?.PlayGuardian();
+                AudioHooks.Instance?.PlayGuardianLunge();
             }
 
             float closeBoost = _lunge > 0f ? 3.8f : (_threat01 > 0.55f ? 1.4f : 1f);

@@ -28,6 +28,7 @@ namespace TempleSprint
         AudioClip _deathClip;
         AudioClip _fallClip;
         AudioClip _guardianClip;
+        AudioClip _guardianLungeClip;
         AudioClip _boatClip;
         AudioClip _ropeGrabClip;
         AudioClip _ropeReleaseClip;
@@ -94,6 +95,8 @@ namespace TempleSprint
         public void PlayDeath() => PlaySfx(_deathClip, 0.7f);
         public void PlayFall() => PlaySfx(_fallClip, 0.7f);
         public void PlayGuardian() => PlaySfx(_guardianClip, 0.6f);
+        /// <summary>Sharp pack stinger for Idol Beast grab lunges (distinct from ambient growl).</summary>
+        public void PlayGuardianLunge() => PlaySfx(_guardianLungeClip, 0.78f);
         public void PlayBoatMount() => PlaySfx(_boatClip, 0.55f);
         public void PlayRopeGrab()
         {
@@ -116,6 +119,7 @@ namespace TempleSprint
             _deathClip = BuildDeath();
             _fallClip = BuildFall();
             _guardianClip = BuildGuardian();
+            _guardianLungeClip = BuildGuardianLunge();
             _boatClip = BuildBoat();
             _ropeGrabClip = BuildRopeGrab();
             _ropeReleaseClip = BuildRopeRelease();
@@ -306,6 +310,28 @@ namespace TempleSprint
                 data[i] = (Mathf.Sin(phase) * 0.8f + grit) * env * 0.9f;
             }
             return Finish("sfx_guardian", data);
+        }
+
+        static AudioClip BuildGuardianLunge()
+        {
+            var data = NewBuffer(0.42f, out int n);
+            float phase = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float progress = i / (float)n;
+                // Rising bark into a short pack snarl — reads as a grab telegraph.
+                float freq = Mathf.Lerp(140f, 320f, Mathf.Clamp01(progress * 1.8f));
+                if (progress > 0.45f) freq = Mathf.Lerp(320f, 90f, (progress - 0.45f) / 0.55f);
+                phase += 2f * Mathf.PI * freq / SampleRate;
+                float bark = Mathf.Sin(phase);
+                float grit = (Random.value - 0.5f) * (progress < 0.35f ? 0.55f : 0.25f);
+                float slap = progress < 0.12f ? Mathf.Sin(2f * Mathf.PI * 60f * (i / (float)SampleRate)) * 0.5f : 0f;
+                float env = progress < 0.2f
+                    ? progress / 0.2f
+                    : Mathf.Exp(-5.5f * (progress - 0.2f));
+                data[i] = (bark * 0.75f + grit + slap) * env * 0.95f;
+            }
+            return Finish("sfx_guardian_lunge", data);
         }
 
         static AudioClip BuildBoat()
