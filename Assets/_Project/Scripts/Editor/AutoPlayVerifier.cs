@@ -247,7 +247,9 @@ namespace TempleSprint.EditorTools
                                      || tileSpawner.TreeBridgesSpawnedThisRun > 0
                                      || tileSpawner.CanopyRopesSpawnedThisRun > 0
                                      || tileSpawner.WaterfallPlungesSpawnedThisRun > 0
-                                     || tileSpawner.TempleHallsSpawnedThisRun > 0));
+                                     || tileSpawner.TempleHallsSpawnedThisRun > 0
+                                     || tileSpawner.LavaRiversSpawnedThisRun > 0
+                                     || tileSpawner.RuinForksSpawnedThisRun > 0));
 
             bool ok = gm != null && ui != null && kids >= 4 && explorer != null && nature != null
                       && activeTiles > 0 && rends >= 40 && framed && humanoid
@@ -413,7 +415,7 @@ namespace TempleSprint.EditorTools
         }
 
         static bool IsTurnOrJunction(TileKind k) =>
-            k == TileKind.TurnLeft || k == TileKind.TurnRight || k == TileKind.TJunction;
+            k == TileKind.TurnLeft || k == TileKind.TurnRight || k == TileKind.TJunction || k == TileKind.RuinFork;
 
         /// <summary>No hazardous tile may sit directly before or after a turn/junction.</summary>
         static bool CheckTurnAdjacency(TrackTile[] tiles)
@@ -600,6 +602,22 @@ namespace TempleSprint.EditorTools
                     if (t.transform.Find("HallWall") == null && t.transform.childCount < 4)
                     {
                         Debug.LogWarning($"[VERIFY] TempleHall at {t.PathStartDistance:0.0} missing interior shell");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.LavaRiver)
+                {
+                    if (t.transform.Find("LavaSurface") == null && t.transform.Find("LavaFlowSheet") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] LavaRiver at {t.PathStartDistance:0.0} missing lava shell");
+                        return false;
+                    }
+                }
+                if (t.Kind == TileKind.RuinFork)
+                {
+                    if (t.transform.Find("ArmLeft") == null || t.transform.Find("ArmRight") == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] RuinFork at {t.PathStartDistance:0.0} missing fork arms");
                         return false;
                     }
                 }

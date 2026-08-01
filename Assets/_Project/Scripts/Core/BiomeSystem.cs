@@ -78,6 +78,16 @@ namespace TempleSprint
         public static float MineCartBias => Current == BiomeId.CaveMines ? 1.8f : Current == BiomeId.IceCaverns ? 1.2f : 1f;
         public static float ZiplineBias => Current == BiomeId.JungleRuins || Current == BiomeId.DesertTombs ? 1.4f : 1f;
         public static float FireBias => Current == BiomeId.VolcanicCrater ? 1.7f : 1f;
+        public static float LavaRiverBias =>
+            (Current == BiomeId.VolcanicCrater ? 2.1f
+                : Current == BiomeId.DesertTombs ? 0.7f
+                : Current == BiomeId.CaveMines ? 0.85f
+                : 0.45f) * EventService.EventStageBias(Current);
+        public static float RuinForkBias =>
+            (Current == BiomeId.JungleRuins || Current == BiomeId.DesertTombs ? 1.65f
+                : Current == BiomeId.CaveMines ? 1.35f
+                : Current == BiomeId.VolcanicCrater ? 1.05f
+                : 0.8f) * EventService.EventStageBias(Current);
         public static float RiverBias => Current == BiomeId.JungleRuins || Current == BiomeId.IceCaverns ? 1.3f : 0.85f;
         public static float IceSurfBias => Current == BiomeId.IceCaverns ? 1.9f : Current == BiomeId.CaveMines ? 0.6f : 0.85f;
         public static float SwimBias => Current == BiomeId.JungleRuins || Current == BiomeId.IceCaverns ? 1.35f : 0.9f;

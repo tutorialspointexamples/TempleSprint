@@ -159,9 +159,9 @@ namespace TempleSprint
         void Update()
         {
             float dt = Time.deltaTime;
-            _riverOff.x += dt * 0.08f;
-            _riverOff.y += dt * 0.22f;
-            _fallOff.y -= dt * 1.4f;
+            _riverOff.x += dt * 0.14f;
+            _riverOff.y += dt * 0.38f;
+            _fallOff.y -= dt * 1.85f;
 
             ApplyOffset(JunglePalette.RiverWater, _riverOff);
             ApplyOffset(JunglePalette.FallingWater, _fallOff);
