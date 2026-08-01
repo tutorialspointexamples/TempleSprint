@@ -25,6 +25,7 @@ namespace TempleSprint
         TempleHall,
         RuinFork,
         LavaRiver,
+        CliffNarrow,
         BiomeTransitionTunnel,
         TurnLeft,
         TurnRight,
@@ -119,7 +120,7 @@ namespace TempleSprint
             ExitPose = entry.AdvanceStraight(Length);
 
             if (kind == TileKind.HazardGap || kind == TileKind.RiverCrossing || kind == TileKind.FireCrossing
-                || kind == TileKind.LavaRiver
+                || kind == TileKind.LavaRiver || kind == TileKind.CliffNarrow
                 || kind == TileKind.Zipline || kind == TileKind.MineCart || kind == TileKind.IceSurf
                 || kind == TileKind.WallRun || kind == TileKind.LedgeGrab || kind == TileKind.TreeBridge
                 || kind == TileKind.CanopyRope || kind == TileKind.WaterfallPlunge
@@ -132,7 +133,7 @@ namespace TempleSprint
                 else if (kind == TileKind.Zipline || kind == TileKind.MineCart || kind == TileKind.IceSurf
                          || kind == TileKind.WallRun || kind == TileKind.LedgeGrab || kind == TileKind.TreeBridge
                          || kind == TileKind.CanopyRope || kind == TileKind.WaterfallPlunge
-                         || kind == TileKind.WaterSlide)
+                         || kind == TileKind.WaterSlide || kind == TileKind.CliffNarrow)
                     BuildFloorWithSpecialChannel();
                 else
                     BuildFloorWithRiverChannel();
@@ -153,7 +154,7 @@ namespace TempleSprint
             else if (kind == TileKind.LavaRiver)
                 BuildForestEdgeForFire();
             else if (kind == TileKind.Zipline || kind == TileKind.WallRun || kind == TileKind.LedgeGrab
-                     || kind == TileKind.TreeBridge || kind == TileKind.CanopyRope)
+                     || kind == TileKind.TreeBridge || kind == TileKind.CanopyRope || kind == TileKind.CliffNarrow)
                 BuildForestEdgeForSpecial();
             else if (kind == TileKind.WaterfallPlunge || kind == TileKind.WaterSlide)
                 BuildForestEdgeForRiver();
@@ -185,8 +186,10 @@ namespace TempleSprint
                     if (Random.value < 0.45f) BuildHangingVines(Random.Range(1, 3));
                     if (BiomeSystem.Current == BiomeId.CaveMines && Random.value < 0.55f) BuildMineTimberFrame();
                     if (BiomeSystem.Current == BiomeId.CaveMines && Random.value < 0.7f) BuildCaveRunwayProps();
-                    if (BiomeSystem.Current == BiomeId.VolcanicCrater && Random.value < 0.35f) BuildVolcanicEdgeGlow();
+                    if (BiomeSystem.Current == BiomeId.VolcanicCrater && Random.value < 0.55f) BuildVolcanicEdgeGlow();
+                    if (BiomeSystem.Current == BiomeId.VolcanicCrater && Random.value < 0.45f) BuildVolcanicRunwayMagma();
                     if (BiomeSystem.Current == BiomeId.IceCaverns && Random.value < 0.4f) BuildIceRunwayFrost();
+                    if (BiomeSystem.Current == BiomeId.IceCaverns && Random.value < 0.35f) BuildIceCrevasseEdges();
                     if (BiomeSystem.Current == BiomeId.DesertTombs && Random.value < 0.55f) BuildDesertRunwayProps();
                     if (BiomeSystem.Current == BiomeId.IceCaverns && Random.value < 0.5f) BuildIceRunwayProps();
                     if (BiomeSystem.Current == BiomeId.NightSummit && Random.value < 0.55f) BuildNightSummitProps();
@@ -259,6 +262,9 @@ namespace TempleSprint
                     break;
                 case TileKind.LavaRiver:
                     BuildLavaRiverCrossing();
+                    break;
+                case TileKind.CliffNarrow:
+                    BuildCliffNarrowStage();
                     break;
                 case TileKind.BiomeTransitionTunnel:
                     BuildBiomeTransitionTunnelContents();
@@ -2616,7 +2622,7 @@ namespace TempleSprint
             float z1 = Length;
             // Leave river/fire/special channels more open so crossings stay readable.
             if (kind == TileKind.RiverCrossing || kind == TileKind.FireCrossing || kind == TileKind.LavaRiver
-                || kind == TileKind.WaterfallPlunge || kind == TileKind.WaterSlide
+                || kind == TileKind.WaterfallPlunge || kind == TileKind.WaterSlide || kind == TileKind.CliffNarrow
                 || kind == TileKind.Zipline || kind == TileKind.WallRun || kind == TileKind.LedgeGrab
                 || kind == TileKind.TreeBridge || kind == TileKind.CanopyRope || kind == TileKind.IceSurf)
             {
@@ -2776,12 +2782,222 @@ namespace TempleSprint
             for (int side = -1; side <= 1; side += 2)
             {
                 var glow = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                glow.name = "VolcanicEdgeGlow";
                 glow.transform.SetParent(transform, false);
                 glow.transform.localPosition = new Vector3(side * (DeckWidth * 0.55f + 0.8f), -0.4f, Length * 0.5f);
                 glow.transform.localScale = new Vector3(1.2f, 0.2f, Length * 0.7f);
                 glow.GetComponent<Renderer>().sharedMaterial = JunglePalette.Ember;
                 StripCollider(glow);
             }
+        }
+
+        /// <summary>Open-runway magma cracks + heat haze (not only LavaRiver channel tiles).</summary>
+        void BuildVolcanicRunwayMagma()
+        {
+            float mid = Length * 0.5f;
+            int cracks = Random.Range(2, 4);
+            for (int i = 0; i < cracks; i++)
+            {
+                float z = Length * ((i + 0.35f) / cracks);
+                float x = Random.Range(-DeckWidth * 0.28f, DeckWidth * 0.28f);
+                var crack = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                crack.name = "MagmaCrack";
+                crack.transform.SetParent(transform, false);
+                crack.transform.localPosition = new Vector3(x, -0.02f, z);
+                crack.transform.localRotation = Quaternion.Euler(0f, Random.Range(-35f, 35f), 0f);
+                crack.transform.localScale = new Vector3(Random.Range(0.35f, 0.7f), 0.08f, Random.Range(1.4f, 2.6f));
+                crack.GetComponent<Renderer>().sharedMaterial = JunglePalette.Ember;
+                StripCollider(crack);
+
+                var seethe = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                seethe.name = "MagmaSeethe";
+                seethe.transform.SetParent(transform, false);
+                seethe.transform.localPosition = new Vector3(x, 0.02f, z);
+                seethe.transform.localRotation = crack.transform.localRotation;
+                seethe.transform.localScale = new Vector3(
+                    crack.transform.localScale.x * 0.55f, 0.05f, crack.transform.localScale.z * 0.7f);
+                seethe.GetComponent<Renderer>().sharedMaterial = JunglePalette.Flame;
+                StripCollider(seethe);
+            }
+
+            // Side magma pools along the runway shoulders.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                if (Random.value > 0.7f) continue;
+                var pool = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                pool.name = "MagmaPool";
+                pool.transform.SetParent(transform, false);
+                pool.transform.localPosition = new Vector3(side * (DeckWidth * 0.52f + 1.1f), -0.55f, mid + Random.Range(-1.5f, 1.5f));
+                pool.transform.localScale = new Vector3(1.6f, 0.25f, Random.Range(2.2f, 3.8f));
+                pool.GetComponent<Renderer>().sharedMaterial = JunglePalette.Ember;
+                StripCollider(pool);
+            }
+
+            var hazeRoot = new GameObject("VolcanoRunwayHaze");
+            hazeRoot.transform.SetParent(transform, false);
+            hazeRoot.transform.localPosition = new Vector3(0f, 0f, mid);
+            var haze = hazeRoot.AddComponent<HeatShimmerAnimator>();
+            haze.Build(
+                hazeRoot.transform, 5,
+                DeckWidth * 0.35f, Length * 0.32f, 1.1f,
+                new Color(1f, 0.38f, 0.1f, 0.24f), false);
+
+            var lightGo = new GameObject("VolcanoRunwayGlow");
+            lightGo.transform.SetParent(transform, false);
+            lightGo.transform.localPosition = new Vector3(0f, 1.2f, mid);
+            var light = lightGo.AddComponent<Light>();
+            light.type = LightType.Point;
+            light.color = new Color(1f, 0.42f, 0.14f);
+            light.range = 10f;
+            light.intensity = 1.8f;
+            light.shadows = LightShadows.None;
+
+            if (Random.value < 0.55f)
+            {
+                var sparks = new GameObject("VolcanoRunwaySparks");
+                sparks.transform.SetParent(transform, false);
+                sparks.transform.localPosition = new Vector3(0f, 0.2f, mid);
+                var sparkFx = sparks.AddComponent<EmberSparkAnimator>();
+                sparkFx.Build(sparks.transform, DeckWidth * 0.4f, Length * 0.3f);
+            }
+        }
+
+        /// <summary>Ice Cavern open-runway crevasse lips + cliff-edge kill strips.</summary>
+        void BuildIceCrevasseEdges()
+        {
+            float mid = Length * 0.5f;
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var lip = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                lip.name = "IceCrevasseLip";
+                lip.transform.SetParent(transform, false);
+                lip.transform.localPosition = new Vector3(side * (DeckWidth * 0.52f + 0.35f), -0.05f, mid);
+                lip.transform.localRotation = Quaternion.Euler(0f, 0f, side * 12f);
+                lip.transform.localScale = new Vector3(0.55f, 0.35f, Length * 0.85f);
+                lip.GetComponent<Renderer>().sharedMaterial =
+                    JunglePalette.Mat(new Color(0.7f, 0.86f, 0.96f), 0.55f, 0.3f);
+                StripCollider(lip);
+
+                var voidWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                voidWall.name = "IceCrevasseVoid";
+                voidWall.transform.SetParent(transform, false);
+                voidWall.transform.localPosition = new Vector3(side * (DeckWidth * 0.5f + 2.4f), ForestFloorY - 0.8f, mid);
+                voidWall.transform.localScale = new Vector3(2.2f, 5.5f, Length * 0.9f);
+                voidWall.GetComponent<Renderer>().sharedMaterial =
+                    JunglePalette.Mat(new Color(0.18f, 0.28f, 0.38f), 0.15f);
+                StripCollider(voidWall);
+
+                GapKillZone.CreateEdge(
+                    transform, mid, side * (DeckWidth * 0.5f + 1.55f),
+                    Length * 0.9f, 2.4f, "Slipped into a crevasse", allowDuringMount: false);
+            }
+
+            // Center hairline crack for visual threat without blocking the middle lane.
+            if (Random.value < 0.55f)
+            {
+                var crack = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                crack.name = "IceHairlineCrack";
+                crack.transform.SetParent(transform, false);
+                crack.transform.localPosition = new Vector3(Random.Range(-0.4f, 0.4f), -0.01f, mid);
+                crack.transform.localRotation = Quaternion.Euler(0f, Random.Range(-20f, 20f), 0f);
+                crack.transform.localScale = new Vector3(0.12f, 0.06f, Length * 0.55f);
+                crack.GetComponent<Renderer>().sharedMaterial =
+                    JunglePalette.Mat(new Color(0.35f, 0.55f, 0.75f), 0.4f);
+                StripCollider(crack);
+            }
+        }
+
+        /// <summary>Sky Summit–style narrow precipice runway — center strip over a deep void.</summary>
+        void BuildCliffNarrowStage()
+        {
+            GetSpecialChannel(out float channelStart, out float channelEnd, out float channelLen);
+            float mid = (channelStart + channelEnd) * 0.5f;
+            // Narrower than full deck: ~1.35 lane-widths so outer lanes are deadly.
+            float stripWidth = PlayerController.LaneWidth * 1.35f
+                               + (_runDifficulty == RunDifficulty.Easy ? 0.35f : 0f);
+
+            var voidBed = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            voidBed.name = "CliffNarrowVoid";
+            voidBed.transform.SetParent(transform, false);
+            voidBed.transform.localPosition = new Vector3(0f, ForestFloorY - 1.6f, mid);
+            voidBed.transform.localScale = new Vector3(ForestOuter * 2f + DeckWidth, 2.2f, channelLen + 2.2f);
+            voidBed.GetComponent<Renderer>().sharedMaterial =
+                JunglePalette.Mat(new Color(0.1f, 0.12f, 0.14f), 0.18f);
+            StripCollider(voidBed);
+
+            // Mist / depth haze under the precipice.
+            var mist = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            mist.name = "CliffMist";
+            mist.transform.SetParent(transform, false);
+            mist.transform.localPosition = new Vector3(0f, ForestFloorY + 0.4f, mid);
+            mist.transform.localScale = new Vector3(DeckWidth + 8f, 0.5f, channelLen * 0.92f);
+            mist.GetComponent<Renderer>().sharedMaterial =
+                JunglePalette.Mat(new Color(0.55f, 0.65f, 0.7f, 0.3f), 0.08f);
+            StripCollider(mist);
+
+            var strip = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            strip.name = "CliffNarrowStrip";
+            strip.transform.SetParent(transform, false);
+            strip.transform.localPosition = new Vector3(0f, -0.08f, mid);
+            strip.transform.localScale = new Vector3(stripWidth, 0.32f, channelLen);
+            strip.GetComponent<Renderer>().sharedMaterial = BiomeSystem.PathMat;
+            StripCollider(strip);
+
+            // Stone lip / crumbling edge rails.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var lip = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                lip.name = "CliffStripLip";
+                lip.transform.SetParent(transform, false);
+                lip.transform.localPosition = new Vector3(side * (stripWidth * 0.5f + 0.12f), 0.05f, mid);
+                lip.transform.localScale = new Vector3(0.22f, 0.28f, channelLen * 0.98f);
+                lip.GetComponent<Renderer>().sharedMaterial = BiomeSystem.StoneMat;
+                StripCollider(lip);
+
+                var cliffFace = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                cliffFace.name = "CliffFace";
+                cliffFace.transform.SetParent(transform, false);
+                cliffFace.transform.localPosition = new Vector3(side * (stripWidth * 0.5f + 2.8f), -1.4f, mid);
+                cliffFace.transform.localRotation = Quaternion.Euler(0f, 0f, side * -10f);
+                cliffFace.transform.localScale = new Vector3(3.2f, 6.5f, channelLen + 0.8f);
+                cliffFace.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
+                StripCollider(cliffFace);
+
+                GapKillZone.CreateEdge(
+                    transform, mid, side * (stripWidth * 0.5f + 1.35f),
+                    channelLen, 2.6f, "Fell from the cliff", allowDuringMount: false);
+            }
+
+            // Support pillars under the strip so it reads as a sky bridge.
+            int posts = 3;
+            for (int i = 0; i < posts; i++)
+            {
+                float z = Mathf.Lerp(channelStart + 0.8f, channelEnd - 0.8f, (i + 0.5f) / posts);
+                var pillar = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                pillar.name = "CliffPillar";
+                pillar.transform.SetParent(transform, false);
+                pillar.transform.localPosition = new Vector3(0f, -1.1f, z);
+                pillar.transform.localScale = new Vector3(0.45f, 1.4f, 0.45f);
+                pillar.GetComponent<Renderer>().sharedMaterial = BiomeSystem.StoneMat;
+                StripCollider(pillar);
+            }
+
+            int hazards = _runDifficulty == RunDifficulty.Easy ? 1
+                : _runDifficulty == RunDifficulty.Hard ? 3 : 2;
+            for (int i = 0; i < hazards; i++)
+            {
+                float z = Mathf.Lerp(channelStart + 1.3f, channelEnd - 1.3f, (i + 1f) / (hazards + 1f));
+                if (i % 2 == 0)
+                    Obstacle.CreateLowBeam(transform, z, 1);
+                else
+                    Obstacle.CreateBoatDebris(transform, z, 1);
+            }
+
+            CollectibleCoin.Create(transform, new Vector3(0f, 1.15f, channelStart + 0.9f));
+            CollectibleCoin.Create(transform, new Vector3(0f, 1.2f, mid));
+            CollectibleCoin.Create(transform, new Vector3(0f, 1.15f, channelEnd - 0.7f));
+            if (_runDifficulty != RunDifficulty.Easy && Random.value < 0.4f)
+                GemPickup.Create(transform, new Vector3(0f, 1.35f, mid + 0.9f));
         }
 
         void BuildZiplineStage()
@@ -3390,9 +3606,31 @@ namespace TempleSprint
             slope.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.72f, 0.86f, 0.96f), 0.65f, 0.25f);
             StripCollider(slope);
 
+            // Crevasse lips + true off-deck kill strips (outer lanes stay rideable).
             for (int side = -1; side <= 1; side += 2)
             {
-                GapKillZone.Create(transform, mid, side < 0 ? 0 : 2, channelLen * 0.35f, "Slid off the ice");
+                var lip = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                lip.name = "IceSurfCrevasseLip";
+                lip.transform.SetParent(transform, false);
+                lip.transform.localPosition = new Vector3(side * (DeckWidth * 0.52f), -0.02f, mid);
+                lip.transform.localRotation = Quaternion.Euler(6f, 0f, side * 14f);
+                lip.transform.localScale = new Vector3(0.45f, 0.3f, channelLen * 0.95f);
+                lip.GetComponent<Renderer>().sharedMaterial =
+                    JunglePalette.Mat(new Color(0.68f, 0.84f, 0.95f), 0.55f, 0.28f);
+                StripCollider(lip);
+
+                var abyss = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                abyss.name = "IceSurfAbyss";
+                abyss.transform.SetParent(transform, false);
+                abyss.transform.localPosition = new Vector3(side * (DeckWidth * 0.5f + 2.6f), ForestFloorY - 0.9f, mid);
+                abyss.transform.localScale = new Vector3(2.4f, 5.8f, channelLen + 1.2f);
+                abyss.GetComponent<Renderer>().sharedMaterial =
+                    JunglePalette.Mat(new Color(0.14f, 0.22f, 0.32f), 0.12f);
+                StripCollider(abyss);
+
+                GapKillZone.CreateEdge(
+                    transform, mid, side * (DeckWidth * 0.5f + 1.65f),
+                    channelLen * 0.95f, 2.5f, "Slid off the ice", allowDuringMount: true);
             }
 
             var rideGo = new GameObject("IceBoardRide");
@@ -3878,8 +4116,13 @@ namespace TempleSprint
                 StripCollider(arch);
             }
 
+            // Off-deck spill kills — aqueduct walls keep center lanes playable.
             for (int side = -1; side <= 1; side += 2)
-                GapKillZone.Create(transform, mid, side < 0 ? 0 : 2, channelLen * 0.3f, "Swept out of the aqueduct");
+            {
+                GapKillZone.CreateEdge(
+                    transform, mid, side * (DeckWidth * 0.5f + 1.45f),
+                    channelLen * 0.9f, 2.2f, "Swept out of the aqueduct", allowDuringMount: true);
+            }
 
             var rideGo = new GameObject("WaterSlideRide");
             rideGo.transform.SetParent(transform, false);

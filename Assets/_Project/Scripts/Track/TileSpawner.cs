@@ -29,6 +29,7 @@ namespace TempleSprint
         int _tilesSinceWaterSlide;
         int _tilesSinceTempleHall;
         int _tilesSinceLavaRiver;
+        int _tilesSinceCliffNarrow;
         int _tilesSinceRuinFork;
         int _tilesSinceBiomeTransition;
         int _defaultBranchFlip;
@@ -62,6 +63,7 @@ namespace TempleSprint
         public int WaterSlidesSpawnedThisRun { get; private set; }
         public int TempleHallsSpawnedThisRun { get; private set; }
         public int LavaRiversSpawnedThisRun { get; private set; }
+        public int CliffNarrowsSpawnedThisRun { get; private set; }
         public int RuinForksSpawnedThisRun { get; private set; }
         public int BiomeTransitionsSpawnedThisRun { get; private set; }
 
@@ -106,6 +108,7 @@ namespace TempleSprint
             _tilesSinceWaterSlide = 99;
             _tilesSinceTempleHall = 99;
             _tilesSinceLavaRiver = 99;
+            _tilesSinceCliffNarrow = 99;
             _tilesSinceRuinFork = 99;
             _tilesSinceBiomeTransition = 0;
             _awaitingJunctionChoice = false;
@@ -126,6 +129,7 @@ namespace TempleSprint
             WaterSlidesSpawnedThisRun = 0;
             TempleHallsSpawnedThisRun = 0;
             LavaRiversSpawnedThisRun = 0;
+            CliffNarrowsSpawnedThisRun = 0;
             RuinForksSpawnedThisRun = 0;
             BiomeTransitionsSpawnedThisRun = 0;
             _lastRiverMode = RiverCrossingMode.Jump;
@@ -344,6 +348,14 @@ namespace TempleSprint
             }
             else
                 _tilesSinceLavaRiver++;
+
+            if (kind == TileKind.CliffNarrow)
+            {
+                _tilesSinceCliffNarrow = 0;
+                CliffNarrowsSpawnedThisRun++;
+            }
+            else
+                _tilesSinceCliffNarrow++;
 
             if (kind == TileKind.RuinFork)
             {
@@ -568,8 +580,10 @@ namespace TempleSprint
                 if (index == 38) return TileKind.Straight;
                 if (index == 39) return TileKind.LavaRiver;
                 if (index == 40) return TileKind.Straight;
-                if (index == 41 && BiomeSystem.HasUnlockedAlternate) return TileKind.BiomeTransitionTunnel;
-                if (index < 42) return TileKind.Straight;
+                if (index == 41) return TileKind.CliffNarrow;
+                if (index == 42) return TileKind.Straight;
+                if (index == 43 && BiomeSystem.HasUnlockedAlternate) return TileKind.BiomeTransitionTunnel;
+                if (index < 44) return TileKind.Straight;
             }
 
             // Mutual one-tile buffer: turns and hazards never adjacent.
@@ -603,6 +617,8 @@ namespace TempleSprint
                 : _difficulty == RunDifficulty.Hard ? 9 : 11) / Mathf.Max(0.75f, BiomeSystem.TempleHallBias));
             int lavaEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 16
                 : _difficulty == RunDifficulty.Hard ? 10 : 13) / Mathf.Max(0.75f, BiomeSystem.LavaRiverBias));
+            int cliffEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 15
+                : _difficulty == RunDifficulty.Hard ? 10 : 12) / Mathf.Max(0.75f, BiomeSystem.CliffNarrowBias));
             int forkEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 15
                 : _difficulty == RunDifficulty.Hard ? 10 : 12) / Mathf.Max(0.75f, BiomeSystem.RuinForkBias));
             int biomeEvery = Mathf.RoundToInt((_difficulty == RunDifficulty.Easy ? 42
@@ -622,13 +638,14 @@ namespace TempleSprint
             bool fallDue = allowHazard && _tilesSinceWaterfallPlunge >= fallEvery && index >= 7;
             bool slideDue = allowHazard && _tilesSinceWaterSlide >= slideEvery && index >= 7;
             bool hallDue = allowHazard && _tilesSinceTempleHall >= hallEvery && index >= 6;
+            bool cliffDue = allowHazard && _tilesSinceCliffNarrow >= cliffEvery && index >= 6;
             bool forkDue = allowTurn && _tilesSinceRuinFork >= forkEvery && index >= 7;
             bool biomeDue = allowHazard && BiomeSystem.HasUnlockedAlternate && !BiomeSystem.TransitionActive
                             && _tilesSinceBiomeTransition >= biomeEvery && index >= 18;
 
             // Prefer the most overdue special stage when several are due.
             if (riverDue || fireDue || lavaDue || zipDue || cartDue || iceDue || wallDue || ledgeDue || treeDue
-                || canopyDue || fallDue || slideDue || hallDue || forkDue || biomeDue)
+                || canopyDue || fallDue || slideDue || hallDue || cliffDue || forkDue || biomeDue)
             {
                 float best = -1f;
                 TileKind pick = TileKind.Straight;
@@ -651,6 +668,7 @@ namespace TempleSprint
                 Consider(fallDue, _tilesSinceWaterfallPlunge, fallEvery, TileKind.WaterfallPlunge);
                 Consider(slideDue, _tilesSinceWaterSlide, slideEvery, TileKind.WaterSlide);
                 Consider(hallDue, _tilesSinceTempleHall, hallEvery, TileKind.TempleHall);
+                Consider(cliffDue, _tilesSinceCliffNarrow, cliffEvery, TileKind.CliffNarrow);
                 Consider(forkDue, _tilesSinceRuinFork, forkEvery, TileKind.RuinFork);
                 Consider(biomeDue, _tilesSinceBiomeTransition, biomeEvery, TileKind.BiomeTransitionTunnel);
                 if (pick != TileKind.Straight) return pick;

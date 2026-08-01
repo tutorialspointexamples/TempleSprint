@@ -178,6 +178,15 @@ namespace TempleSprint
                 : Current == BiomeId.VolcanicCrater ? 1.1f
                 : Current == BiomeId.NightSummit ? 1.4f
                 : 0.85f) * EventService.EventStageBias(Current);
+        /// <summary>Narrow precipice runway — summit / ice / jungle cliffs.</summary>
+        public static float CliffNarrowBias =>
+            (Current == BiomeId.NightSummit ? 2.05f
+                : Current == BiomeId.IceCaverns ? 1.65f
+                : Current == BiomeId.JungleRuins ? 1.45f
+                : Current == BiomeId.VolcanicCrater ? 1.2f
+                : Current == BiomeId.DesertTombs ? 0.85f
+                : Current == BiomeId.CaveMines ? 0.45f
+                : 0.75f) * EventService.EventStageBias(Current);
 
         public static float BiomeTransitionBias =>
             HasUnlockedAlternate
@@ -901,11 +910,12 @@ namespace TempleSprint
             },
             BiomeId.VolcanicCrater => new BiomeWeatherProfile
             {
-                rainChance = 0.4f, windChance = 0.45f, windStrength = 1.2f,
-                precipRate = 70f, precipSpeed = 2.8f, precipSize = 0.07f, precipGravity = 0.25f,
-                precipColor = new Color(0.35f, 0.28f, 0.25f, 0.7f),
-                windRate = 48f, windSpeed = 9f, windSize = 0.1f,
-                windColor = new Color(1f, 0.45f, 0.15f, 0.4f)
+                // Dense slow ashfall + ember wind debris (not generic rain).
+                rainChance = 0.55f, windChance = 0.5f, windStrength = 1.25f,
+                precipRate = 95f, precipSpeed = 1.9f, precipSize = 0.09f, precipGravity = 0.12f,
+                precipColor = new Color(0.28f, 0.22f, 0.2f, 0.78f),
+                windRate = 62f, windSpeed = 8f, windSize = 0.12f,
+                windColor = new Color(1f, 0.42f, 0.12f, 0.48f)
             },
             BiomeId.NightSummit => new BiomeWeatherProfile
             {

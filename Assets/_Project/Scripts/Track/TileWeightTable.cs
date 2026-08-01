@@ -24,11 +24,12 @@ namespace TempleSprint
             || kind == TileKind.CanopyRope
             || kind == TileKind.WaterfallPlunge
             || kind == TileKind.WaterSlide
-            || kind == TileKind.TempleHall;
+            || kind == TileKind.TempleHall
+            || kind == TileKind.CliffNarrow;
 
         public TileKind Pick(RunDifficulty difficulty, float obstacleBias, int difficultyTier, bool allowTurn, bool allowHazard)
         {
-            float straight, coin, obstacle, gap, branch, dyn, env, river, fire, lava, zipline, minecart, icesurf, wallrun, ledge, tree, canopy, waterfall, slide, hall, turnL, turnR, junction, ruinFork;
+            float straight, coin, obstacle, gap, branch, dyn, env, river, fire, lava, zipline, minecart, icesurf, wallrun, ledge, tree, canopy, waterfall, slide, hall, cliff, turnL, turnR, junction, ruinFork;
             float riverBias = BiomeSystem.RiverBias;
             float fireBias = BiomeSystem.FireBias;
             float lavaBias = BiomeSystem.LavaRiverBias;
@@ -42,6 +43,7 @@ namespace TempleSprint
             float fallBias = BiomeSystem.WaterfallPlungeBias;
             float slideBias = BiomeSystem.WaterSlideBias;
             float hallBias = BiomeSystem.TempleHallBias;
+            float cliffBias = BiomeSystem.CliffNarrowBias;
             float forkBias = BiomeSystem.RuinForkBias;
 
             switch (difficulty)
@@ -67,6 +69,7 @@ namespace TempleSprint
                     waterfall = allowHazard ? 0.028f * fallBias : 0f;
                     slide = allowHazard ? 0.03f * slideBias : 0f;
                     hall = allowHazard ? 0.035f * hallBias : 0.015f * hallBias;
+                    cliff = allowHazard ? 0.03f * cliffBias : 0f;
                     turnL = allowTurn ? 0.045f : 0f;
                     turnR = allowTurn ? 0.045f : 0f;
                     junction = allowTurn ? 0.025f : 0f;
@@ -93,6 +96,7 @@ namespace TempleSprint
                     waterfall = allowHazard ? 0.038f * fallBias : 0f;
                     slide = allowHazard ? 0.04f * slideBias : 0f;
                     hall = allowHazard ? 0.045f * hallBias : 0.015f * hallBias;
+                    cliff = allowHazard ? 0.042f * cliffBias + difficultyTier * 0.01f : 0f;
                     turnL = allowTurn ? 0.06f + difficultyTier * 0.01f : 0f;
                     turnR = allowTurn ? 0.06f + difficultyTier * 0.01f : 0f;
                     junction = allowTurn ? 0.04f + difficultyTier * 0.01f : 0f;
@@ -119,6 +123,7 @@ namespace TempleSprint
                     waterfall = allowHazard ? 0.038f * fallBias : 0f;
                     slide = allowHazard ? 0.04f * slideBias : 0f;
                     hall = allowHazard ? 0.04f * hallBias : 0.015f * hallBias;
+                    cliff = allowHazard ? 0.038f * cliffBias : 0f;
                     turnL = allowTurn ? 0.055f : 0f;
                     turnR = allowTurn ? 0.055f : 0f;
                     junction = allowTurn ? 0.035f : 0f;
@@ -128,12 +133,12 @@ namespace TempleSprint
 
             float total = Mathf.Max(0.01f, straight) + coin + obstacle + gap + branch + dyn + env
                           + river + fire + lava + zipline + minecart + icesurf + wallrun + ledge + tree
-                          + canopy + waterfall + slide + hall + turnL + turnR + junction + ruinFork;
+                          + canopy + waterfall + slide + hall + cliff + turnL + turnR + junction + ruinFork;
             float r = Random.value * total;
             float[] w =
             {
                 Mathf.Max(0.01f, straight), coin, obstacle, gap, branch, dyn, env,
-                river, fire, lava, zipline, minecart, icesurf, wallrun, ledge, tree, canopy, waterfall, slide, hall,
+                river, fire, lava, zipline, minecart, icesurf, wallrun, ledge, tree, canopy, waterfall, slide, hall, cliff,
                 turnL, turnR, junction, ruinFork
             };
             TileKind[] kinds =
@@ -142,8 +147,8 @@ namespace TempleSprint
                 TileKind.Branch, TileKind.DynamicHazard, TileKind.EnvironmentZone, TileKind.RiverCrossing,
                 TileKind.FireCrossing, TileKind.LavaRiver, TileKind.Zipline, TileKind.MineCart, TileKind.IceSurf,
                 TileKind.WallRun, TileKind.LedgeGrab, TileKind.TreeBridge, TileKind.CanopyRope,
-                TileKind.WaterfallPlunge, TileKind.WaterSlide, TileKind.TempleHall, TileKind.TurnLeft, TileKind.TurnRight,
-                TileKind.TJunction, TileKind.RuinFork
+                TileKind.WaterfallPlunge, TileKind.WaterSlide, TileKind.TempleHall, TileKind.CliffNarrow,
+                TileKind.TurnLeft, TileKind.TurnRight, TileKind.TJunction, TileKind.RuinFork
             };
             for (int i = 0; i < w.Length; i++)
             {
