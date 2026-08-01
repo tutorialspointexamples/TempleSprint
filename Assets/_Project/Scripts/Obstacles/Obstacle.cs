@@ -8,6 +8,8 @@ namespace TempleSprint
         public bool RequiresSlide;
         public bool StumbleOnly;
         public string DeathMessage = "Hit an obstacle";
+        /// <summary>Lane index 0–2 when lane-scoped; -1 for full-width blockers.</summary>
+        public int Lane = -1;
 
         public void Consume()
         {
@@ -38,6 +40,7 @@ namespace TempleSprint
             col.isTrigger = true;
             col.size = new Vector3(1.7f, 0.9f, 0.5f);
             var obs = root.AddComponent<Obstacle>();
+            obs.Lane = lane;
             obs.RequiresSlide = true;
             obs.DeathMessage = "Hit a low beam";
             return obs;
@@ -68,6 +71,7 @@ namespace TempleSprint
             col.size = new Vector3(1.4f, 1.2f, 1.4f);
             col.center = new Vector3(0f, 0.4f, 0f);
             var obs = root.AddComponent<Obstacle>();
+            obs.Lane = lane;
             obs.RequiresJump = true;
             obs.DeathMessage = "Burned in a fire pit";
             return obs;
@@ -103,6 +107,7 @@ namespace TempleSprint
             col.size = new Vector3(1.3f, 1.3f, 0.7f);
             col.center = new Vector3(0f, 0.65f, 0f);
             var obs = root.AddComponent<Obstacle>();
+            obs.Lane = lane;
             obs.DeathMessage = "Impaled by spikes";
             return obs;
         }
@@ -134,6 +139,7 @@ namespace TempleSprint
             col.size = new Vector3(TrackTile.DeckWidth + 0.4f, 1.65f, 0.55f);
             col.center = new Vector3(0f, 1.55f, 0f);
             var obs = root.AddComponent<Obstacle>();
+            obs.Lane = -1;
             obs.RequiresSlide = true;
             obs.DeathMessage = "Hit a stone wall";
             return obs;
@@ -161,6 +167,7 @@ namespace TempleSprint
             col.size = new Vector3(1.4f, 1.2f, 1.3f);
             col.center = new Vector3(0f, 0.35f, 0f);
             var obs = root.AddComponent<Obstacle>();
+            obs.Lane = lane;
             obs.DeathMessage = "Hit river debris";
             return obs;
         }
@@ -176,6 +183,7 @@ namespace TempleSprint
             go.GetComponent<Renderer>().sharedMaterial = JunglePalette.Stone;
             go.GetComponent<Collider>().isTrigger = true;
             var obs = go.AddComponent<Obstacle>();
+            obs.Lane = lane;
             obs.RequiresJump = true;
             obs.DeathMessage = "Bridge collapsed";
             var dyn = go.AddComponent<DynamicHazard>();
@@ -191,6 +199,9 @@ namespace TempleSprint
     public class GapKillZone : MonoBehaviour
     {
         public string DeathMessage = "Fell through a gap";
+        public int Lane;
+        /// <summary>When true, kills still apply while mounted (ice surf / water slide edge falls).</summary>
+        public bool AllowDuringMount;
 
         public static GapKillZone Create(Transform parent, float localZ, int lane)
             => Create(parent, localZ, lane, 5.0f);
@@ -210,6 +221,26 @@ namespace TempleSprint
             box.center = new Vector3(0f, 0.2f, 0f);
             var zone = go.AddComponent<GapKillZone>();
             zone.DeathMessage = deathMessage;
+            zone.Lane = lane;
+            zone.AllowDuringMount = false;
+            return zone;
+        }
+
+        /// <summary>Off-deck precipice kill strip (local X outside the playable runway).</summary>
+        public static GapKillZone CreateEdge(Transform parent, float localZ, float localX, float lengthZ,
+            float widthX, string deathMessage, bool allowDuringMount = true)
+        {
+            var go = new GameObject("EdgeKill");
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = new Vector3(localX, -1.35f, localZ);
+            var box = go.AddComponent<BoxCollider>();
+            box.isTrigger = true;
+            box.size = new Vector3(Mathf.Max(1.2f, widthX), 5f, lengthZ);
+            box.center = new Vector3(0f, 0.35f, 0f);
+            var zone = go.AddComponent<GapKillZone>();
+            zone.DeathMessage = deathMessage;
+            zone.Lane = localX < 0f ? 0 : 2;
+            zone.AllowDuringMount = allowDuringMount;
             return zone;
         }
     }
