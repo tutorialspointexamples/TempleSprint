@@ -265,7 +265,7 @@ namespace TempleSprint
         {
             if (_smashed) return;
             _smashed = true;
-            AudioHooks.Instance?.PlayPickup();
+            AudioHooks.Instance?.PlaySmash();
             ChaseCamera.Instance?.PunchFov(1.1f);
             RunSession.Instance?.RegisterNearMiss();
 

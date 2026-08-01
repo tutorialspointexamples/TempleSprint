@@ -34,6 +34,9 @@ namespace TempleSprint
         AudioClip _ropeReleaseClip;
         AudioClip _splashClip;
         AudioClip _whooshClip;
+        AudioClip _smashClip;
+        readonly AudioClip[] _biomeBeds = new AudioClip[6];
+        BiomeId _ambienceBiome = (BiomeId)(-1);
 
         float _lastCoinTime = -10f;
         int _coinCombo;
@@ -105,6 +108,39 @@ namespace TempleSprint
         }
         public void PlayRopeRelease() => PlaySfx(_ropeReleaseClip, 0.55f);
         public void PlaySplash() => PlaySfx(_splashClip, 0.6f);
+        public void PlaySmash() => PlaySfx(_smashClip, 0.65f);
+
+        /// <summary>Start / crossfade a procedural looping bed for the active biome.</summary>
+        public void PlayBiomeAmbience(BiomeId biome)
+        {
+            if (_music == null || !GameSettings.SfxEnabled) return;
+            int idx = Mathf.Clamp((int)biome, 0, _biomeBeds.Length - 1);
+            if (_biomeBeds[idx] == null) _biomeBeds[idx] = BuildBiomeBed(biome);
+            if (_ambienceBiome == biome && _music.isPlaying && _music.clip == _biomeBeds[idx]) return;
+            _ambienceBiome = biome;
+            _music.clip = _biomeBeds[idx];
+            _music.volume = BedVolume(biome);
+            _music.loop = true;
+            if (!_music.isPlaying) _music.Play();
+        }
+
+        public void StopAmbience()
+        {
+            if (_music == null) return;
+            _music.Stop();
+            _music.clip = null;
+            _ambienceBiome = (BiomeId)(-1);
+        }
+
+        static float BedVolume(BiomeId biome) => biome switch
+        {
+            BiomeId.VolcanicCrater => 0.28f,
+            BiomeId.CaveMines => 0.24f,
+            BiomeId.NightSummit => 0.22f,
+            BiomeId.IceCaverns => 0.26f,
+            BiomeId.DesertTombs => 0.25f,
+            _ => 0.27f
+        };
 
         void BuildClips()
         {
@@ -125,6 +161,68 @@ namespace TempleSprint
             _ropeReleaseClip = BuildRopeRelease();
             _splashClip = BuildSplash();
             _whooshClip = BuildWhoosh();
+            _smashClip = BuildSmash();
+            for (int i = 0; i < _biomeBeds.Length; i++)
+                _biomeBeds[i] = BuildBiomeBed((BiomeId)i);
+        }
+
+        static AudioClip BuildSmash()
+        {
+            var data = NewBuffer(0.28f, out int n);
+            for (int i = 0; i < n; i++)
+            {
+                float progress = i / (float)n;
+                float noise = (Random.value - 0.5f) * 2f;
+                float crack = Mathf.Sin(2f * Mathf.PI * Mathf.Lerp(420f, 90f, progress) * (i / (float)SampleRate));
+                float env = Mathf.Exp(-9f * progress);
+                data[i] = (noise * 0.65f + crack * 0.35f) * env * 0.75f;
+            }
+            return Finish("sfx_smash", data);
+        }
+
+        /// <summary>Short seamless loop — distinct tonal beds per biome without external audio assets.</summary>
+        static AudioClip BuildBiomeBed(BiomeId biome)
+        {
+            float seconds = 2.4f;
+            var data = NewBuffer(seconds, out int n);
+            float droneA;
+            float droneB;
+            float pulseHz;
+            float noiseAmt;
+            switch (biome)
+            {
+                case BiomeId.DesertTombs:
+                    droneA = 98f; droneB = 147f; pulseHz = 1.6f; noiseAmt = 0.08f; break;
+                case BiomeId.IceCaverns:
+                    droneA = 130f; droneB = 196f; pulseHz = 2.4f; noiseAmt = 0.05f; break;
+                case BiomeId.CaveMines:
+                    droneA = 73f; droneB = 110f; pulseHz = 1.1f; noiseAmt = 0.14f; break;
+                case BiomeId.VolcanicCrater:
+                    droneA = 55f; droneB = 82f; pulseHz = 0.9f; noiseAmt = 0.18f; break;
+                case BiomeId.NightSummit:
+                    droneA = 87f; droneB = 174f; pulseHz = 0.7f; noiseAmt = 0.06f; break;
+                default:
+                    droneA = 110f; droneB = 165f; pulseHz = 2.0f; noiseAmt = 0.1f; break;
+            }
+
+            for (int i = 0; i < n; i++)
+            {
+                float t = i / (float)SampleRate;
+                float progress = i / (float)n;
+                float pulse = 0.7f + 0.3f * Mathf.Sin(2f * Mathf.PI * pulseHz * t);
+                float a = Mathf.Sin(2f * Mathf.PI * droneA * t);
+                float b = Mathf.Sin(2f * Mathf.PI * droneB * t) * 0.55f;
+                float shimmer = Mathf.Sin(2f * Mathf.PI * (droneB * 2f) * t) * 0.12f
+                                * Mathf.Sin(2f * Mathf.PI * 0.35f * t);
+                float noise = (Random.value - 0.5f) * 2f * noiseAmt;
+                // Crossfade edges so the loop is seamless.
+                float edge = 1f;
+                float fade = 0.08f;
+                if (progress < fade) edge = progress / fade;
+                else if (progress > 1f - fade) edge = (1f - progress) / fade;
+                data[i] = (a + b + shimmer + noise) * pulse * edge * 0.35f;
+            }
+            return Finish("amb_" + biome, data);
         }
 
         static AudioClip BuildCoin()

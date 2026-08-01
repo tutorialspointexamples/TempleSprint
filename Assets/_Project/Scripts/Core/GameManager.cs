@@ -213,6 +213,7 @@ namespace TempleSprint
             _ghost?.Stop();
             _env?.ResetEffects();
             BiomeSystem.ClearRunTransition();
+            AudioHooks.Instance?.StopAmbience();
             _spawner?.ShowMenuPreview();
             _player?.ResetAtStart();
             _player?.ApplyCharacterColors();
@@ -264,6 +265,7 @@ namespace TempleSprint
 
             _camera?.SnapNow();
             _camera?.PunchFov(3f);
+            AudioHooks.Instance?.PlayBiomeAmbience(BiomeSystem.Current);
             GameUI.Instance?.ShowHud();
             AnalyticsService.Track("run_start", (int)difficulty);
 
@@ -351,6 +353,7 @@ namespace TempleSprint
             Time.timeScale = 1f;
             _powers?.ClearTimers();
             _env?.ResetEffects();
+            AudioHooks.Instance?.StopAmbience();
             MonetizationService.OnPostRun();
             GameUI.Instance?.ShowPostRun(payload);
         }

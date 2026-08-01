@@ -849,6 +849,7 @@ namespace TempleSprint
             else
                 BiomeSystem.Select(Target);
             AudioHooks.Instance?.PlayPickup();
+            AudioHooks.Instance?.PlayBiomeAmbience(BiomeSystem.Current);
             ChaseCamera.Instance?.PunchFov(2.2f);
             GameUI.Instance?.ShowTutorial("Entered " + BiomeSystem.DisplayName(BiomeSystem.Current));
         }
