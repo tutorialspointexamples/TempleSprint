@@ -29,10 +29,19 @@ namespace TempleSprint
         int _struggleHits;
         const float StruggleWindow = 1.2f;
 
+        // Flank lane pressure — side beasts crowd a lane and force a dodge.
+        int _pressureLane = -1;
+        float _pressureTimer;
+        float _pressureCooldown;
+        float _lastPressureHit = -10f;
+        float[] _flankX;
+
         /// <summary>0 far → 1 about to catch (for chase cam pressure / UI).</summary>
         public float Threat01 => _threat01;
         public bool IsLunging => _lunge > 0.05f || _struggle == GrabStruggleState.Prompt;
         public bool InGrabStruggle => _struggle == GrabStruggleState.Prompt;
+        /// <summary>Lane currently crowded by flanking beasts (-1 = none).</summary>
+        public int PressureLane => _pressureLane;
 
         void Awake()
         {
@@ -47,6 +56,7 @@ namespace TempleSprint
             // Five-beast pack: lead + flanking wings + trailing scouts (stronger chase presence).
             _pack = new Transform[5];
             _phase = new float[5];
+            _flankX = new float[5];
             float[] xOff = { -1.35f, -0.7f, 0f, 0.7f, 1.35f };
             float[] zOff = { -0.95f, -0.35f, 0.55f, -0.45f, -1.05f };
             float[] scales = { 0.92f, 1.05f, 1.32f, 1.05f, 0.92f };
@@ -55,6 +65,7 @@ namespace TempleSprint
             {
                 _pack[i] = BuildBeast(root, new Vector3(xOff[i], 0f, zOff[i]), scales[i], eyes);
                 _phase[i] = i * 0.55f;
+                _flankX[i] = xOff[i];
             }
             _eyeGlow = eyes.ToArray();
 
@@ -225,6 +236,10 @@ namespace TempleSprint
             _struggle = GrabStruggleState.None;
             _struggleTimer = 0f;
             _struggleHits = 0;
+            _pressureLane = -1;
+            _pressureTimer = 0f;
+            _pressureCooldown = 2.5f;
+            _lastPressureHit = -10f;
             GameUI.Instance?.HideGuardianStruggle();
             if (PlayerController.Instance != null)
             {
@@ -239,6 +254,8 @@ namespace TempleSprint
             _active = false;
             _lunge = 0f;
             _threat01 = 0f;
+            _pressureLane = -1;
+            _pressureTimer = 0f;
             _struggle = GrabStruggleState.None;
             GameUI.Instance?.HideGuardianStruggle();
         }
@@ -375,24 +392,36 @@ namespace TempleSprint
                 Quaternion.LookRotation(pt.forward, Vector3.up),
                 1f - Mathf.Exp(-8f * Time.deltaTime));
 
-            // Gallop cycle + claw reach during lunge
+            TickLanePressure(player);
+
+            // Gallop cycle + claw reach during lunge + flank lane crowd
             for (int i = 0; i < _pack.Length; i++)
             {
                 if (_pack[i] == null) continue;
                 _phase[i] += Time.deltaTime * (11f + _threat01 * 4f + _lunge * 6f);
                 float s = Mathf.Sin(_phase[i]);
-                var lp = _pack[i].localPosition;
                 bool lead = i == 2;
                 float reach = _lunge * (0.55f + (lead ? 0.4f : 0.18f));
                 // Preserve staggered base Z from BuildVisual via phase bob only on Y / temp reach.
                 float baseZ = i switch { 0 => -0.95f, 1 => -0.35f, 2 => 0.55f, 3 => -0.45f, _ => -1.05f };
                 float baseX = i switch { 0 => -1.35f, 1 => -0.7f, 2 => 0f, 3 => 0.7f, _ => 1.35f };
-                _pack[i].localPosition = new Vector3(baseX, Mathf.Abs(s) * 0.18f + _lunge * 0.12f, baseZ + reach);
-                _pack[i].localRotation = Quaternion.Euler(s * 12f - _lunge * 28f, 0f, s * 4f);
+                float targetX = baseX;
+                if (_pressureLane >= 0 && !lead)
+                {
+                    // Side beasts crowd the pressured lane (player-local X).
+                    float laneX = (_pressureLane - 1) * PlayerController.LaneWidth;
+                    float flankBias = (i < 2) ? -0.35f : 0.35f;
+                    targetX = Mathf.Lerp(baseX, laneX + flankBias, Mathf.Clamp01(_pressureTimer * 1.4f));
+                }
+                _flankX[i] = Mathf.Lerp(_flankX[i], targetX, 1f - Mathf.Exp(-8f * Time.deltaTime));
+                _pack[i].localPosition = new Vector3(_flankX[i], Mathf.Abs(s) * 0.18f + _lunge * 0.12f, baseZ + reach);
+                float yawBias = _pressureLane >= 0 && !lead
+                    ? Mathf.Clamp((_flankX[i] - baseX) * 18f, -22f, 22f) : 0f;
+                _pack[i].localRotation = Quaternion.Euler(s * 12f - _lunge * 28f, yawBias, s * 4f);
 
                 var armL = _pack[i].Find("ArmL");
                 var armR = _pack[i].Find("ArmR");
-                float claw = _lunge * 55f;
+                float claw = _lunge * 55f + (_pressureLane >= 0 && !lead ? 18f : 0f);
                 if (armL != null) armL.localRotation = Quaternion.Euler(55f + s * 25f - claw, -15f - claw * 0.2f, -35f);
                 if (armR != null) armR.localRotation = Quaternion.Euler(55f - s * 25f - claw, 15f + claw * 0.2f, 35f);
             }
@@ -426,6 +455,54 @@ namespace TempleSprint
 
             if (_gap <= catchDistance)
                 BeginGrabStruggle();
+        }
+
+        void TickLanePressure(PlayerController player)
+        {
+            if (player == null) return;
+            if (_pressureCooldown > 0f) _pressureCooldown -= Time.deltaTime;
+
+            if (_pressureLane >= 0)
+            {
+                _pressureTimer += Time.deltaTime;
+                // Peak of the flank shove — staying in the crowded lane stumbles the runner.
+                if (_pressureTimer > 0.55f && _pressureTimer < 1.15f
+                    && player.Lane == _pressureLane
+                    && _threat01 > 0.42f
+                    && Time.time - _lastPressureHit > 1.6f
+                    && !player.IsSliding
+                    && PowerUpController.Instance != null
+                    && !PowerUpController.Instance.IsInvulnerable)
+                {
+                    _lastPressureHit = Time.time;
+                    player.RegisterStumble(0.7f);
+                    AudioHooks.Instance?.PlayHit();
+                    RunSession.Instance?.RegisterNearMiss();
+                    ChaseCamera.Instance?.PunchFov(2.2f);
+                    GameUI.Instance?.ShowTutorial(_pressureLane == 0 ? "Flank LEFT — dodge!" :
+                        _pressureLane == 2 ? "Flank RIGHT — dodge!" : "Flank CENTER — dodge!");
+                }
+
+                if (_pressureTimer >= 1.35f)
+                {
+                    _pressureLane = -1;
+                    _pressureTimer = 0f;
+                    _pressureCooldown = Mathf.Lerp(2.8f, 1.6f, _threat01);
+                }
+                return;
+            }
+
+            // Start a new flank shove when the pack is close enough to matter.
+            if (_threat01 < 0.48f || _pressureCooldown > 0f || _lunge > 0.2f) return;
+            if (RunSession.Instance != null && RunSession.Instance.Distance < 80f) return;
+
+            // Prefer crowding the player's current lane so they must leave it.
+            _pressureLane = player.Lane;
+            if (Random.value < 0.35f)
+                _pressureLane = Mathf.Clamp(player.Lane + (Random.value < 0.5f ? -1 : 1), 0, 2);
+            _pressureTimer = 0f;
+            AudioHooks.Instance?.PlayGuardian();
+            ChaseCamera.Instance?.PunchFov(1.6f);
         }
 
         void OnDestroy()
