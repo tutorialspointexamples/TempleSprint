@@ -21,9 +21,83 @@ namespace TempleSprint
 
         public static void Submit(int score, float distance)
         {
-            Friends[0] = (MetaProgress.Ensure().Data.playerName, Mathf.Max(Friends[0].score, score));
+            var meta = MetaProgress.Ensure();
+            Friends[0] = (meta.Data.playerName, Mathf.Max(Friends[0].score, score));
             Friends.Sort((a, b) => b.score.CompareTo(a.score));
+            EnsureWeeklyWindow();
+            if (score > meta.Data.weeklyBoardBestScore)
+            {
+                meta.Data.weeklyBoardBestScore = score;
+                meta.Save();
+            }
             AnalyticsService.Track("leaderboard_submit", score);
+        }
+
+        public static int WeekSeed => DateTime.UtcNow.Year * 100 + EventService.WeekIndex;
+
+        public static void EnsureWeeklyWindow()
+        {
+            var meta = MetaProgress.Ensure();
+            if (meta.Data.weeklyBoardWeekSeed == WeekSeed) return;
+            meta.Data.weeklyBoardWeekSeed = WeekSeed;
+            meta.Data.weeklyBoardBestScore = 0;
+            meta.Save();
+        }
+
+        public static bool CanClaimWeeklyReward()
+        {
+            EnsureWeeklyWindow();
+            var m = MetaProgress.Ensure().Data;
+            return m.weeklyBoardClaimWeek != WeekSeed && m.weeklyBoardBestScore >= 500;
+        }
+
+        public static bool TryClaimWeeklyReward(out string message)
+        {
+            EnsureWeeklyWindow();
+            var meta = MetaProgress.Ensure();
+            if (meta.Data.weeklyBoardClaimWeek == WeekSeed)
+            {
+                message = "Weekly board already claimed";
+                return false;
+            }
+            if (meta.Data.weeklyBoardBestScore < 500)
+            {
+                message = "Score 500+ this week to claim";
+                return false;
+            }
+
+            int score = meta.Data.weeklyBoardBestScore;
+            int coins = 40 + Mathf.Min(120, score / 80);
+            int gems = score >= 5000 ? 4 : score >= 2000 ? 2 : 1;
+            meta.Data.weeklyBoardClaimWeek = WeekSeed;
+            meta.BankCoins(coins);
+            meta.AddGems(gems);
+            message = $"Weekly claim: +{coins} coins +{gems} gems";
+            AnalyticsService.Track("weekly_board_claim", score);
+            return true;
+        }
+
+        /// <summary>Login streak flame glyphs for the weekly board plaque.</summary>
+        public static string StreakFlameLine()
+        {
+            int streak = Mathf.Max(0, MetaProgress.Ensure().Data.loginStreak);
+            int lit = Mathf.Clamp(streak, 0, 7);
+            var sb = new StringBuilder("STREAK ");
+            for (int i = 0; i < 7; i++)
+                sb.Append(i < lit ? "▲" : "△");
+            sb.Append($"  Day {streak}");
+            if (streak > 0 && streak % 7 == 0) sb.Append(" · BONUS");
+            return sb.ToString();
+        }
+
+        public static string WeeklyClaimStatus()
+        {
+            EnsureWeeklyWindow();
+            var m = MetaProgress.Ensure().Data;
+            if (m.weeklyBoardClaimWeek == WeekSeed) return "Reward claimed this week";
+            if (m.weeklyBoardBestScore < 500)
+                return $"Best this week: {m.weeklyBoardBestScore} (need 500)";
+            return $"Best this week: {m.weeklyBoardBestScore} — READY TO CLAIM";
         }
 
         public static LeaderboardEntry[] GetWeeklyGlobalEntries()

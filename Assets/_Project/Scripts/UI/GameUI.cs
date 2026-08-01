@@ -151,6 +151,12 @@ namespace TempleSprint
             Title(_leaderboard, "WEEKLY RUN BOARD", 42, 0.82f, 0.96f);
             _weeklyChallengeText = Sub(_leaderboard, "", 20, 0.68f, 0.8f);
             _leaderboardBody = Sub(_leaderboard, "", 22, 0.28f, 0.72f);
+            Btn(_leaderboard, "CLAIM WEEKLY", new Vector2(0, -250), () =>
+            {
+                LeaderboardService.TryClaimWeeklyReward(out var msg);
+                Toast(msg);
+                ShowLeaderboard();
+            });
             Btn(_leaderboard, "MISSIONS", new Vector2(-160, -340), ShowMissions);
             Btn(_leaderboard, "BACK", new Vector2(160, -340), () => ShowMainMenu());
 
@@ -534,7 +540,12 @@ namespace TempleSprint
         void ShowLeaderboard()
         {
             if (_weeklyChallengeText != null)
-                _weeklyChallengeText.text = LeaderboardService.WeeklyChallengeBlurb();
+            {
+                _weeklyChallengeText.text =
+                    LeaderboardService.StreakFlameLine() + "\n" +
+                    LeaderboardService.WeeklyClaimStatus() + "\n" +
+                    LeaderboardService.WeeklyChallengeBlurb();
+            }
             if (_leaderboardBody != null)
             {
                 var global = LeaderboardService.GetWeeklyGlobalEntries();

@@ -57,6 +57,12 @@ namespace TempleSprint
         public int artifactRelics;
         public float artifactDistance;
         public bool artifactClaimed;
+        /// <summary>Week seed for which the weekly run-board reward was claimed.</summary>
+        public int weeklyBoardClaimWeek;
+        /// <summary>Week seed that weeklyBoardBestScore belongs to.</summary>
+        public int weeklyBoardWeekSeed;
+        /// <summary>Best score submitted during the current weekly board window.</summary>
+        public int weeklyBoardBestScore;
     }
 
     public class MetaProgress
