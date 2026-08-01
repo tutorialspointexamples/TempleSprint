@@ -119,6 +119,10 @@ namespace TempleSprint
             };
             go.GetComponent<Renderer>().sharedMaterial = mat;
             go.GetComponent<Collider>().isTrigger = true;
+            if (type == PowerUpType.Magnet)
+                PowerUpVfx.AttachMagnetSwirl(go.transform);
+            else if (type == PowerUpType.Shield)
+                PowerUpVfx.AttachShieldBubble(go.transform, 0.95f);
             var p = go.AddComponent<PowerUpPickup>();
             p.Type = type;
             return p;

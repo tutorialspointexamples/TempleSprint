@@ -44,16 +44,33 @@ namespace TempleSprint
                 if (_multiplierTimer > 0f) parts.Add($"{(_triple ? "3x" : "2x")} {_multiplierTimer:0.0}s");
                 if (SpeedBoostActive) parts.Add($"Boost {_boostTimer:0.0}s");
                 if (SlowMoActive) parts.Add($"Slow {_slowTimer:0.0}s");
+                if (CharacterSkillReady && CharacterRoster.ActiveSkill != CharacterActiveSkill.None)
+                    parts.Add("Skill READY");
+                else if (_characterSkillCd > 0f && CharacterRoster.ActiveSkill != CharacterActiveSkill.None)
+                    parts.Add($"Skill {_characterSkillCd:0}s");
                 if (EquippedConsumable.HasValue) parts.Add($"Tap:{EquippedConsumable.Value}");
                 parts.Add($"PWR {Mathf.FloorToInt(EnergyFill01 * 100f)}%");
                 return string.Join(" · ", parts);
             }
         }
 
+        public float CharacterSkillCooldown01 =>
+            CharacterRoster.ActiveSkill == CharacterActiveSkill.None
+                ? 1f
+                : Mathf.Clamp01(_characterSkillCd / CharacterSkillCooldownSeconds);
+        public bool CharacterSkillReady =>
+            CharacterRoster.ActiveSkill != CharacterActiveSkill.None && _characterSkillCd <= 0f;
+
+        const float CharacterSkillCooldownSeconds = 18f;
+
         float _magnetTimer, _multiplierTimer, _boostTimer, _slowTimer, _reviveIFrames;
         float _petMagnetCd, _petShieldCd;
+        float _characterSkillCd;
+        float _baseMagnetRadius = 3f;
         bool _triple;
         MetaProgress _meta;
+        PowerUpVfx _magnetVfx;
+        PowerUpVfx _shieldVfx;
 
         void Awake()
         {
@@ -66,11 +83,14 @@ namespace TempleSprint
         public void ResetForRun()
         {
             ClearTimers();
+            ClearActiveVfx();
             HasShield = false;
             _triple = false;
             EquippedConsumable = PowerUpType.SpeedBoost;
             Energy = 0f;
-            MagnetRadius = 3f + _meta.MagnetRadiusBonus + CharacterRoster.PassiveMagnetBonus;
+            _characterSkillCd = 4f; // brief arming delay so tap doesn't waste skill on start
+            _baseMagnetRadius = 3f + _meta.MagnetRadiusBonus + CharacterRoster.PassiveMagnetBonus;
+            MagnetRadius = _baseMagnetRadius;
             _petMagnetCd = CosmeticRoster.PetPassives.MagnetPulse
                 ? CosmeticRoster.PetPassives.MagnetPulseInterval * 0.4f
                 : 999f;
@@ -81,6 +101,7 @@ namespace TempleSprint
                 HasShield = true;
             if (CharacterRoster.EmberStartShield)
                 HasShield = true;
+            SyncActiveVfx();
         }
 
         /// <summary>Head-start burst: short speed boost + score mult kick for the opening sprint.</summary>
@@ -97,7 +118,10 @@ namespace TempleSprint
         {
             _magnetTimer = _multiplierTimer = _boostTimer = _slowTimer = _reviveIFrames = 0f;
             _petMagnetCd = _petShieldCd = 0f;
+            _characterSkillCd = 0f;
+            MagnetRadius = _baseMagnetRadius > 0f ? _baseMagnetRadius : 3f;
             Time.timeScale = 1f;
+            ClearActiveVfx();
         }
 
         public void AddEnergyFromCoins(int coins)
@@ -119,10 +143,12 @@ namespace TempleSprint
                 case PowerUpType.Magnet:
                     _magnetTimer = 8f + (_meta != null ? _meta.MagnetDurationBonus : 0f);
                     MissionSystem.Report(MissionType.UsePowerUps, 1);
+                    EnsureMagnetVfx();
                     break;
                 case PowerUpType.Shield:
                     HasShield = true;
                     MissionSystem.Report(MissionType.UsePowerUps, 1);
+                    EnsureShieldVfx();
                     break;
                 case PowerUpType.ScoreMultiplier:
                     _multiplierTimer = 10f + (_meta != null ? _meta.BoostDurationBonus * 0.5f : 0f);
@@ -168,10 +194,47 @@ namespace TempleSprint
 
         public void UseEquipped()
         {
+            if (TryActivateCharacterSkill()) return;
             if (TryActivateFromEnergy()) return;
             if (!EquippedConsumable.HasValue) return;
             // Without a full meter, only spend a ready pickup consumable if already granted via Activate equip path.
             // Keep legacy tap for equipped boost/slow only when energy is empty but player has a free charge — none by default.
+        }
+
+        /// <summary>Character-unique active skill (tap when ready). Cooldown shared across roster kits.</summary>
+        public bool TryActivateCharacterSkill()
+        {
+            if (!CharacterSkillReady || PlayerController.Instance == null) return false;
+            switch (CharacterRoster.ActiveSkill)
+            {
+                case CharacterActiveSkill.SandDash:
+                    _boostTimer = Mathf.Max(_boostTimer, 2.6f + (_meta != null ? _meta.BoostDurationBonus * 0.35f : 0f));
+                    ChaseCamera.Instance?.PunchFov(3f);
+                    break;
+                case CharacterActiveSkill.FrostMagnetBurst:
+                    _magnetTimer = Mathf.Max(_magnetTimer, 4.2f);
+                    MagnetRadius = _baseMagnetRadius + 1.35f;
+                    EnsureMagnetVfx();
+                    break;
+                case CharacterActiveSkill.CanopyVault:
+                    PlayerController.Instance.GrantAirHop();
+                    break;
+                case CharacterActiveSkill.MinerHeadlamp:
+                    EnvironmentEffects.Instance?.ClearDarkness();
+                    break;
+                case CharacterActiveSkill.EmberShieldPulse:
+                    HasShield = true;
+                    EnsureShieldVfx();
+                    break;
+                default:
+                    return false;
+            }
+
+            _characterSkillCd = CharacterSkillCooldownSeconds;
+            MissionSystem.Report(MissionType.UsePowerUps, 1);
+            AudioHooks.Instance?.PlayPower();
+            GameUI.Instance?.ShowTutorial(CharacterRoster.ActiveSkillLabel);
+            return true;
         }
 
         public bool TryAbsorbHit()
@@ -179,6 +242,7 @@ namespace TempleSprint
             if (Invulnerable) return true;
             if (!HasShield) return false;
             HasShield = false;
+            ClearShieldVfx();
             return true;
         }
 
@@ -190,9 +254,49 @@ namespace TempleSprint
             if (_boostTimer > 0f) _boostTimer -= dt;
             if (_slowTimer > 0f) _slowTimer -= dt;
             if (_reviveIFrames > 0f) _reviveIFrames -= dt;
+            if (_characterSkillCd > 0f) _characterSkillCd -= dt;
+            if (_magnetTimer <= 0f && MagnetRadius > _baseMagnetRadius + 0.01f)
+                MagnetRadius = _baseMagnetRadius;
             TickPetPassives(dt);
+            SyncActiveVfx();
             // Never leave timeScale altered — SlowMo uses SpeedScale only
             if (Time.timeScale < 0.99f) Time.timeScale = 1f;
+        }
+
+        void EnsureMagnetVfx()
+        {
+            if (PlayerController.Instance == null) return;
+            if (_magnetVfx == null)
+                _magnetVfx = PowerUpVfx.AttachMagnetSwirl(PlayerController.Instance.transform, true);
+            _magnetVfx.gameObject.SetActive(true);
+        }
+
+        void EnsureShieldVfx()
+        {
+            if (PlayerController.Instance == null) return;
+            if (_shieldVfx == null)
+                _shieldVfx = PowerUpVfx.AttachShieldBubble(PlayerController.Instance.transform, 1.4f);
+            _shieldVfx.gameObject.SetActive(true);
+        }
+
+        void ClearShieldVfx()
+        {
+            if (_shieldVfx != null) _shieldVfx.gameObject.SetActive(false);
+        }
+
+        void ClearActiveVfx()
+        {
+            if (_magnetVfx != null) { Object.Destroy(_magnetVfx.gameObject); _magnetVfx = null; }
+            if (_shieldVfx != null) { Object.Destroy(_shieldVfx.gameObject); _shieldVfx = null; }
+        }
+
+        void SyncActiveVfx()
+        {
+            if (MagnetActive) EnsureMagnetVfx();
+            else if (_magnetVfx != null) _magnetVfx.gameObject.SetActive(false);
+
+            if (HasShield) EnsureShieldVfx();
+            else ClearShieldVfx();
         }
 
         void TickPetPassives(float dt)

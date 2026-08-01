@@ -486,6 +486,9 @@ namespace TempleSprint
         {
             if (RunSession.Instance == null || !RunSession.Instance.IsAlive) return;
 
+            if (GuardianAI.Instance != null && GuardianAI.Instance.TryStruggleInput(dir))
+                return;
+
             if (Traversal == TraversalMode.Rope || Traversal == TraversalMode.Vine)
             {
                 if (dir == SwipeDirection.Up || dir == SwipeDirection.Down)
@@ -609,7 +612,24 @@ namespace TempleSprint
         void HandleTap()
         {
             if (RunSession.Instance == null || !RunSession.Instance.IsAlive) return;
+            if (GuardianAI.Instance != null && GuardianAI.Instance.TryStruggleTap())
+                return;
             PowerUpController.Instance?.UseEquipped();
+        }
+
+        /// <summary>Canopy Ace skill — restore a free mid-air hop.</summary>
+        public void GrantAirHop()
+        {
+            _airHopUsed = false;
+            if (!_grounded)
+            {
+                _verticalVel = Mathf.Max(_verticalVel, jumpVelocity * 0.72f);
+                AudioHooks.Instance?.PlayJump();
+                _explorer?.TriggerJump();
+                ChaseCamera.Instance?.PunchFov(1.8f);
+            }
+            else
+                TryJump();
         }
 
         void TryJump()
