@@ -2374,6 +2374,29 @@ namespace TempleSprint
 
         void SpawnDynamic(int tier)
         {
+            // Jungle / canopy bias readable vine sweeps.
+            bool vineBiome = BiomeSystem.Current == BiomeId.JungleRuins
+                             || BiomeSystem.Current == BiomeId.NightSummit;
+            if (vineBiome && Random.value < (_runDifficulty == RunDifficulty.Easy ? 0.28f : 0.4f))
+            {
+                DynamicHazard.CreateVineSweep(transform, Length * 0.55f, Random.Range(0, 3));
+                if (_runDifficulty == RunDifficulty.Hard && Random.value < 0.28f)
+                    DynamicHazard.CreateLogPendulum(transform, Length * 0.82f, Random.Range(0, 3));
+                return;
+            }
+
+            // Cave / temple bias swinging log pendulums with arc telegraphs.
+            bool logBiome = BiomeSystem.Current == BiomeId.CaveMines
+                            || BiomeSystem.Current == BiomeId.DesertTombs
+                            || BiomeSystem.Current == BiomeId.IceCaverns;
+            if (logBiome && Random.value < (_runDifficulty == RunDifficulty.Easy ? 0.26f : 0.38f))
+            {
+                DynamicHazard.CreateLogPendulum(transform, Length * 0.52f, Random.Range(0, 3));
+                if (_runDifficulty != RunDifficulty.Easy && Random.value < 0.3f)
+                    DynamicHazard.CreateLogPendulum(transform, Length * 0.8f, Random.Range(0, 3));
+                return;
+            }
+
             // Cave / desert / night bias telegraphing stone crushers.
             bool crusherBiome = BiomeSystem.Current == BiomeId.CaveMines
                                 || BiomeSystem.Current == BiomeId.DesertTombs
@@ -2410,14 +2433,16 @@ namespace TempleSprint
                 return;
             }
 
-            int roll = Random.Range(0, _runDifficulty == RunDifficulty.Easy ? 3 : 8);
+            int roll = Random.Range(0, _runDifficulty == RunDifficulty.Easy ? 4 : 10);
             if (roll == 0) DynamicHazard.CreatePendulum(transform, Length * 0.5f, 1);
             else if (roll == 1) DynamicHazard.CreateArrow(transform, Length * 0.3f, Random.Range(0, 3));
             else if (roll == 2) DynamicHazard.CreateGate(transform, Length * 0.55f);
-            else if (roll == 3) Obstacle.CreateBlockingWall(transform, Length * 0.55f);
-            else if (roll == 4) DynamicHazard.CreateCrumbling(transform, Length * 0.5f, Random.Range(0, 3));
-            else if (roll == 5) DynamicHazard.CreateSpikeWheel(transform, Length * 0.6f, Random.Range(0, 3));
-            else if (roll == 6) DynamicHazard.CreateStoneCrusher(transform, Length * 0.58f, Random.Range(0, 3));
+            else if (roll == 3) DynamicHazard.CreateVineSweep(transform, Length * 0.55f, Random.Range(0, 3));
+            else if (roll == 4) Obstacle.CreateBlockingWall(transform, Length * 0.55f);
+            else if (roll == 5) DynamicHazard.CreateCrumbling(transform, Length * 0.5f, Random.Range(0, 3));
+            else if (roll == 6) DynamicHazard.CreateSpikeWheel(transform, Length * 0.6f, Random.Range(0, 3));
+            else if (roll == 7) DynamicHazard.CreateStoneCrusher(transform, Length * 0.58f, Random.Range(0, 3));
+            else if (roll == 8) DynamicHazard.CreateLogPendulum(transform, Length * 0.55f, Random.Range(0, 3));
             else DynamicHazard.CreateRollingBoulder(transform, Length * 0.88f, Random.Range(0, 3));
 
             if (_runDifficulty == RunDifficulty.Hard && tier >= 2 && Random.value < 0.35f)

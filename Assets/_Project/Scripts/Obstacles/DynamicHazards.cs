@@ -7,7 +7,7 @@ namespace TempleSprint
         public enum Kind
         {
             Pendulum, CrumblingFloor, ArrowTrap, ClosingGate, CollapsingBridge, RollingBoulder, SpikeWheel,
-            StoneCrusher, CeilingSlam
+            StoneCrusher, CeilingSlam, LogPendulum, VineSweep
         }
 
         public Kind HazardKind;
@@ -25,6 +25,10 @@ namespace TempleSprint
         Vector3 _slamLow;
         float _telegraphSeconds = 0.65f;
         float _slamInterval = 1.85f;
+        Transform _swingPivot;
+        float _swingSpeed = 1.6f;
+        float _swingAngle = 55f;
+        float _swingPhase;
 
         void Start()
         {
@@ -81,6 +85,39 @@ namespace TempleSprint
                 case Kind.CeilingSlam:
                     TickCeilingSlam();
                     break;
+                case Kind.LogPendulum:
+                case Kind.VineSweep:
+                    TickSwingArc();
+                    break;
+            }
+        }
+
+        void TickSwingArc()
+        {
+            if (_swingPivot == null) return;
+            float ang = Mathf.Sin(_t * _swingSpeed + _swingPhase) * _swingAngle;
+            _swingPivot.localRotation = Quaternion.Euler(0f, 0f, ang);
+            // Telegraph pulses hottest as the mass nears the deck.
+            float danger = 1f - Mathf.Clamp01(Mathf.Abs(ang) / Mathf.Max(1f, _swingAngle));
+            PulseTelegraph(danger);
+            TrySwingNearMiss(ang);
+        }
+
+        void TrySwingNearMiss(float ang)
+        {
+            var player = PlayerController.Instance;
+            if (player == null || RunSession.Instance == null || !RunSession.Instance.IsAlive) return;
+            // Near the lowest point of the arc, dodging out of the swept lane counts once.
+            if (_triggered || Mathf.Abs(ang) > 18f) return;
+            Vector3 tip = _swingPivot.TransformPoint(new Vector3(0f, -2f, 0f));
+            float dx = Mathf.Abs(tip.x - player.transform.position.x);
+            float dz = Vector3.Dot(tip - player.transform.position,
+                Quaternion.Euler(0f, player.FacingYaw, 0f) * Vector3.forward);
+            if (dz > -1.0f && dz < 2.0f && dx > 1.15f && dx < 3.4f)
+            {
+                _triggered = true;
+                RunSession.Instance.RegisterNearMiss();
+                ChaseCamera.Instance?.PunchFov(1.5f);
             }
         }
 
@@ -469,6 +506,131 @@ namespace TempleSprint
             h._slamInterval = 1.75f;
             var obs = go.AddComponent<Obstacle>();
             obs.RequiresSlide = true;
+            obs.DeathMessage = h.DeathMessage;
+            return h;
+        }
+
+        /// <summary>Ceiling-hung log that swings in a readable lateral arc — jump or lane-dodge.</summary>
+        public static DynamicHazard CreateLogPendulum(Transform parent, float localZ, int lane)
+        {
+            float x = (lane - 1) * PlayerController.LaneWidth;
+            var root = new GameObject("LogPendulum");
+            root.transform.SetParent(parent, false);
+            root.transform.localPosition = new Vector3(x, 3.35f, localZ);
+
+            // Arc telegraph shadow on the deck.
+            BuildTelegraphPlate(parent, x, localZ, out var telegraph);
+
+            var pivot = new GameObject("SwingPivot").transform;
+            pivot.SetParent(root.transform, false);
+            pivot.localPosition = Vector3.zero;
+
+            // Rope / chain links
+            for (int i = 0; i < 3; i++)
+            {
+                var link = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                link.name = "Chain_" + i;
+                link.transform.SetParent(pivot, false);
+                link.transform.localPosition = new Vector3(0f, -0.45f - i * 0.42f, 0f);
+                link.transform.localScale = new Vector3(0.08f, 0.18f, 0.08f);
+                link.GetComponent<Renderer>().sharedMaterial = JunglePalette.Rope;
+                Object.Destroy(link.GetComponent<Collider>());
+            }
+
+            // Horizontal log at the tip of the swing (collider rides the arc).
+            var log = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            log.name = "Log";
+            log.transform.SetParent(pivot, false);
+            log.transform.localPosition = new Vector3(0f, -1.85f, 0f);
+            log.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+            log.transform.localScale = new Vector3(0.55f, 1.15f, 0.55f);
+            log.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+            var logCol = log.GetComponent<Collider>();
+            logCol.isTrigger = true;
+
+            // End caps for silhouette readability.
+            foreach (float sx in new[] { -1.15f, 1.15f })
+            {
+                var cap = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                cap.transform.SetParent(log.transform, false);
+                cap.transform.localPosition = new Vector3(0f, sx, 0f);
+                cap.transform.localScale = new Vector3(1.05f, 0.35f, 1.05f);
+                cap.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
+                Object.Destroy(cap.GetComponent<Collider>());
+            }
+
+            var h = root.AddComponent<DynamicHazard>();
+            h.HazardKind = Kind.LogPendulum;
+            h.RequiresJump = true;
+            h.DeathMessage = "Swung into by a log";
+            h._swingPivot = pivot;
+            h._swingSpeed = 1.55f;
+            h._swingAngle = 58f;
+            h._swingPhase = Random.Range(0f, Mathf.PI * 2f);
+            h._telegraphRend = telegraph;
+            var obs = log.AddComponent<Obstacle>();
+            obs.RequiresJump = true;
+            obs.Lane = lane;
+            obs.DeathMessage = h.DeathMessage;
+            return h;
+        }
+
+        /// <summary>Leafy vine that sweeps across lanes on a long rope — slide or dodge the tip.</summary>
+        public static DynamicHazard CreateVineSweep(Transform parent, float localZ, int lane)
+        {
+            float x = (lane - 1) * PlayerController.LaneWidth;
+            var root = new GameObject("VineSweep");
+            root.transform.SetParent(parent, false);
+            root.transform.localPosition = new Vector3(x, 3.55f, localZ);
+
+            BuildTelegraphPlate(parent, x, localZ, out var telegraph);
+
+            var pivot = new GameObject("VinePivot").transform;
+            pivot.SetParent(root.transform, false);
+
+            // Tapered vine rope
+            var rope = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            rope.name = "VineRope";
+            rope.transform.SetParent(pivot, false);
+            rope.transform.localPosition = new Vector3(0f, -1.1f, 0f);
+            rope.transform.localScale = new Vector3(0.07f, 1.15f, 0.07f);
+            rope.GetComponent<Renderer>().sharedMaterial = JunglePalette.FoliageDark;
+            Object.Destroy(rope.GetComponent<Collider>());
+
+            // Leaf cluster / thorn tip (collider rides the arc with the vine).
+            var tip = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            tip.name = "VineTip";
+            tip.transform.SetParent(pivot, false);
+            tip.transform.localPosition = new Vector3(0f, -2.25f, 0f);
+            tip.transform.localScale = new Vector3(0.85f, 1.1f, 0.85f);
+            tip.GetComponent<Renderer>().sharedMaterial = JunglePalette.Foliage;
+            var tipCol = tip.GetComponent<Collider>();
+            tipCol.isTrigger = true;
+
+            for (int i = 0; i < 4; i++)
+            {
+                var leaf = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                leaf.transform.SetParent(tip.transform, false);
+                float ang = i * 90f + 20f;
+                leaf.transform.localRotation = Quaternion.Euler(25f, ang, 15f);
+                leaf.transform.localPosition = Quaternion.Euler(0f, ang, 0f) * new Vector3(0.45f, 0.1f, 0f);
+                leaf.transform.localScale = new Vector3(0.55f, 0.08f, 0.28f);
+                leaf.GetComponent<Renderer>().sharedMaterial = JunglePalette.FoliageLight;
+                Object.Destroy(leaf.GetComponent<Collider>());
+            }
+
+            var h = root.AddComponent<DynamicHazard>();
+            h.HazardKind = Kind.VineSweep;
+            h.RequiresSlide = true;
+            h.DeathMessage = "Snagged by a swinging vine";
+            h._swingPivot = pivot;
+            h._swingSpeed = 1.85f;
+            h._swingAngle = 68f;
+            h._swingPhase = Random.Range(0f, Mathf.PI * 2f);
+            h._telegraphRend = telegraph;
+            var obs = tip.AddComponent<Obstacle>();
+            obs.RequiresSlide = true;
+            obs.Lane = lane;
             obs.DeathMessage = h.DeathMessage;
             return h;
         }
