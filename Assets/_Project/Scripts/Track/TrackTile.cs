@@ -1845,14 +1845,15 @@ namespace TempleSprint
                 StripCollider(crust);
             }
 
-            // Low magma plumes (wider/shorter than fire-pit columns).
-            int plumes = Mathf.Max(4, Mathf.RoundToInt(channelLen * 0.85f));
+            // Dense magma splash columns + low plumes (reads as erupting river, not flat ember).
+            int plumes = Mathf.Max(7, Mathf.RoundToInt(channelLen * 1.35f));
             for (int i = 0; i < plumes; i++)
             {
                 float z = channelStart + channelLen * ((i + 0.5f) / plumes);
-                float x = Random.Range(-DeckWidth * 0.6f, DeckWidth * 0.6f);
-                SpawnFlameColumn(new Vector3(x, ForestFloorY, z), Random.Range(0.9f, 1.7f));
+                float x = Random.Range(-DeckWidth * 0.65f, DeckWidth * 0.65f);
+                SpawnFlameColumn(new Vector3(x, ForestFloorY, z), Random.Range(1.05f, 2.1f));
             }
+            BuildMagmaSplashColumns(channelStart, channelEnd, channelLen, channelMid);
 
             // Heat haze spheres above the river.
             var lavaHazeRoot = new GameObject("LavaHeatHaze");
@@ -2022,15 +2023,17 @@ namespace TempleSprint
             ember.GetComponent<Renderer>().sharedMaterial = JunglePalette.Ember;
             StripCollider(ember);
 
-            int columns = Mathf.Max(5, Mathf.RoundToInt(channelLen * 1.1f));
+            int columns = Mathf.Max(6, Mathf.RoundToInt(channelLen * 1.25f));
             for (int i = 0; i < columns; i++)
             {
                 float z = channelStart + channelLen * ((i + 0.5f) / columns);
                 float x = Random.Range(-DeckWidth * 0.55f, DeckWidth * 0.55f);
-                SpawnFlameColumn(new Vector3(x, ForestFloorY, z), Random.Range(1.4f, 2.6f));
+                SpawnFlameColumn(new Vector3(x, ForestFloorY, z), Random.Range(1.5f, 2.85f));
             }
+            if (BiomeSystem.Current == BiomeId.VolcanicCrater)
+                BuildMagmaSplashColumns(channelStart, channelEnd, channelLen, channelMid);
 
-            int smokeCount = BiomeSystem.Current == BiomeId.VolcanicCrater ? 8 : 5;
+            int smokeCount = BiomeSystem.Current == BiomeId.VolcanicCrater ? 10 : 5;
             for (int i = 0; i < smokeCount; i++)
             {
                 var smoke = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -2097,6 +2100,59 @@ namespace TempleSprint
             sparks.transform.localPosition = new Vector3(0f, ForestFloorY + 0.4f, channelMid);
             var sparkFx = sparks.AddComponent<EmberSparkAnimator>();
             sparkFx.Build(sparks.transform, pitWidth * 0.4f, channelLen * 0.4f);
+        }
+
+        /// <summary>Tall erupting magma splash columns for volcano fire/lava channels.</summary>
+        void BuildMagmaSplashColumns(float channelStart, float channelEnd, float channelLen, float channelMid)
+        {
+            int splashes = Mathf.Max(5, Mathf.RoundToInt(channelLen * 0.9f));
+            for (int i = 0; i < splashes; i++)
+            {
+                float t = (i + 0.5f) / splashes;
+                float z = Mathf.Lerp(channelStart + 0.4f, channelEnd - 0.4f, t);
+                float x = ((i % 3) - 1) * (DeckWidth * 0.32f) + Random.Range(-0.25f, 0.25f);
+                float h = Random.Range(2.2f, 3.6f);
+
+                var root = new GameObject("MagmaSplash_" + i).transform;
+                root.SetParent(transform, false);
+                root.localPosition = new Vector3(x, ForestFloorY, z);
+
+                var core = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                core.name = "MagmaSplashCore";
+                core.transform.SetParent(root, false);
+                core.transform.localPosition = new Vector3(0f, h * 0.45f, 0f);
+                core.transform.localScale = new Vector3(0.55f, h * 0.45f, 0.55f);
+                core.GetComponent<Renderer>().sharedMaterial = JunglePalette.FlameCore;
+                StripCollider(core);
+
+                var outer = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                outer.name = "MagmaSplashOuter";
+                outer.transform.SetParent(root, false);
+                outer.transform.localPosition = new Vector3(0f, h * 0.55f, 0f);
+                outer.transform.localScale = new Vector3(0.95f, h * 0.55f, 0.95f);
+                outer.GetComponent<Renderer>().sharedMaterial = JunglePalette.Flame;
+                StripCollider(outer);
+
+                var crown = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                crown.name = "MagmaSplashCrown";
+                crown.transform.SetParent(root, false);
+                crown.transform.localPosition = new Vector3(0f, h + 0.15f, 0f);
+                crown.transform.localScale = Vector3.one * Random.Range(0.7f, 1.15f);
+                crown.GetComponent<Renderer>().sharedMaterial = JunglePalette.Ember;
+                StripCollider(crown);
+
+                var flicker = root.gameObject.AddComponent<FlameFlicker>();
+                flicker.Configure(h);
+            }
+
+            // Mid-channel splash ring so dunks read against a boiling surface.
+            var boil = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            boil.name = "MagmaBoilRing";
+            boil.transform.SetParent(transform, false);
+            boil.transform.localPosition = new Vector3(0f, ForestFloorY + 0.2f, channelMid);
+            boil.transform.localScale = new Vector3(DeckWidth * 0.9f, 0.12f, DeckWidth * 0.55f);
+            boil.GetComponent<Renderer>().sharedMaterial = JunglePalette.Ember;
+            StripCollider(boil);
         }
 
         void SpawnFlameColumn(Vector3 basePos, float height)
@@ -2251,11 +2307,44 @@ namespace TempleSprint
 
             PlaceFireKillZones(channelStart, channelEnd);
 
+            // Biome-tinted dunk steam columns along the channel (extinguish read).
+            Color steamTint = DunkSteamColorForBiome(BiomeSystem.Current);
+            var steamMat = JunglePalette.Mat(steamTint, 0.2f);
+            for (int i = 0; i < 4; i++)
+            {
+                float z = Mathf.Lerp(grabZ + 0.4f, channelEnd - 0.35f, (i + 0.5f) / 4f);
+                var column = new GameObject("DunkSteamColumn_" + i).transform;
+                column.SetParent(transform, false);
+                column.localPosition = new Vector3(((i % 2) * 2 - 1) * 0.55f, ForestFloorY + 0.3f, z);
+                for (int p = 0; p < 3; p++)
+                {
+                    var puff = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                    puff.name = "DunkSteamPuff";
+                    puff.transform.SetParent(column, false);
+                    puff.transform.localPosition = new Vector3(
+                        Random.Range(-0.2f, 0.2f), 0.35f + p * 0.45f, Random.Range(-0.15f, 0.15f));
+                    float s = Random.Range(0.4f, 0.75f);
+                    puff.transform.localScale = new Vector3(s, s * 0.75f, s);
+                    puff.GetComponent<Renderer>().sharedMaterial = steamMat;
+                    StripCollider(puff);
+                }
+            }
+
             // Steam / extinguish hint coins along the channel.
             CollectibleCoin.Create(transform, new Vector3(0f, 1.4f, grabZ));
             CollectibleCoin.Create(transform, new Vector3(0f, 1.5f, channelMid));
             CollectibleCoin.Create(transform, new Vector3(0f, 1.4f, channelEnd - 0.4f));
         }
+
+        static Color DunkSteamColorForBiome(BiomeId biome) => biome switch
+        {
+            BiomeId.VolcanicCrater => new Color(0.55f, 0.42f, 0.35f, 0.75f),
+            BiomeId.IceCaverns => new Color(0.7f, 0.88f, 1f, 0.8f),
+            BiomeId.DesertTombs => new Color(0.85f, 0.72f, 0.5f, 0.7f),
+            BiomeId.CaveMines => new Color(0.45f, 0.48f, 0.5f, 0.75f),
+            BiomeId.NightSummit => new Color(0.55f, 0.58f, 0.72f, 0.75f),
+            _ => new Color(0.85f, 0.95f, 0.92f, 0.8f)
+        };
 
         /// <summary>Layered translucent spray curtains for waterfall plunge stages.</summary>
         void BuildWaterfallSprayCurtains(float channelStart, float channelEnd, float mid, float channelLen)
@@ -3006,7 +3095,7 @@ namespace TempleSprint
                 JunglePalette.Mat(new Color(0.1f, 0.12f, 0.14f), 0.18f);
             StripCollider(voidBed);
 
-            // Mist / depth haze under the precipice.
+            // Mist / depth haze under the precipice — wind-swayed for precipice read.
             var mist = GameObject.CreatePrimitive(PrimitiveType.Cube);
             mist.name = "CliffMist";
             mist.transform.SetParent(transform, false);
@@ -3015,6 +3104,25 @@ namespace TempleSprint
             mist.GetComponent<Renderer>().sharedMaterial =
                 JunglePalette.Mat(new Color(0.55f, 0.65f, 0.7f, 0.3f), 0.08f);
             StripCollider(mist);
+            var mistSway = mist.AddComponent<CliffWindSway>();
+            mistSway.Configure(0.35f, 1.4f, 4f);
+
+            // Wind streamers along the precipice so the sky-bridge feels exposed.
+            for (int i = 0; i < 4; i++)
+            {
+                float z = Mathf.Lerp(channelStart + 0.6f, channelEnd - 0.6f, (i + 0.5f) / 4f);
+                int side = i % 2 == 0 ? -1 : 1;
+                var streamer = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                streamer.name = "CliffWindStreamer";
+                streamer.transform.SetParent(transform, false);
+                streamer.transform.localPosition = new Vector3(side * (stripWidth * 0.55f + 0.55f), 0.85f, z);
+                streamer.transform.localScale = new Vector3(0.08f, 0.08f, 1.4f);
+                streamer.GetComponent<Renderer>().sharedMaterial =
+                    JunglePalette.Mat(new Color(0.75f, 0.85f, 0.9f, 0.55f), 0.1f);
+                StripCollider(streamer);
+                var sway = streamer.AddComponent<CliffWindSway>();
+                sway.Configure(0.55f + i * 0.08f, 2.2f + i * 0.3f, 12f);
+            }
 
             var strip = GameObject.CreatePrimitive(PrimitiveType.Cube);
             strip.name = "CliffNarrowStrip";
@@ -3259,6 +3367,68 @@ namespace TempleSprint
             CollectibleCoin.Create(transform, new Vector3(-trackX, 1.5f, channelEnd - 0.6f));
             if (_runDifficulty != RunDifficulty.Easy && Random.value < 0.45f)
                 GemPickup.Create(transform, new Vector3(trackX, 1.55f, mid + 1f));
+        }
+
+        /// <summary>
+        /// Stone aqueduct half-pipe lips for water-slide — banked tube walls mirroring ice luge.
+        /// </summary>
+        void BuildAqueductHalfPipe(float midZ, float channelLen)
+        {
+            var stoneWall = BiomeSystem.StoneMat;
+            var wetLip = JunglePalette.Mat(new Color(0.38f, 0.48f, 0.52f), 0.55f, 0.25f);
+            float[] angles = { 26f, 50f, 74f };
+            float[] heights = { 0.32f, 0.88f, 1.45f };
+            float[] radii = { DeckWidth * 0.4f, DeckWidth * 0.46f, DeckWidth * 0.5f };
+            float[] thicknesses = { 0.5f, 0.44f, 0.38f };
+
+            for (int side = -1; side <= 1; side += 2)
+            {
+                for (int tier = 0; tier < angles.Length; tier++)
+                {
+                    var slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    slab.name = "AqueductLugeWall_" + tier;
+                    slab.transform.SetParent(transform, false);
+                    slab.transform.localPosition = new Vector3(side * radii[tier], heights[tier], midZ);
+                    slab.transform.localRotation = Quaternion.Euler(7f, 0f, side * angles[tier]);
+                    slab.transform.localScale = new Vector3(thicknesses[tier], 0.5f, channelLen * 0.96f);
+                    slab.GetComponent<Renderer>().sharedMaterial = stoneWall;
+                    StripCollider(slab);
+                }
+
+                var rim = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                rim.name = "AqueductLugeRim";
+                rim.transform.SetParent(transform, false);
+                rim.transform.localPosition = new Vector3(side * (DeckWidth * 0.54f), 1.85f, midZ);
+                rim.transform.localRotation = Quaternion.Euler(7f, 0f, side * 8f);
+                rim.transform.localScale = new Vector3(0.32f, 0.2f, channelLen * 0.94f);
+                rim.GetComponent<Renderer>().sharedMaterial = wetLip;
+                StripCollider(rim);
+
+                for (int i = 0; i < 3; i++)
+                {
+                    float z = Mathf.Lerp(midZ - channelLen * 0.35f, midZ + channelLen * 0.35f, (i + 0.5f) / 3f);
+                    var rib = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    rib.name = "AqueductLugeRib";
+                    rib.transform.SetParent(transform, false);
+                    rib.transform.localPosition = new Vector3(side * (DeckWidth * 0.44f), 0.8f, z);
+                    rib.transform.localRotation = Quaternion.Euler(0f, 0f, side * 42f);
+                    rib.transform.localScale = new Vector3(0.16f, 1.25f, 0.32f);
+                    rib.GetComponent<Renderer>().sharedMaterial = wetLip;
+                    StripCollider(rib);
+                }
+            }
+
+            // Keep a low outer wall name for older verifier / decoration searches.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                wall.name = "AqueductWall";
+                wall.transform.SetParent(transform, false);
+                wall.transform.localPosition = new Vector3(side * (DeckWidth * 0.56f), 0.4f, midZ);
+                wall.transform.localScale = new Vector3(0.22f, 0.7f, channelLen);
+                wall.GetComponent<Renderer>().sharedMaterial = stoneWall;
+                StripCollider(wall);
+            }
         }
 
         /// <summary>
@@ -4348,24 +4518,15 @@ namespace TempleSprint
             var mistFx = mistRoot.gameObject.AddComponent<RiverMistAnimator>();
             mistFx.Build(mistRoot, DeckWidth * 0.35f, channelLen * 0.35f, 7);
 
-            // Stone aqueduct walls + arches.
-            for (int side = -1; side <= 1; side += 2)
-            {
-                var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                wall.name = "AqueductWall";
-                wall.transform.SetParent(transform, false);
-                wall.transform.localPosition = new Vector3(side * (DeckWidth * 0.52f), 0.55f, mid);
-                wall.transform.localScale = new Vector3(0.35f, 1.1f, channelLen);
-                wall.GetComponent<Renderer>().sharedMaterial = BiomeSystem.StoneMat;
-                StripCollider(wall);
-            }
+            // Half-pipe stone aqueduct lips (mirrors ice luge language) + arches.
+            BuildAqueductHalfPipe(mid, channelLen);
             for (int i = 0; i < 3; i++)
             {
                 float z = Mathf.Lerp(channelStart + 0.6f, channelEnd - 0.6f, (i + 0.5f) / 3f);
                 var arch = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 arch.transform.SetParent(transform, false);
-                arch.transform.localPosition = new Vector3(0f, 1.45f, z);
-                arch.transform.localScale = new Vector3(DeckWidth + 0.4f, 0.28f, 0.35f);
+                arch.transform.localPosition = new Vector3(0f, 1.55f, z);
+                arch.transform.localScale = new Vector3(DeckWidth + 0.55f, 0.28f, 0.35f);
                 arch.GetComponent<Renderer>().sharedMaterial = BiomeSystem.AccentMat;
                 StripCollider(arch);
             }

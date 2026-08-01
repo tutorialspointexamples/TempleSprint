@@ -193,17 +193,30 @@ namespace TempleSprint
             {
                 var br = _broken[i];
                 if (br == null || br.Consumed) continue;
-                br.PulseTelegraph();
+                float dist = br.LocalZ - local;
+                float approach01 = dist > 0f ? 1f - Mathf.Clamp01(dist / 6.5f) : 1f;
+                br.PulseTelegraph(approach01);
+
+                // Audio sting + spark telegraph as the gap nears.
+                if (!br.Warned && dist > 0f && dist < 5.5f)
+                {
+                    br.Warned = true;
+                    AudioHooks.Instance?.PlayBrokenRailWarn();
+                    ChaseCamera.Instance?.PunchFov(0.9f);
+                }
+
                 if (local >= br.LocalZ - 0.35f && local <= br.LocalZ + 0.55f)
                 {
                     int riderTrack = player.Lane == 2 ? 2 : 0;
                     if (riderTrack == br.BrokenLane)
                     {
                         br.Consumed = true;
+                        AudioHooks.Instance?.PlayBrokenRailFall();
                         RunSession.Instance?.EndRun("Fell through a broken rail");
                         return;
                     }
                     br.Consumed = true;
+                    AudioHooks.Instance?.PlayNearMiss();
                     RunSession.Instance?.RegisterNearMiss();
                     ChaseCamera.Instance?.PunchFov(1.6f);
                 }
@@ -224,7 +237,10 @@ namespace TempleSprint
         public int BrokenLane;
         public float LocalZ;
         public bool Consumed;
+        public bool Warned;
         Renderer _glow;
+        Transform _sparkRoot;
+        readonly Transform[] _sparks = new Transform[5];
 
         public void BuildVisual(Transform parent)
         {
@@ -240,6 +256,7 @@ namespace TempleSprint
             for (int i = 0; i < 2; i++)
             {
                 var spike = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                spike.name = "BrokenRailSpike";
                 spike.transform.SetParent(parent, false);
                 spike.transform.localPosition = new Vector3((i == 0 ? -0.55f : 0.55f), 0.35f, 0f);
                 spike.transform.localRotation = Quaternion.Euler(0f, 0f, i == 0 ? -25f : 25f);
@@ -247,16 +264,78 @@ namespace TempleSprint
                 spike.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
                 Object.Destroy(spike.GetComponent<Collider>());
             }
+
+            // Approach spark telegraph — stronger read before the gap.
+            _sparkRoot = new GameObject("BrokenRailSparks").transform;
+            _sparkRoot.SetParent(parent, false);
+            _sparkRoot.localPosition = new Vector3(0f, 0.25f, -0.9f);
+            for (int i = 0; i < _sparks.Length; i++)
+            {
+                var spark = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                spark.name = "BrokenSpark";
+                spark.transform.SetParent(_sparkRoot, false);
+                spark.transform.localPosition = new Vector3(
+                    (i - 2) * 0.16f, Random.Range(0f, 0.2f), Random.Range(-0.35f, 0.1f));
+                spark.transform.localScale = Vector3.one * Random.Range(0.1f, 0.18f);
+                spark.GetComponent<Renderer>().sharedMaterial = JunglePalette.FlameCore;
+                Object.Destroy(spark.GetComponent<Collider>());
+                _sparks[i] = spark.transform;
+            }
         }
 
-        public void PulseTelegraph()
+        public void PulseTelegraph(float approach01 = 0.5f)
         {
             if (_glow == null) return;
-            float pulse = 0.55f + Mathf.Abs(Mathf.Sin(Time.time * 8f)) * 0.45f;
-            var c = Color.Lerp(new Color(1f, 0.35f, 0.1f), new Color(1f, 0.85f, 0.2f), pulse);
+            float urgency = Mathf.Clamp01(approach01);
+            float pulse = 0.45f + Mathf.Abs(Mathf.Sin(Time.time * (8f + urgency * 10f))) * (0.45f + urgency * 0.35f);
+            var c = Color.Lerp(new Color(1f, 0.35f, 0.1f), new Color(1f, 0.95f, 0.35f), pulse);
             _glow.material.color = c;
             if (_glow.material.HasProperty("_BaseColor"))
                 _glow.material.SetColor("_BaseColor", c);
+            _glow.transform.localScale = new Vector3(1.4f, 0.12f + urgency * 0.08f, 1.8f + urgency * 0.35f);
+
+            if (_sparkRoot != null)
+            {
+                float sparkPulse = 0.7f + urgency * 0.9f + Mathf.Abs(Mathf.Sin(Time.time * 22f)) * 0.35f;
+                _sparkRoot.localScale = Vector3.one * sparkPulse;
+                for (int i = 0; i < _sparks.Length; i++)
+                {
+                    if (_sparks[i] == null) continue;
+                    var lp = _sparks[i].localPosition;
+                    lp.y = Mathf.Abs(Mathf.Sin(Time.time * (14f + i * 3f))) * (0.15f + urgency * 0.45f);
+                    _sparks[i].localPosition = lp;
+                }
+            }
+        }
+    }
+
+    /// <summary>Wind sway for precipice mist / streamers on CliffNarrow stages.</summary>
+    public class CliffWindSway : MonoBehaviour
+    {
+        float _amp;
+        float _speed;
+        float _yawAmp;
+        float _phase;
+        Vector3 _basePos;
+        Quaternion _baseRot;
+
+        public void Configure(float amplitude, float speed, float yawDegrees)
+        {
+            _amp = amplitude;
+            _speed = speed;
+            _yawAmp = yawDegrees;
+            _phase = Random.value * Mathf.PI * 2f;
+            _basePos = transform.localPosition;
+            _baseRot = transform.localRotation;
+        }
+
+        void LateUpdate()
+        {
+            float t = Time.time * _speed + _phase;
+            float x = Mathf.Sin(t) * _amp;
+            float y = Mathf.Sin(t * 1.37f) * _amp * 0.25f;
+            transform.localPosition = _basePos + new Vector3(x, y, 0f);
+            transform.localRotation = _baseRot * Quaternion.Euler(0f, Mathf.Sin(t * 0.85f) * _yawAmp, Mathf.Sin(t) * 6f);
         }
     }
 
