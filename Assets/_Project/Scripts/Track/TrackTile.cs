@@ -1847,14 +1847,23 @@ namespace TempleSprint
             }
 
             // Heat haze spheres above the river.
-            for (int i = 0; i < 7; i++)
+            var lavaHazeRoot = new GameObject("LavaHeatHaze");
+            lavaHazeRoot.transform.SetParent(transform, false);
+            lavaHazeRoot.transform.localPosition = new Vector3(0f, ForestFloorY, channelMid);
+            var lavaHaze = lavaHazeRoot.AddComponent<HeatShimmerAnimator>();
+            lavaHaze.Build(
+                lavaHazeRoot.transform, 7,
+                riverWidth * 0.28f, channelLen * 0.38f, 1.8f,
+                new Color(1f, 0.4f, 0.12f, 0.28f), false);
+
+            for (int i = 0; i < 4; i++)
             {
                 var haze = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                haze.name = "LavaHaze";
+                haze.name = "LavaSmoke";
                 haze.transform.SetParent(transform, false);
                 haze.transform.localPosition = new Vector3(
                     Random.Range(-riverWidth * 0.28f, riverWidth * 0.28f),
-                    ForestFloorY + Random.Range(1.6f, 3.8f),
+                    ForestFloorY + Random.Range(2.4f, 4.2f),
                     channelStart + channelLen * Random.Range(0.12f, 0.88f));
                 float s = Random.Range(1.4f, 2.6f);
                 haze.transform.localScale = new Vector3(s, s * 0.55f, s);

@@ -134,7 +134,7 @@ namespace TempleSprint
                 new Vector2(0.08f, 0.16f), new Vector2(0.92f, 0.78f),
                 Vector2.zero, Vector2.zero);
             _lockerScrollContent = scroll.content;
-            BuildLockerButtons();
+            ShowLockerTab(0);
             Btn(_locker, "BACK", new Vector2(0, -420), () => ShowMainMenu());
 
             _shop = Panel("Shop", new Color(0.1f, 0.1f, 0.14f, 0.82f));
