@@ -4,6 +4,7 @@ namespace TempleSprint
     {
         Boot,
         MainMenu,
+        Opening,
         Running,
         PostRun
     }
