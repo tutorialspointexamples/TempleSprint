@@ -856,10 +856,17 @@ namespace TempleSprint
             }
             else if (Traversal != TraversalMode.Rope && Traversal != TraversalMode.Vine)
             {
-                if (SwipeInput.Instance != null && SwipeInput.Instance.TiltEnabled && Traversal == TraversalMode.None)
+                bool tiltOk = Traversal == TraversalMode.None
+                              || Traversal == TraversalMode.MineCart
+                              || Traversal == TraversalMode.WaterSlide
+                              || Traversal == TraversalMode.IceSurf;
+                if (SwipeInput.Instance != null && SwipeInput.Instance.TiltEnabled && tiltOk)
                 {
                     float tilt = Input.acceleration.x;
-                    targetLane += Mathf.Clamp(tilt * 1.2f, -0.7f, 0.7f);
+                    // Mounted stages get a slightly softer bias so swipe lanes stay primary.
+                    float tiltScale = Traversal == TraversalMode.None ? 1.2f : 0.95f;
+                    float tiltCap = Traversal == TraversalMode.None ? 0.7f : 0.85f;
+                    targetLane += Mathf.Clamp(tilt * tiltScale, -tiltCap, tiltCap);
                 }
                 if (EnvironmentEffects.Instance != null && EnvironmentEffects.Instance.WindActive && Traversal == TraversalMode.None)
                     targetLane += EnvironmentEffects.Instance.WindDrift * 0.15f;
@@ -1670,8 +1677,9 @@ namespace TempleSprint
 
             if (other.TryGetComponent<GapKillZone>(out var killZone))
             {
-                // Mounted boat / active rope / vine / dunk ignore channel kills.
-                if (Traversal == TraversalMode.Boat
+                // Mounted boat / active rope / vine / dunk ignore channel kills,
+                // but precipice edge strips (AllowDuringMount) still punish slide-offs.
+                bool mountedIgnore = Traversal == TraversalMode.Boat
                     || Traversal == TraversalMode.Rope
                     || Traversal == TraversalMode.Vine
                     || Traversal == TraversalMode.WaterDunk
@@ -1683,7 +1691,8 @@ namespace TempleSprint
                     || Traversal == TraversalMode.IceSurf
                     || Traversal == TraversalMode.WaterSlide
                     || Traversal == TraversalMode.WallRun
-                    || Traversal == TraversalMode.LedgeGrab)
+                    || Traversal == TraversalMode.LedgeGrab;
+                if (mountedIgnore && !killZone.AllowDuringMount)
                     return;
                 if (PowerUpController.Instance != null && PowerUpController.Instance.TryAbsorbHit()) return;
                 if (IsJumping && transform.position.y > 0.4f) return;

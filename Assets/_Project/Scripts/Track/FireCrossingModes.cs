@@ -9,11 +9,12 @@ namespace TempleSprint
         WaterDunk = 2
     }
 
-    /// <summary>Procedural flame scale pulse for fire pit columns.</summary>
+    /// <summary>Procedural flame scale pulse for fire pit columns, with ash rise drift.</summary>
     public class FlameFlicker : MonoBehaviour
     {
         float _phase;
         float _speed;
+        float _ashRise;
         Vector3[] _childBaseScales;
         Vector3[] _childBasePos;
 
@@ -21,6 +22,7 @@ namespace TempleSprint
         {
             _phase = Random.value * Mathf.PI * 2f;
             _speed = Random.Range(7f, 12f);
+            _ashRise = Mathf.Clamp(height * 0.045f, 0.04f, 0.18f);
             int n = transform.childCount;
             _childBaseScales = new Vector3[n];
             _childBasePos = new Vector3[n];
@@ -30,8 +32,6 @@ namespace TempleSprint
                 _childBaseScales[i] = c.localScale;
                 _childBasePos[i] = c.localPosition;
             }
-            // height reserved for future ash rise; keep signature stable for callers
-            _ = height;
         }
 
         void Update()
@@ -39,13 +39,17 @@ namespace TempleSprint
             if (_childBaseScales == null) return;
             float pulse = 0.86f + Mathf.Sin(Time.time * _speed + _phase) * 0.16f
                           + Mathf.Sin(Time.time * (_speed * 1.7f) + _phase) * 0.07f;
+            float ash = (Mathf.Sin(Time.time * (_speed * 0.45f) + _phase) * 0.5f + 0.5f) * _ashRise;
             for (int i = 0; i < transform.childCount && i < _childBaseScales.Length; i++)
             {
                 var c = transform.GetChild(i);
                 var bs = _childBaseScales[i];
                 c.localScale = new Vector3(bs.x * pulse, bs.y * (0.92f + pulse * 0.12f), bs.z * pulse);
                 var bp = _childBasePos[i];
-                c.localPosition = bp + Vector3.up * (Mathf.Sin(Time.time * _speed + _phase + i) * 0.06f);
+                float bob = Mathf.Sin(Time.time * _speed + _phase + i) * 0.06f;
+                // Upper flame children drift upward as ash rise; lower stay anchored.
+                float riseBias = i / Mathf.Max(1f, _childBaseScales.Length - 1f);
+                c.localPosition = bp + Vector3.up * (bob + ash * riseBias);
             }
         }
     }

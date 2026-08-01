@@ -200,6 +200,8 @@ namespace TempleSprint
     {
         public string DeathMessage = "Fell through a gap";
         public int Lane;
+        /// <summary>When true, kills still apply while mounted (ice surf / water slide edge falls).</summary>
+        public bool AllowDuringMount;
 
         public static GapKillZone Create(Transform parent, float localZ, int lane)
             => Create(parent, localZ, lane, 5.0f);
@@ -220,6 +222,25 @@ namespace TempleSprint
             var zone = go.AddComponent<GapKillZone>();
             zone.DeathMessage = deathMessage;
             zone.Lane = lane;
+            zone.AllowDuringMount = false;
+            return zone;
+        }
+
+        /// <summary>Off-deck precipice kill strip (local X outside the playable runway).</summary>
+        public static GapKillZone CreateEdge(Transform parent, float localZ, float localX, float lengthZ,
+            float widthX, string deathMessage, bool allowDuringMount = true)
+        {
+            var go = new GameObject("EdgeKill");
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = new Vector3(localX, -1.35f, localZ);
+            var box = go.AddComponent<BoxCollider>();
+            box.isTrigger = true;
+            box.size = new Vector3(Mathf.Max(1.2f, widthX), 5f, lengthZ);
+            box.center = new Vector3(0f, 0.35f, 0f);
+            var zone = go.AddComponent<GapKillZone>();
+            zone.DeathMessage = deathMessage;
+            zone.Lane = localX < 0f ? 0 : 2;
+            zone.AllowDuringMount = allowDuringMount;
             return zone;
         }
     }
