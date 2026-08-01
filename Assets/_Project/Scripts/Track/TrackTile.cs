@@ -187,12 +187,14 @@ namespace TempleSprint
                     ScatterCoins(10);
                     if (Random.value < 0.3f) SpawnPowerUp();
                     if (Random.value < 0.35f) BuildHangingVines(1);
+                    if (Random.value < 0.55f) SpawnBreakableIdol();
                     break;
                 case TileKind.ObstacleCluster:
                     SpawnObstacles(obstacleChance, difficultyTier);
                     if (Random.value < 0.4f) ScatterCoins(3);
                     if (Random.value < 0.2f) BuildArch();
                     if (Random.value < 0.4f) BuildHangingVines(Random.Range(1, 3));
+                    if (Random.value < 0.35f) SpawnBreakableIdol();
                     break;
                 case TileKind.HazardGap:
                     BuildGap();

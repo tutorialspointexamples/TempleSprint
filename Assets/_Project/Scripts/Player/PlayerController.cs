@@ -1646,6 +1646,12 @@ namespace TempleSprint
                 return;
             }
 
+            if (other.TryGetComponent<BreakableIdol>(out var idol))
+            {
+                idol.Smash();
+                return;
+            }
+
             if (other.TryGetComponent<GapKillZone>(out var killZone))
             {
                 // Mounted boat / active rope / vine / dunk ignore channel kills.
