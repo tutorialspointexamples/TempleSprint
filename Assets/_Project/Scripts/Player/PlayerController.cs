@@ -66,6 +66,8 @@ namespace TempleSprint
         float _canopyRopeHeight;
         float _waterfallDiveHeight;
         float _waterfallPoolDepth;
+        bool _waterfallPoolPunched;
+        float _mineCartSnapCooldown;
 
         public bool IsStumbling => _stumbleTimer > 0f;
 
@@ -185,6 +187,8 @@ namespace TempleSprint
             _canopyRopeHeight = 0f;
             _waterfallDiveHeight = 0f;
             _waterfallPoolDepth = 0f;
+            _waterfallPoolPunched = false;
+            _mineCartSnapCooldown = 0f;
             if (_dunkSteam != null)
             {
                 Destroy(_dunkSteam.gameObject);
@@ -404,8 +408,10 @@ namespace TempleSprint
             IsSliding = false;
             RestoreCollider();
             EnsureSwimBubbles();
+            _waterfallPoolPunched = false;
             AudioHooks.Instance?.PlaySplash();
             ChaseCamera.Instance?.SetTraversalBias(0.7f, 8f);
+            ChaseCamera.Instance?.PunchFov(5.5f);
         }
 
         public void BeginWaterSlide(SpecialStageMarker marker, WaterSlideRide ride)
@@ -867,6 +873,10 @@ namespace TempleSprint
                     float tiltScale = Traversal == TraversalMode.None ? 1.2f : 0.95f;
                     float tiltCap = Traversal == TraversalMode.None ? 0.7f : 0.85f;
                     targetLane += Mathf.Clamp(tilt * tiltScale, -tiltCap, tiltCap);
+
+                    // Dual-track mine cart: tilt near rail edges snaps to left/right rails.
+                    if (Traversal == TraversalMode.MineCart)
+                        ApplyMineCartTiltLaneSnap(tilt);
                 }
                 if (EnvironmentEffects.Instance != null && EnvironmentEffects.Instance.WindActive && Traversal == TraversalMode.None)
                     targetLane += EnvironmentEffects.Instance.WindDrift * 0.15f;
@@ -1543,6 +1553,14 @@ namespace TempleSprint
                 height = _waterfallPoolDepth + bob;
             }
 
+            // FOV punch when the dive hits the pool spray sheet.
+            if (!_waterfallPoolPunched && u >= 0.32f)
+            {
+                _waterfallPoolPunched = true;
+                ChaseCamera.Instance?.PunchFov(4.2f);
+                AudioHooks.Instance?.PlaySplash();
+            }
+
             var pos = transform.position;
             pos.y = height;
             transform.position = pos;
@@ -1552,6 +1570,27 @@ namespace TempleSprint
                 float pulse = 0.9f + Mathf.Sin(Time.time * 10f) * 0.2f;
                 _swimBubbles.localScale = Vector3.one * pulse;
             }
+        }
+
+        /// <summary>
+        /// Assist dual-track cart steering: sustained tilt near a rail edge snaps Lane to 0/2.
+        /// </summary>
+        void ApplyMineCartTiltLaneSnap(float tilt)
+        {
+            if (_mineCartSnapCooldown > 0f)
+            {
+                _mineCartSnapCooldown -= Time.deltaTime;
+                return;
+            }
+
+            int desired = -1;
+            if (tilt < -0.32f || _laneOffset < -LaneWidth * 0.45f) desired = 0;
+            else if (tilt > 0.32f || _laneOffset > LaneWidth * 0.45f) desired = 2;
+            if (desired < 0 || desired == Lane) return;
+
+            Lane = desired;
+            _mineCartSnapCooldown = 0.28f;
+            ChaseCamera.Instance?.PunchFov(0.9f);
         }
 
         void EndWaterfallPlunge(bool success)
