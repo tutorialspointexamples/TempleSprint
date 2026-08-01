@@ -23,11 +23,12 @@ namespace TempleSprint
             || kind == TileKind.TreeBridge
             || kind == TileKind.CanopyRope
             || kind == TileKind.WaterfallPlunge
+            || kind == TileKind.WaterSlide
             || kind == TileKind.TempleHall;
 
         public TileKind Pick(RunDifficulty difficulty, float obstacleBias, int difficultyTier, bool allowTurn, bool allowHazard)
         {
-            float straight, coin, obstacle, gap, branch, dyn, env, river, fire, lava, zipline, minecart, icesurf, wallrun, ledge, tree, canopy, waterfall, hall, turnL, turnR, junction, ruinFork;
+            float straight, coin, obstacle, gap, branch, dyn, env, river, fire, lava, zipline, minecart, icesurf, wallrun, ledge, tree, canopy, waterfall, slide, hall, turnL, turnR, junction, ruinFork;
             float riverBias = BiomeSystem.RiverBias;
             float fireBias = BiomeSystem.FireBias;
             float lavaBias = BiomeSystem.LavaRiverBias;
@@ -39,14 +40,15 @@ namespace TempleSprint
             float treeBias = BiomeSystem.TreeBridgeBias;
             float canopyBias = BiomeSystem.CanopyRopeBias;
             float fallBias = BiomeSystem.WaterfallPlungeBias;
+            float slideBias = BiomeSystem.WaterSlideBias;
             float hallBias = BiomeSystem.TempleHallBias;
             float forkBias = BiomeSystem.RuinForkBias;
 
             switch (difficulty)
             {
                 case RunDifficulty.Easy:
-                    straight = 0.20f;
-                    coin = 0.14f;
+                    straight = 0.19f;
+                    coin = 0.13f;
                     obstacle = allowHazard ? 0.05f + obstacleBias * 0.1f : 0f;
                     gap = allowHazard ? 0.03f : 0f;
                     branch = allowHazard ? 0.03f : 0f;
@@ -62,7 +64,8 @@ namespace TempleSprint
                     ledge = allowHazard ? 0.028f * ledgeBias : 0f;
                     tree = allowHazard ? 0.03f * treeBias : 0f;
                     canopy = allowHazard ? 0.03f * canopyBias : 0f;
-                    waterfall = allowHazard ? 0.03f * fallBias : 0f;
+                    waterfall = allowHazard ? 0.028f * fallBias : 0f;
+                    slide = allowHazard ? 0.03f * slideBias : 0f;
                     hall = allowHazard ? 0.035f * hallBias : 0.015f * hallBias;
                     turnL = allowTurn ? 0.045f : 0f;
                     turnR = allowTurn ? 0.045f : 0f;
@@ -70,24 +73,25 @@ namespace TempleSprint
                     ruinFork = allowTurn ? 0.03f * forkBias : 0f;
                     break;
                 case RunDifficulty.Hard:
-                    straight = 0.03f - difficultyTier * 0.01f;
-                    coin = 0.045f;
-                    obstacle = allowHazard ? 0.095f + obstacleBias * 0.28f + difficultyTier * 0.03f : 0f;
+                    straight = 0.025f - difficultyTier * 0.01f;
+                    coin = 0.04f;
+                    obstacle = allowHazard ? 0.09f + obstacleBias * 0.28f + difficultyTier * 0.03f : 0f;
                     gap = allowHazard ? 0.04f + difficultyTier * 0.02f : 0f;
                     branch = allowHazard ? 0.035f + difficultyTier * 0.01f : 0f;
                     dyn = allowHazard ? 0.04f + difficultyTier * 0.02f : 0f;
                     env = 0.025f;
-                    river = allowHazard ? 0.065f * riverBias + difficultyTier * 0.01f : 0f;
-                    fire = allowHazard ? 0.055f * fireBias + difficultyTier * 0.01f : 0f;
+                    river = allowHazard ? 0.06f * riverBias + difficultyTier * 0.01f : 0f;
+                    fire = allowHazard ? 0.05f * fireBias + difficultyTier * 0.01f : 0f;
                     lava = allowHazard ? 0.05f * lavaBias + difficultyTier * 0.01f : 0f;
-                    zipline = allowHazard ? 0.04f * zipBias : 0f;
-                    minecart = allowHazard ? 0.04f * cartBias : 0f;
-                    icesurf = allowHazard ? 0.04f * iceBias : 0f;
-                    wallrun = allowHazard ? 0.04f * wallBias : 0f;
-                    ledge = allowHazard ? 0.04f * ledgeBias : 0f;
-                    tree = allowHazard ? 0.04f * treeBias : 0f;
-                    canopy = allowHazard ? 0.04f * canopyBias : 0f;
-                    waterfall = allowHazard ? 0.04f * fallBias : 0f;
+                    zipline = allowHazard ? 0.038f * zipBias : 0f;
+                    minecart = allowHazard ? 0.038f * cartBias : 0f;
+                    icesurf = allowHazard ? 0.038f * iceBias : 0f;
+                    wallrun = allowHazard ? 0.038f * wallBias : 0f;
+                    ledge = allowHazard ? 0.038f * ledgeBias : 0f;
+                    tree = allowHazard ? 0.038f * treeBias : 0f;
+                    canopy = allowHazard ? 0.038f * canopyBias : 0f;
+                    waterfall = allowHazard ? 0.038f * fallBias : 0f;
+                    slide = allowHazard ? 0.04f * slideBias : 0f;
                     hall = allowHazard ? 0.045f * hallBias : 0.015f * hallBias;
                     turnL = allowTurn ? 0.06f + difficultyTier * 0.01f : 0f;
                     turnR = allowTurn ? 0.06f + difficultyTier * 0.01f : 0f;
@@ -95,24 +99,25 @@ namespace TempleSprint
                     ruinFork = allowTurn ? 0.045f * forkBias + difficultyTier * 0.01f : 0f;
                     break;
                 default: // Medium
-                    straight = 0.1f - difficultyTier * 0.015f;
-                    coin = 0.08f;
-                    obstacle = allowHazard ? 0.07f + obstacleBias * 0.18f + difficultyTier * 0.02f : 0f;
+                    straight = 0.09f - difficultyTier * 0.015f;
+                    coin = 0.075f;
+                    obstacle = allowHazard ? 0.065f + obstacleBias * 0.18f + difficultyTier * 0.02f : 0f;
                     gap = allowHazard ? 0.035f + difficultyTier * 0.01f : 0f;
                     branch = allowHazard ? 0.035f : 0f;
                     dyn = allowHazard ? 0.035f + difficultyTier * 0.015f : 0f;
                     env = 0.03f;
-                    river = allowHazard ? 0.06f * riverBias : 0f;
+                    river = allowHazard ? 0.055f * riverBias : 0f;
                     fire = allowHazard ? 0.05f * fireBias : 0f;
                     lava = allowHazard ? 0.045f * lavaBias : 0f;
-                    zipline = allowHazard ? 0.04f * zipBias : 0f;
-                    minecart = allowHazard ? 0.04f * cartBias : 0f;
-                    icesurf = allowHazard ? 0.04f * iceBias : 0f;
+                    zipline = allowHazard ? 0.038f * zipBias : 0f;
+                    minecart = allowHazard ? 0.038f * cartBias : 0f;
+                    icesurf = allowHazard ? 0.038f * iceBias : 0f;
                     wallrun = allowHazard ? 0.035f * wallBias : 0f;
                     ledge = allowHazard ? 0.035f * ledgeBias : 0f;
-                    tree = allowHazard ? 0.04f * treeBias : 0f;
-                    canopy = allowHazard ? 0.04f * canopyBias : 0f;
-                    waterfall = allowHazard ? 0.04f * fallBias : 0f;
+                    tree = allowHazard ? 0.038f * treeBias : 0f;
+                    canopy = allowHazard ? 0.038f * canopyBias : 0f;
+                    waterfall = allowHazard ? 0.038f * fallBias : 0f;
+                    slide = allowHazard ? 0.04f * slideBias : 0f;
                     hall = allowHazard ? 0.04f * hallBias : 0.015f * hallBias;
                     turnL = allowTurn ? 0.055f : 0f;
                     turnR = allowTurn ? 0.055f : 0f;
@@ -123,12 +128,12 @@ namespace TempleSprint
 
             float total = Mathf.Max(0.01f, straight) + coin + obstacle + gap + branch + dyn + env
                           + river + fire + lava + zipline + minecart + icesurf + wallrun + ledge + tree
-                          + canopy + waterfall + hall + turnL + turnR + junction + ruinFork;
+                          + canopy + waterfall + slide + hall + turnL + turnR + junction + ruinFork;
             float r = Random.value * total;
             float[] w =
             {
                 Mathf.Max(0.01f, straight), coin, obstacle, gap, branch, dyn, env,
-                river, fire, lava, zipline, minecart, icesurf, wallrun, ledge, tree, canopy, waterfall, hall,
+                river, fire, lava, zipline, minecart, icesurf, wallrun, ledge, tree, canopy, waterfall, slide, hall,
                 turnL, turnR, junction, ruinFork
             };
             TileKind[] kinds =
@@ -137,7 +142,7 @@ namespace TempleSprint
                 TileKind.Branch, TileKind.DynamicHazard, TileKind.EnvironmentZone, TileKind.RiverCrossing,
                 TileKind.FireCrossing, TileKind.LavaRiver, TileKind.Zipline, TileKind.MineCart, TileKind.IceSurf,
                 TileKind.WallRun, TileKind.LedgeGrab, TileKind.TreeBridge, TileKind.CanopyRope,
-                TileKind.WaterfallPlunge, TileKind.TempleHall, TileKind.TurnLeft, TileKind.TurnRight,
+                TileKind.WaterfallPlunge, TileKind.WaterSlide, TileKind.TempleHall, TileKind.TurnLeft, TileKind.TurnRight,
                 TileKind.TJunction, TileKind.RuinFork
             };
             for (int i = 0; i < w.Length; i++)

@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace TempleSprint
 {
-    /// <summary>Cliff zipline, cave mine-cart, icy surf, parkour, canopy, and waterfall stages.</summary>
+    /// <summary>Cliff zipline, cave mine-cart, icy surf, parkour, canopy, waterfall, and aqueduct stages.</summary>
     public enum SpecialStageKind
     {
         Zipline = 0,
@@ -12,7 +12,8 @@ namespace TempleSprint
         LedgeGrab = 4,
         TreeBridge = 5,
         CanopyRope = 6,
-        WaterfallPlunge = 7
+        WaterfallPlunge = 7,
+        WaterSlide = 8
     }
 
     public class SpecialStageMarker : MonoBehaviour
@@ -98,7 +99,11 @@ namespace TempleSprint
     {
         public SpecialStageMarker Marker;
         public float DeckHeight = 0.55f;
+        /// <summary>Dual-track rail offsets (lane 0 / 2). Center lane rides left rail.</summary>
+        public float TrackSpacing = PlayerController.LaneWidth;
         Transform _cart;
+        Transform _sparks;
+        readonly System.Collections.Generic.List<BrokenRailTelegraph> _broken = new();
 
         public void BuildVisual(Transform parent)
         {
@@ -135,6 +140,33 @@ namespace TempleSprint
                 wheel.GetComponent<Renderer>().sharedMaterial = JunglePalette.Stone;
                 Object.Destroy(wheel.GetComponent<Collider>());
             }
+
+            _sparks = new GameObject("RailSparks").transform;
+            _sparks.SetParent(_cart, false);
+            _sparks.localPosition = new Vector3(0f, 0.1f, -0.9f);
+            for (int i = 0; i < 3; i++)
+            {
+                var spark = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                spark.transform.SetParent(_sparks, false);
+                spark.transform.localPosition = new Vector3((i - 1) * 0.18f, 0f, 0f);
+                spark.transform.localScale = Vector3.one * 0.12f;
+                spark.GetComponent<Renderer>().sharedMaterial = JunglePalette.Flame;
+                Object.Destroy(spark.GetComponent<Collider>());
+            }
+        }
+
+        /// <summary>Place a broken-rail gap on one dual track; rider must switch before impact.</summary>
+        public BrokenRailTelegraph AddBrokenRail(Transform parent, float localZ, int brokenLane)
+        {
+            var go = new GameObject("BrokenRail_" + brokenLane);
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = new Vector3((brokenLane - 1) * TrackSpacing, 0.2f, localZ);
+            var telegraph = go.AddComponent<BrokenRailTelegraph>();
+            telegraph.BrokenLane = brokenLane;
+            telegraph.LocalZ = localZ;
+            telegraph.BuildVisual(go.transform);
+            _broken.Add(telegraph);
+            return telegraph;
         }
 
         public void SyncToPlayer(PlayerController player)
@@ -143,10 +175,164 @@ namespace TempleSprint
             var tile = GetComponentInParent<TrackTile>();
             if (tile == null) return;
             var pose = tile.SampleAtPathDistance(player.PathDistance);
-            Vector3 pos = pose.position + pose.Right * player.LaneOffset;
+            // Snap cart to dual-track lanes (0 left / 2 right); middle shares left rail.
+            int trackLane = player.Lane == 2 ? 2 : 0;
+            float trackX = (trackLane - 1) * TrackSpacing;
+            Vector3 pos = pose.position + pose.Right * trackX;
             pos.y = DeckHeight;
             _cart.position = pos + pose.Forward * -0.15f;
             _cart.rotation = Quaternion.Euler(0f, pose.yaw, Mathf.Sin(Time.time * 9f) * 2.5f);
+            if (_sparks != null)
+            {
+                float pulse = 0.8f + Mathf.Abs(Mathf.Sin(Time.time * 18f)) * 0.5f;
+                _sparks.localScale = Vector3.one * pulse;
+            }
+
+            float local = player.PathDistance - Marker.PathStartDistance;
+            for (int i = 0; i < _broken.Count; i++)
+            {
+                var br = _broken[i];
+                if (br == null || br.Consumed) continue;
+                br.PulseTelegraph();
+                if (local >= br.LocalZ - 0.35f && local <= br.LocalZ + 0.55f)
+                {
+                    int riderTrack = player.Lane == 2 ? 2 : 0;
+                    if (riderTrack == br.BrokenLane)
+                    {
+                        br.Consumed = true;
+                        RunSession.Instance?.EndRun("Fell through a broken rail");
+                        return;
+                    }
+                    br.Consumed = true;
+                    RunSession.Instance?.RegisterNearMiss();
+                    ChaseCamera.Instance?.PunchFov(1.6f);
+                }
+            }
+        }
+
+        public bool ReachedFarBank(PlayerController player)
+        {
+            if (player == null || Marker == null) return false;
+            float local = player.PathDistance - Marker.PathStartDistance;
+            return local >= Marker.ChannelEnd - 0.35f;
+        }
+    }
+
+    /// <summary>Glowing gap on one dual-track rail — switch tracks before impact.</summary>
+    public class BrokenRailTelegraph : MonoBehaviour
+    {
+        public int BrokenLane;
+        public float LocalZ;
+        public bool Consumed;
+        Renderer _glow;
+
+        public void BuildVisual(Transform parent)
+        {
+            var gap = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            gap.name = "BrokenGap";
+            gap.transform.SetParent(parent, false);
+            gap.transform.localPosition = Vector3.zero;
+            gap.transform.localScale = new Vector3(1.4f, 0.12f, 1.8f);
+            _glow = gap.GetComponent<Renderer>();
+            _glow.sharedMaterial = JunglePalette.Hazard;
+            Object.Destroy(gap.GetComponent<Collider>());
+
+            for (int i = 0; i < 2; i++)
+            {
+                var spike = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                spike.transform.SetParent(parent, false);
+                spike.transform.localPosition = new Vector3((i == 0 ? -0.55f : 0.55f), 0.35f, 0f);
+                spike.transform.localRotation = Quaternion.Euler(0f, 0f, i == 0 ? -25f : 25f);
+                spike.transform.localScale = new Vector3(0.15f, 0.7f, 0.15f);
+                spike.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
+                Object.Destroy(spike.GetComponent<Collider>());
+            }
+        }
+
+        public void PulseTelegraph()
+        {
+            if (_glow == null) return;
+            float pulse = 0.55f + Mathf.Abs(Mathf.Sin(Time.time * 8f)) * 0.45f;
+            var c = Color.Lerp(new Color(1f, 0.35f, 0.1f), new Color(1f, 0.85f, 0.2f), pulse);
+            _glow.material.color = c;
+            if (_glow.material.HasProperty("_BaseColor"))
+                _glow.material.SetColor("_BaseColor", c);
+        }
+    }
+
+    /// <summary>Auto-mount aqueduct water-slide at the channel lip.</summary>
+    public class WaterSlideMount : MonoBehaviour
+    {
+        public SpecialStageMarker Marker;
+        public WaterSlideRide Ride;
+        bool _used;
+
+        void OnDisable() => _used = false;
+
+        void OnTriggerEnter(Collider other)
+        {
+            if (_used || Marker == null || Ride == null) return;
+            if (other.GetComponent<PlayerController>() == null
+                && other.GetComponentInParent<PlayerController>() == null)
+                return;
+            var player = PlayerController.Instance;
+            if (player == null || player.Traversal != TraversalMode.None) return;
+            _used = true;
+            player.BeginWaterSlide(Marker, Ride);
+        }
+    }
+
+    public class WaterSlideRide : MonoBehaviour
+    {
+        public SpecialStageMarker Marker;
+        public float DeckHeight = 0.2f;
+        Transform _board;
+        Material _flowMat;
+        Vector2 _uv;
+
+        public void BuildVisual(Transform parent)
+        {
+            _board = new GameObject("SlideBoard").transform;
+            _board.SetParent(parent, false);
+
+            var plank = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            plank.name = "AqueductBoard";
+            plank.transform.SetParent(_board, false);
+            plank.transform.localPosition = new Vector3(0f, 0.06f, 0f);
+            plank.transform.localScale = new Vector3(1.05f, 0.1f, 2.2f);
+            plank.GetComponent<Renderer>().sharedMaterial = JunglePalette.Mat(new Color(0.55f, 0.42f, 0.28f), 0.25f);
+            Object.Destroy(plank.GetComponent<Collider>());
+
+            var nose = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            nose.transform.SetParent(_board, false);
+            nose.transform.localPosition = new Vector3(0f, 0.1f, 1.0f);
+            nose.transform.localRotation = Quaternion.Euler(-22f, 0f, 0f);
+            nose.transform.localScale = new Vector3(0.9f, 0.08f, 0.45f);
+            nose.GetComponent<Renderer>().sharedMaterial = JunglePalette.Leather;
+            Object.Destroy(nose.GetComponent<Collider>());
+        }
+
+        public void BindFlowMaterial(Material flow) => _flowMat = flow;
+
+        public void SyncToPlayer(PlayerController player)
+        {
+            if (player == null || Marker == null || _board == null) return;
+            var tile = GetComponentInParent<TrackTile>();
+            if (tile == null) return;
+            var pose = tile.SampleAtPathDistance(player.PathDistance);
+            Vector3 pos = pose.position + pose.Right * player.LaneOffset;
+            pos.y = DeckHeight;
+            float roll = Mathf.Sin(Time.time * 10f) * 7f + player.LaneOffset * 4f;
+            _board.position = pos + pose.Forward * -0.08f;
+            _board.rotation = Quaternion.Euler(8f + Mathf.Sin(Time.time * 9f) * 3f, pose.yaw, roll);
+
+            if (_flowMat != null)
+            {
+                _uv.y -= Time.deltaTime * 2.4f;
+                if (_flowMat.HasProperty("_BaseMap"))
+                    _flowMat.SetTextureOffset("_BaseMap", _uv);
+                _flowMat.mainTextureOffset = _uv;
+            }
         }
 
         public bool ReachedFarBank(PlayerController player)

@@ -55,6 +55,7 @@ namespace TempleSprint
         SpecialStageMarker _specialMarker;
         MineCartRide _mineCartRide;
         IceBoardRide _iceBoardRide;
+        WaterSlideRide _waterSlideRide;
         float _ziplineHeight;
         float _swimDepth;
         Transform _swimBubbles;
@@ -171,6 +172,7 @@ namespace TempleSprint
             _specialMarker = null;
             _mineCartRide = null;
             _iceBoardRide = null;
+            _waterSlideRide = null;
             _ziplineHeight = 0f;
             _swimDepth = 0f;
             _wallRunHeight = 0f;
@@ -403,6 +405,23 @@ namespace TempleSprint
             ChaseCamera.Instance?.SetTraversalBias(0.7f, 8f);
         }
 
+        public void BeginWaterSlide(SpecialStageMarker marker, WaterSlideRide ride)
+        {
+            if (marker == null || ride == null || Traversal != TraversalMode.None) return;
+            Traversal = TraversalMode.WaterSlide;
+            _specialMarker = marker;
+            _waterSlideRide = ride;
+            marker.SetOccupied(true);
+            Lane = 1;
+            _laneOffset = 0f;
+            _grounded = true;
+            _verticalVel = 0f;
+            IsSliding = false;
+            RestoreCollider();
+            AudioHooks.Instance?.PlaySplash();
+            ChaseCamera.Instance?.SetTraversalBias(0.55f, 6.5f);
+        }
+
         void EnsureSwimBubbles()
         {
             if (_swimBubbles != null) return;
@@ -475,13 +494,16 @@ namespace TempleSprint
             }
 
             if (Traversal == TraversalMode.Boat || Traversal == TraversalMode.MineCart
-                || Traversal == TraversalMode.IceSurf)
+                || Traversal == TraversalMode.IceSurf || Traversal == TraversalMode.WaterSlide)
             {
                 if (dir == SwipeDirection.Left) Lane = Mathf.Max(0, Lane - 1);
                 else if (dir == SwipeDirection.Right) Lane = Mathf.Min(LaneCount - 1, Lane + 1);
-                else if ((Traversal == TraversalMode.MineCart || Traversal == TraversalMode.IceSurf)
+                else if ((Traversal == TraversalMode.MineCart || Traversal == TraversalMode.IceSurf
+                          || Traversal == TraversalMode.WaterSlide)
                          && dir == SwipeDirection.Down)
                     TrySlide();
+                else if (Traversal == TraversalMode.WaterSlide && dir == SwipeDirection.Up)
+                    TryJump();
                 return;
             }
 
@@ -633,6 +655,7 @@ namespace TempleSprint
                 && Traversal != TraversalMode.CanopyRope
                 && Traversal != TraversalMode.MineCart
                 && Traversal != TraversalMode.IceSurf
+                && Traversal != TraversalMode.WaterSlide
                 && Traversal != TraversalMode.Swim
                 && Traversal != TraversalMode.WaterfallPlunge
                 && Traversal != TraversalMode.WallRun) return;
@@ -785,6 +808,7 @@ namespace TempleSprint
             if (Traversal == TraversalMode.CanopyRope) effectiveSpeed *= 1.15f;
             if (Traversal == TraversalMode.MineCart) effectiveSpeed *= 1.15f;
             if (Traversal == TraversalMode.IceSurf) effectiveSpeed *= 1.28f;
+            if (Traversal == TraversalMode.WaterSlide) effectiveSpeed *= 1.32f;
             if (Traversal == TraversalMode.Swim) effectiveSpeed *= 0.88f;
             if (Traversal == TraversalMode.WaterfallPlunge) effectiveSpeed *= 1.05f;
             if (Traversal == TraversalMode.WallRun) effectiveSpeed *= 1.12f;
@@ -853,6 +877,30 @@ namespace TempleSprint
                 _grounded = true;
                 if (_iceBoardRide != null && _iceBoardRide.ReachedFarBank(this))
                     EndIceSurf();
+            }
+            else if (Traversal == TraversalMode.WaterSlide)
+            {
+                _waterSlideRide?.SyncToPlayer(this);
+                var p = transform.position;
+                p.y = _waterSlideRide != null ? _waterSlideRide.DeckHeight : 0.2f;
+                // Brief hop support while sliding the aqueduct.
+                if (!_grounded)
+                {
+                    _verticalVel -= gravity * Time.deltaTime;
+                    p.y = Mathf.Max(_waterSlideRide != null ? _waterSlideRide.DeckHeight : 0.2f,
+                        transform.position.y + _verticalVel * Time.deltaTime);
+                    if (p.y <= (_waterSlideRide != null ? _waterSlideRide.DeckHeight : 0.2f) + 0.01f)
+                    {
+                        p.y = _waterSlideRide != null ? _waterSlideRide.DeckHeight : 0.2f;
+                        _verticalVel = 0f;
+                        _grounded = true;
+                    }
+                }
+                else
+                    _grounded = true;
+                transform.position = p;
+                if (_waterSlideRide != null && _waterSlideRide.ReachedFarBank(this))
+                    EndWaterSlide();
             }
             else if (Traversal == TraversalMode.Zipline)
             {
@@ -1164,6 +1212,25 @@ namespace TempleSprint
             _mineCartRide = null;
             _specialMarker = null;
             _grounded = true;
+            var p = transform.position;
+            p.y = 0f;
+            transform.position = p;
+            ChaseCamera.Instance?.SetTraversalBias(0f, 0f);
+            ApplyPathPose();
+        }
+
+        void EndWaterSlide()
+        {
+            if (_specialMarker != null)
+            {
+                PathDistance = Mathf.Max(PathDistance, _specialMarker.PathStartDistance + _specialMarker.ChannelEnd + 0.15f);
+                _specialMarker.MarkCompleted();
+            }
+            Traversal = TraversalMode.None;
+            _waterSlideRide = null;
+            _specialMarker = null;
+            _grounded = true;
+            _verticalVel = 0f;
             var p = transform.position;
             p.y = 0f;
             transform.position = p;
@@ -1572,6 +1639,7 @@ namespace TempleSprint
                     || Traversal == TraversalMode.Swim
                     || Traversal == TraversalMode.WaterfallPlunge
                     || Traversal == TraversalMode.IceSurf
+                    || Traversal == TraversalMode.WaterSlide
                     || Traversal == TraversalMode.WallRun
                     || Traversal == TraversalMode.LedgeGrab)
                     return;
@@ -2086,10 +2154,11 @@ namespace TempleSprint
                 float hang = Mathf.Sin(Time.time * 5f) * 3f;
                 targetRot *= Quaternion.Euler(hang, 0f, 0f);
             }
-            else if (mode == TraversalMode.MineCart || mode == TraversalMode.IceSurf || mode == TraversalMode.Boat)
+            else if (mode == TraversalMode.MineCart || mode == TraversalMode.IceSurf
+                     || mode == TraversalMode.WaterSlide || mode == TraversalMode.Boat)
             {
                 targetPos = new Vector3(0f, 0.05f, 0f);
-                targetRot = Quaternion.Euler(6f, 0f, _laneLean * -8f);
+                targetRot = Quaternion.Euler(mode == TraversalMode.WaterSlide ? 12f : 6f, 0f, _laneLean * -8f);
             }
             else if (mode == TraversalMode.Rope || mode == TraversalMode.Vine)
             {

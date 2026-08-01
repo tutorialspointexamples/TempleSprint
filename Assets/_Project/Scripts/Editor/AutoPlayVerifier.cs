@@ -247,6 +247,7 @@ namespace TempleSprint.EditorTools
                                      || tileSpawner.TreeBridgesSpawnedThisRun > 0
                                      || tileSpawner.CanopyRopesSpawnedThisRun > 0
                                      || tileSpawner.WaterfallPlungesSpawnedThisRun > 0
+                                     || tileSpawner.WaterSlidesSpawnedThisRun > 0
                                      || tileSpawner.TempleHallsSpawnedThisRun > 0
                                      || tileSpawner.LavaRiversSpawnedThisRun > 0
                                      || tileSpawner.RuinForksSpawnedThisRun > 0));
@@ -520,7 +521,7 @@ namespace TempleSprint.EditorTools
         {
             if (tiles == null) return false;
             bool zip = false, cart = false, ice = false, wall = false, ledge = false, tree = false;
-            bool canopy = false, fall = false, hall = false;
+            bool canopy = false, fall = false, slide = false, hall = false;
             foreach (var t in tiles)
             {
                 if (t == null) continue;
@@ -596,6 +597,15 @@ namespace TempleSprint.EditorTools
                         return false;
                     }
                 }
+                if (t.Kind == TileKind.WaterSlide)
+                {
+                    slide = true;
+                    if (t.GetComponent<SpecialStageMarker>() == null)
+                    {
+                        Debug.LogWarning($"[VERIFY] WaterSlide at {t.PathStartDistance:0.0} missing marker");
+                        return false;
+                    }
+                }
                 if (t.Kind == TileKind.TempleHall)
                 {
                     hall = true;
@@ -622,8 +632,8 @@ namespace TempleSprint.EditorTools
                     }
                 }
             }
-            Debug.Log($"[VERIFY] specialStages zipline={zip} minecart={cart} icesurf={ice} wallrun={wall} ledge={ledge} tree={tree} canopy={canopy} waterfall={fall} hall={hall}");
-            return zip || cart || ice || wall || ledge || tree || canopy || fall || hall;
+            Debug.Log($"[VERIFY] specialStages zipline={zip} minecart={cart} icesurf={ice} wallrun={wall} ledge={ledge} tree={tree} canopy={canopy} waterfall={fall} slide={slide} hall={hall}");
+            return zip || cart || ice || wall || ledge || tree || canopy || fall || slide || hall;
         }
     }
 }

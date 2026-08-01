@@ -21,6 +21,7 @@ namespace TempleSprint
         TreeBridge,
         CanopyRope,
         WaterfallPlunge,
+        WaterSlide,
         TempleHall,
         RuinFork,
         LavaRiver,
@@ -120,7 +121,8 @@ namespace TempleSprint
                 || kind == TileKind.LavaRiver
                 || kind == TileKind.Zipline || kind == TileKind.MineCart || kind == TileKind.IceSurf
                 || kind == TileKind.WallRun || kind == TileKind.LedgeGrab || kind == TileKind.TreeBridge
-                || kind == TileKind.CanopyRope || kind == TileKind.WaterfallPlunge)
+                || kind == TileKind.CanopyRope || kind == TileKind.WaterfallPlunge
+                || kind == TileKind.WaterSlide)
             {
                 if (kind == TileKind.HazardGap)
                     BuildFloorWithGap();
@@ -128,7 +130,8 @@ namespace TempleSprint
                     BuildFloorWithFireChannel();
                 else if (kind == TileKind.Zipline || kind == TileKind.MineCart || kind == TileKind.IceSurf
                          || kind == TileKind.WallRun || kind == TileKind.LedgeGrab || kind == TileKind.TreeBridge
-                         || kind == TileKind.CanopyRope || kind == TileKind.WaterfallPlunge)
+                         || kind == TileKind.CanopyRope || kind == TileKind.WaterfallPlunge
+                         || kind == TileKind.WaterSlide)
                     BuildFloorWithSpecialChannel();
                 else
                     BuildFloorWithRiverChannel();
@@ -151,7 +154,7 @@ namespace TempleSprint
             else if (kind == TileKind.Zipline || kind == TileKind.WallRun || kind == TileKind.LedgeGrab
                      || kind == TileKind.TreeBridge || kind == TileKind.CanopyRope)
                 BuildForestEdgeForSpecial();
-            else if (kind == TileKind.WaterfallPlunge)
+            else if (kind == TileKind.WaterfallPlunge || kind == TileKind.WaterSlide)
                 BuildForestEdgeForRiver();
             else if (kind == TileKind.MineCart)
                 BuildCaveTunnelShell();
@@ -175,6 +178,7 @@ namespace TempleSprint
                     if (BiomeSystem.Current == BiomeId.IceCaverns && Random.value < 0.4f) BuildIceRunwayFrost();
                     if (BiomeSystem.Current == BiomeId.DesertTombs && Random.value < 0.55f) BuildDesertRunwayProps();
                     if (BiomeSystem.Current == BiomeId.IceCaverns && Random.value < 0.5f) BuildIceRunwayProps();
+                    if (BiomeSystem.Current == BiomeId.NightSummit && Random.value < 0.55f) BuildNightSummitProps();
                     break;
                 case TileKind.CoinLane:
                     ScatterCoins(10);
@@ -233,6 +237,9 @@ namespace TempleSprint
                     break;
                 case TileKind.WaterfallPlunge:
                     BuildWaterfallPlungeStage();
+                    break;
+                case TileKind.WaterSlide:
+                    BuildWaterSlideStage();
                     break;
                 case TileKind.TempleHall:
                     BuildTempleHallContents();
@@ -2365,6 +2372,17 @@ namespace TempleSprint
             bool boulderBiome = BiomeSystem.Current == BiomeId.CaveMines
                                 || BiomeSystem.Current == BiomeId.VolcanicCrater
                                 || BiomeSystem.Current == BiomeId.DesertTombs;
+            // Temple / night bias spinning spike wheels (distinct silhouette from boulders).
+            bool wheelBiome = BiomeSystem.Current == BiomeId.JungleRuins
+                              || BiomeSystem.Current == BiomeId.NightSummit
+                              || BiomeSystem.Current == BiomeId.DesertTombs;
+            if (wheelBiome && Random.value < (_runDifficulty == RunDifficulty.Easy ? 0.22f : 0.38f))
+            {
+                DynamicHazard.CreateSpikeWheel(transform, Length * 0.55f, Random.Range(0, 3));
+                if (_runDifficulty == RunDifficulty.Hard && Random.value < 0.35f)
+                    DynamicHazard.CreateSpikeWheel(transform, Length * 0.78f, Random.Range(0, 3));
+                return;
+            }
             if (boulderBiome && Random.value < (_runDifficulty == RunDifficulty.Easy ? 0.28f : 0.42f))
             {
                 DynamicHazard.CreateRollingBoulder(transform, Length * 0.85f, Random.Range(0, 3));
@@ -2373,12 +2391,13 @@ namespace TempleSprint
                 return;
             }
 
-            int roll = Random.Range(0, _runDifficulty == RunDifficulty.Easy ? 3 : 6);
+            int roll = Random.Range(0, _runDifficulty == RunDifficulty.Easy ? 3 : 7);
             if (roll == 0) DynamicHazard.CreatePendulum(transform, Length * 0.5f, 1);
             else if (roll == 1) DynamicHazard.CreateArrow(transform, Length * 0.3f, Random.Range(0, 3));
             else if (roll == 2) DynamicHazard.CreateGate(transform, Length * 0.55f);
             else if (roll == 3) Obstacle.CreateBlockingWall(transform, Length * 0.55f);
             else if (roll == 4) DynamicHazard.CreateCrumbling(transform, Length * 0.5f, Random.Range(0, 3));
+            else if (roll == 5) DynamicHazard.CreateSpikeWheel(transform, Length * 0.6f, Random.Range(0, 3));
             else DynamicHazard.CreateRollingBoulder(transform, Length * 0.88f, Random.Range(0, 3));
 
             if (_runDifficulty == RunDifficulty.Hard && tier >= 2 && Random.value < 0.35f)
@@ -2641,7 +2660,7 @@ namespace TempleSprint
             var marker = gameObject.AddComponent<SpecialStageMarker>();
             marker.Configure(SpecialStageKind.MineCart, channelStart, channelEnd, PathStartDistance, _runDifficulty);
 
-            // Rail bed across the channel (cart rides above kill voids at sides).
+            // Dual-track rail beds (left lane 0 / right lane 2) across the channel.
             var rails = GameObject.CreatePrimitive(PrimitiveType.Cube);
             rails.name = "MineRails";
             rails.transform.SetParent(transform, false);
@@ -2650,20 +2669,49 @@ namespace TempleSprint
             rails.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
             StripCollider(rails);
 
+            float trackX = PlayerController.LaneWidth;
             for (int side = -1; side <= 1; side += 2)
             {
-                var rail = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                rail.transform.SetParent(transform, false);
-                rail.transform.localPosition = new Vector3(side * 0.55f, 0.05f, mid);
-                rail.transform.localScale = new Vector3(0.12f, 0.1f, channelLen);
-                rail.GetComponent<Renderer>().sharedMaterial = JunglePalette.Stone;
-                StripCollider(rail);
+                // Outer + inner rail for each track.
+                for (int inner = 0; inner < 2; inner++)
+                {
+                    float x = side * trackX + (inner == 0 ? -0.35f : 0.35f);
+                    var rail = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    rail.name = side < 0 ? "LeftTrackRail" : "RightTrackRail";
+                    rail.transform.SetParent(transform, false);
+                    rail.transform.localPosition = new Vector3(x, 0.05f, mid);
+                    rail.transform.localScale = new Vector3(0.12f, 0.1f, channelLen);
+                    rail.GetComponent<Renderer>().sharedMaterial = JunglePalette.Stone;
+                    StripCollider(rail);
+                }
+
+                // Switch ties between dual tracks.
+                for (int t = 0; t < 4; t++)
+                {
+                    float z = Mathf.Lerp(channelStart + 0.8f, channelEnd - 0.8f, (t + 0.5f) / 4f);
+                    var tie = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    tie.transform.SetParent(transform, false);
+                    tie.transform.localPosition = new Vector3(side * trackX, 0.02f, z);
+                    tie.transform.localScale = new Vector3(1.1f, 0.08f, 0.28f);
+                    tie.GetComponent<Renderer>().sharedMaterial = JunglePalette.Bark;
+                    StripCollider(tie);
+                }
             }
+
+            // Cross-switch plate mid-channel — telegraph that lanes matter.
+            var switchPlate = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            switchPlate.name = "TrackSwitchPlate";
+            switchPlate.transform.SetParent(transform, false);
+            switchPlate.transform.localPosition = new Vector3(0f, 0.08f, mid);
+            switchPlate.transform.localScale = new Vector3(DeckWidth * 0.85f, 0.06f, 1.2f);
+            switchPlate.GetComponent<Renderer>().sharedMaterial = JunglePalette.Gold;
+            StripCollider(switchPlate);
 
             var rideGo = new GameObject("MineCartRide");
             rideGo.transform.SetParent(transform, false);
             var ride = rideGo.AddComponent<MineCartRide>();
             ride.Marker = marker;
+            ride.TrackSpacing = trackX;
             ride.BuildVisual(rideGo.transform);
 
             var mountGo = new GameObject("MineCartMount");
@@ -2676,13 +2724,26 @@ namespace TempleSprint
             mount.Marker = marker;
             mount.Ride = ride;
 
+            // Broken-rail telegraphs — must switch dual tracks before impact.
+            int breaks = _runDifficulty == RunDifficulty.Easy ? 1
+                : _runDifficulty == RunDifficulty.Hard ? 3 : 2;
+            int lastBroken = -1;
+            for (int i = 0; i < breaks; i++)
+            {
+                float z = Mathf.Lerp(channelStart + 1.6f, channelEnd - 1.4f, (i + 1f) / (breaks + 1f));
+                int brokenLane = Random.value < 0.5f ? 0 : 2;
+                if (brokenLane == lastBroken) brokenLane = brokenLane == 0 ? 2 : 0;
+                lastBroken = brokenLane;
+                ride.AddBrokenRail(transform, z, brokenLane);
+            }
+
             // Low beams + side rock walls — dodge lanes / slide.
-            int hazards = _runDifficulty == RunDifficulty.Easy ? 2
-                : _runDifficulty == RunDifficulty.Hard ? 4 : 3;
+            int hazards = _runDifficulty == RunDifficulty.Easy ? 1
+                : _runDifficulty == RunDifficulty.Hard ? 3 : 2;
             int usedMask = 0;
             for (int i = 0; i < hazards; i++)
             {
-                float z = Mathf.Lerp(channelStart + 1.3f, channelEnd - 1.3f, (i + 1f) / (hazards + 1f));
+                float z = Mathf.Lerp(channelStart + 1.3f, channelEnd - 1.3f, (i + 0.5f) / (hazards + 0.5f));
                 if (i % 2 == 0)
                 {
                     Obstacle.CreateLowBeam(transform, z, Random.Range(0, 3));
@@ -2698,11 +2759,11 @@ namespace TempleSprint
                 }
             }
 
-            CollectibleCoin.Create(transform, new Vector3(0f, 1.5f, channelStart + 0.9f));
-            CollectibleCoin.Create(transform, new Vector3(0f, 1.6f, mid));
-            CollectibleCoin.Create(transform, new Vector3(0f, 1.5f, channelEnd - 0.6f));
+            CollectibleCoin.Create(transform, new Vector3(-trackX, 1.5f, channelStart + 0.9f));
+            CollectibleCoin.Create(transform, new Vector3(trackX, 1.6f, mid));
+            CollectibleCoin.Create(transform, new Vector3(-trackX, 1.5f, channelEnd - 0.6f));
             if (_runDifficulty != RunDifficulty.Easy && Random.value < 0.45f)
-                GemPickup.Create(transform, new Vector3(PlayerController.LaneWidth, 1.55f, mid + 1f));
+                GemPickup.Create(transform, new Vector3(trackX, 1.55f, mid + 1f));
         }
 
         void BuildIceSlopeShell()
@@ -3393,6 +3454,131 @@ namespace TempleSprint
             CollectibleCoin.Create(transform, new Vector3(0f, 1.1f, channelEnd - 0.7f));
             if (Random.value < 0.45f)
                 GemPickup.Create(transform, new Vector3(PlayerController.LaneWidth, 1.2f, mid + 0.8f));
+        }
+
+        /// <summary>Aqueduct water-slide — steer lanes down a flowing stone channel.</summary>
+        void BuildWaterSlideStage()
+        {
+            GetSpecialChannel(out float channelStart, out float channelEnd, out float channelLen);
+            float mid = (channelStart + channelEnd) * 0.5f;
+
+            var marker = gameObject.AddComponent<SpecialStageMarker>();
+            marker.Configure(SpecialStageKind.WaterSlide, channelStart, channelEnd, PathStartDistance, _runDifficulty);
+
+            var trough = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            trough.name = "AqueductTrough";
+            trough.transform.SetParent(transform, false);
+            trough.transform.localPosition = new Vector3(0f, -0.12f, mid);
+            trough.transform.localRotation = Quaternion.Euler(7f, 0f, 0f);
+            trough.transform.localScale = new Vector3(DeckWidth * 0.98f, 0.28f, channelLen);
+            trough.GetComponent<Renderer>().sharedMaterial = BiomeSystem.StoneMat;
+            StripCollider(trough);
+
+            var flow = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            flow.name = "SlideFlow";
+            flow.transform.SetParent(transform, false);
+            flow.transform.localPosition = new Vector3(0f, 0.02f, mid);
+            flow.transform.localRotation = Quaternion.Euler(7f, 0f, 0f);
+            flow.transform.localScale = new Vector3(DeckWidth * 0.88f, 0.12f, channelLen * 0.98f);
+            var flowMat = new Material(JunglePalette.Water);
+            flow.GetComponent<Renderer>().sharedMaterial = flowMat;
+            StripCollider(flow);
+            flow.AddComponent<RiverSurfaceScroll>();
+
+            // Stone aqueduct walls + arches.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                wall.name = "AqueductWall";
+                wall.transform.SetParent(transform, false);
+                wall.transform.localPosition = new Vector3(side * (DeckWidth * 0.52f), 0.55f, mid);
+                wall.transform.localScale = new Vector3(0.35f, 1.1f, channelLen);
+                wall.GetComponent<Renderer>().sharedMaterial = BiomeSystem.StoneMat;
+                StripCollider(wall);
+            }
+            for (int i = 0; i < 3; i++)
+            {
+                float z = Mathf.Lerp(channelStart + 0.6f, channelEnd - 0.6f, (i + 0.5f) / 3f);
+                var arch = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                arch.transform.SetParent(transform, false);
+                arch.transform.localPosition = new Vector3(0f, 1.45f, z);
+                arch.transform.localScale = new Vector3(DeckWidth + 0.4f, 0.28f, 0.35f);
+                arch.GetComponent<Renderer>().sharedMaterial = BiomeSystem.AccentMat;
+                StripCollider(arch);
+            }
+
+            for (int side = -1; side <= 1; side += 2)
+                GapKillZone.Create(transform, mid, side < 0 ? 0 : 2, channelLen * 0.3f, "Swept out of the aqueduct");
+
+            var rideGo = new GameObject("WaterSlideRide");
+            rideGo.transform.SetParent(transform, false);
+            var ride = rideGo.AddComponent<WaterSlideRide>();
+            ride.Marker = marker;
+            ride.BuildVisual(rideGo.transform);
+            ride.BindFlowMaterial(flowMat);
+
+            var mountGo = new GameObject("WaterSlideMount");
+            mountGo.transform.SetParent(transform, false);
+            mountGo.transform.localPosition = new Vector3(0f, 0.9f, channelStart + 0.2f);
+            var mountCol = mountGo.AddComponent<BoxCollider>();
+            mountCol.isTrigger = true;
+            mountCol.size = new Vector3(DeckWidth + 0.5f, 2.4f, 1.8f);
+            var mount = mountGo.AddComponent<WaterSlideMount>();
+            mount.Marker = marker;
+            mount.Ride = ride;
+
+            int hazards = _runDifficulty == RunDifficulty.Easy ? 2
+                : _runDifficulty == RunDifficulty.Hard ? 4 : 3;
+            for (int i = 0; i < hazards; i++)
+            {
+                float z = Mathf.Lerp(channelStart + 1.4f, channelEnd - 1.3f, (i + 1f) / (hazards + 1f));
+                if (i % 2 == 0)
+                    Obstacle.CreateBoatDebris(transform, z, Random.Range(0, 3));
+                else
+                    Obstacle.CreateLowBeam(transform, z, Random.Range(0, 3));
+            }
+
+            CollectibleCoin.Create(transform, new Vector3(0f, 1.1f, channelStart + 0.9f));
+            CollectibleCoin.Create(transform, new Vector3(-PlayerController.LaneWidth, 1.2f, mid));
+            CollectibleCoin.Create(transform, new Vector3(PlayerController.LaneWidth, 1.1f, channelEnd - 0.7f));
+            if (_runDifficulty != RunDifficulty.Easy && Random.value < 0.4f)
+                GemPickup.Create(transform, new Vector3(0f, 1.35f, mid + 0.8f));
+        }
+
+        /// <summary>Night summit runway dressing — lantern posts + starlit stone markers.</summary>
+        void BuildNightSummitProps()
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                float z = Length * ((i + 0.5f) / 3f);
+                float side = i % 2 == 0 ? -1f : 1f;
+                var post = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                post.name = "LanternPost";
+                post.transform.SetParent(transform, false);
+                post.transform.localPosition = new Vector3(side * (DeckWidth * 0.55f + 0.35f), 1.1f, z);
+                post.transform.localScale = new Vector3(0.18f, 1.1f, 0.18f);
+                post.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
+                StripCollider(post);
+
+                var lamp = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                lamp.name = "LanternGlow";
+                lamp.transform.SetParent(transform, false);
+                lamp.transform.localPosition = new Vector3(side * (DeckWidth * 0.55f + 0.35f), 2.25f, z);
+                lamp.transform.localScale = Vector3.one * 0.32f;
+                lamp.GetComponent<Renderer>().sharedMaterial = JunglePalette.GoldBright;
+                StripCollider(lamp);
+            }
+
+            if (Random.value < 0.5f)
+            {
+                var marker = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                marker.name = "SummitMarker";
+                marker.transform.SetParent(transform, false);
+                marker.transform.localPosition = new Vector3(0f, 0.35f, Length * 0.5f);
+                marker.transform.localScale = new Vector3(0.8f, 0.7f, 0.35f);
+                marker.GetComponent<Renderer>().sharedMaterial = BiomeSystem.AccentMat;
+                StripCollider(marker);
+            }
         }
     }
 }

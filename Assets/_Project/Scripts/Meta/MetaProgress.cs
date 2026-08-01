@@ -28,6 +28,9 @@ namespace TempleSprint
         public bool iceUnlocked;
         public bool caveUnlocked;
         public bool volcanoUnlocked;
+        public bool nightUnlocked;
+        /// <summary>Armed gem head-start for the next run (skips ahead + boost).</summary>
+        public bool headStartArmed;
         public string unlockedCharacters = "scout_default";
         public string selectedCharacter = "scout_default";
         public int loginStreak;
@@ -158,6 +161,27 @@ namespace TempleSprint
             return true;
         }
 
+        public const int HeadStartGemCost = 25;
+
+        /// <summary>Spend gems to arm a head-start for the next run (boost + skip ahead).</summary>
+        public bool TryArmHeadStart()
+        {
+            if (Data.headStartArmed) return true;
+            if (Data.gems < HeadStartGemCost) return false;
+            if (!SpendGems(HeadStartGemCost)) return false;
+            Data.headStartArmed = true;
+            Save();
+            return true;
+        }
+
+        public bool ConsumeHeadStartArm()
+        {
+            if (!Data.headStartArmed) return false;
+            Data.headStartArmed = false;
+            Save();
+            return true;
+        }
+
         public bool HasCosmetic(string id) =>
             id == "hat_none" || id == "pet_none"
             || ("," + (Data.unlockedCosmetics ?? "") + ",").Contains("," + id + ",");
@@ -191,6 +215,7 @@ namespace TempleSprint
             if (Data.relics >= 8) Data.iceUnlocked = true;
             if (Data.relics >= 12) Data.caveUnlocked = true;
             if (Data.relics >= 18) Data.volcanoUnlocked = true;
+            if (Data.relics >= 24) Data.nightUnlocked = true;
             Save();
         }
 

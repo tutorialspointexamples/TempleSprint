@@ -8,10 +8,11 @@ namespace TempleSprint
         DesertTombs = 1,
         IceCaverns = 2,
         CaveMines = 3,
-        VolcanicCrater = 4
+        VolcanicCrater = 4,
+        NightSummit = 5
     }
 
-    /// <summary>Biome unlock + visual palette for Jungle / Desert / Ice / Cave / Volcano.</summary>
+    /// <summary>Biome unlock + visual palette for Jungle / Desert / Ice / Cave / Volcano / Night Summit.</summary>
     public static class BiomeSystem
     {
         public static BiomeId Current { get; private set; } = BiomeId.JungleRuins;
@@ -24,6 +25,7 @@ namespace TempleSprint
             if (id == BiomeId.IceCaverns) return m.iceUnlocked || m.totalRuns >= 8 || m.totalDistance >= 2000f;
             if (id == BiomeId.CaveMines) return m.caveUnlocked || m.totalRuns >= 12 || m.totalDistance >= 3500f || m.relics >= 12;
             if (id == BiomeId.VolcanicCrater) return m.volcanoUnlocked || m.totalRuns >= 18 || m.totalDistance >= 6000f || m.relics >= 18;
+            if (id == BiomeId.NightSummit) return m.nightUnlocked || m.totalRuns >= 22 || m.totalDistance >= 8000f || m.relics >= 24;
             return false;
         }
 
@@ -58,6 +60,9 @@ namespace TempleSprint
                 case BiomeId.VolcanicCrater:
                     RenderSettings.ambientLight = new Color(0.62f, 0.32f, 0.18f);
                     break;
+                case BiomeId.NightSummit:
+                    RenderSettings.ambientLight = new Color(0.22f, 0.26f, 0.42f);
+                    break;
                 default:
                     RenderSettings.ambientLight = new Color(0.42f, 0.5f, 0.42f);
                     break;
@@ -71,6 +76,7 @@ namespace TempleSprint
             BiomeId.IceCaverns => "Ice Caverns",
             BiomeId.CaveMines => "Cave Mines",
             BiomeId.VolcanicCrater => "Volcanic Crater",
+            BiomeId.NightSummit => "Night Summit",
             _ => "Jungle Ruins"
         };
 
@@ -109,10 +115,17 @@ namespace TempleSprint
             (Current == BiomeId.JungleRuins || Current == BiomeId.IceCaverns ? 1.7f
                 : Current == BiomeId.VolcanicCrater ? 0.8f
                 : Current == BiomeId.CaveMines ? 0.65f : 1f) * EventService.EventStageBias(Current);
+        public static float WaterSlideBias =>
+            (Current == BiomeId.JungleRuins || Current == BiomeId.IceCaverns ? 1.85f
+                : Current == BiomeId.NightSummit ? 1.35f
+                : Current == BiomeId.DesertTombs ? 0.9f
+                : Current == BiomeId.CaveMines ? 0.55f
+                : 0.75f) * EventService.EventStageBias(Current);
         public static float TempleHallBias =>
             (Current == BiomeId.JungleRuins || Current == BiomeId.DesertTombs ? 1.75f
                 : Current == BiomeId.CaveMines ? 1.45f
                 : Current == BiomeId.VolcanicCrater ? 1.1f
+                : Current == BiomeId.NightSummit ? 1.4f
                 : 0.85f) * EventService.EventStageBias(Current);
 
         public static Material PathMat => BiomePalette.Path(Current);
@@ -143,6 +156,7 @@ namespace TempleSprint
                 BiomeId.IceCaverns => new Color(0.72f, 0.82f, 0.9f),
                 BiomeId.CaveMines => new Color(0.38f, 0.36f, 0.34f),
                 BiomeId.VolcanicCrater => new Color(0.42f, 0.28f, 0.22f),
+                BiomeId.NightSummit => new Color(0.32f, 0.34f, 0.48f),
                 _ => new Color(0.62f, 0.54f, 0.42f)
             };
             var m = Make(c);
@@ -160,6 +174,7 @@ namespace TempleSprint
                 BiomeId.IceCaverns => new Color(0.55f, 0.65f, 0.75f),
                 BiomeId.CaveMines => new Color(0.32f, 0.34f, 0.38f),
                 BiomeId.VolcanicCrater => new Color(0.35f, 0.22f, 0.18f),
+                BiomeId.NightSummit => new Color(0.28f, 0.3f, 0.42f),
                 _ => new Color(0.42f, 0.36f, 0.28f)
             };
             var m = Make(c);
@@ -187,6 +202,7 @@ namespace TempleSprint
             BiomeId.IceCaverns => Make(new Color(0.35f, 0.7f, 0.85f)),
             BiomeId.CaveMines => Make(new Color(0.75f, 0.55f, 0.2f)),
             BiomeId.VolcanicCrater => Make(new Color(1f, 0.4f, 0.12f)),
+            BiomeId.NightSummit => Make(new Color(0.55f, 0.65f, 1f)),
             _ => JunglePalette.Accent
         };
 
@@ -196,6 +212,7 @@ namespace TempleSprint
             BiomeId.IceCaverns => Make(new Color(0.85f, 0.92f, 0.98f)),
             BiomeId.CaveMines => Make(new Color(0.22f, 0.24f, 0.28f)),
             BiomeId.VolcanicCrater => Make(new Color(0.28f, 0.18f, 0.12f)),
+            BiomeId.NightSummit => Make(new Color(0.18f, 0.22f, 0.32f)),
             _ => JunglePalette.Foliage
         };
     }
@@ -214,6 +231,7 @@ namespace TempleSprint
         Material _waterMatInstance;
         Material _groundMatInstance;
         Transform _vineCurtain;
+        Transform _starfield;
         float _treeSpacing = 16f;
         Vector2 _waterOffset;
 
@@ -265,6 +283,7 @@ namespace TempleSprint
             BiomeId.IceCaverns => "Nature/sky_ice",
             BiomeId.CaveMines => "Nature/sky_cave",
             BiomeId.VolcanicCrater => "Nature/sky_volcano",
+            BiomeId.NightSummit => "Nature/sky_night",
             _ => "Nature/sky_jungle"
         };
 
@@ -390,6 +409,7 @@ namespace TempleSprint
                 BiomeId.IceCaverns => JunglePalette.Mat(new Color(0.75f, 0.9f, 1f), 0.6f, 0.15f),
                 BiomeId.CaveMines => BiomeSystem.StoneMat,
                 BiomeId.VolcanicCrater => JunglePalette.Charcoal,
+                BiomeId.NightSummit => JunglePalette.Charcoal,
                 _ => JunglePalette.Bark
             };
             Material canopyMat = BiomeSystem.FoliageMat;
@@ -546,6 +566,18 @@ namespace TempleSprint
                     mist = new Color(0.45f, 0.18f, 0.1f, 1f);
                     skyTint = new Color(0.95f, 0.55f, 0.3f);
                     break;
+                case BiomeId.NightSummit:
+                    RenderSettings.fog = true;
+                    RenderSettings.fogMode = FogMode.ExponentialSquared;
+                    RenderSettings.fogColor = new Color(0.12f, 0.14f, 0.28f);
+                    RenderSettings.fogDensity = 0.011f;
+                    RenderSettings.ambientSkyColor = new Color(0.22f, 0.28f, 0.48f);
+                    RenderSettings.ambientEquatorColor = new Color(0.16f, 0.18f, 0.32f);
+                    RenderSettings.ambientGroundColor = new Color(0.08f, 0.08f, 0.14f);
+                    ground = new Color(0.16f, 0.18f, 0.28f);
+                    mist = new Color(0.14f, 0.16f, 0.28f, 1f);
+                    skyTint = new Color(0.55f, 0.62f, 0.95f);
+                    break;
                 default:
                     RenderSettings.fog = true;
                     RenderSettings.fogMode = FogMode.ExponentialSquared;
@@ -588,6 +620,7 @@ namespace TempleSprint
                     BiomeId.IceCaverns => new Color(0.65f, 0.78f, 0.88f),
                     BiomeId.CaveMines => new Color(0.22f, 0.24f, 0.28f),
                     BiomeId.VolcanicCrater => new Color(0.4f, 0.18f, 0.12f),
+                    BiomeId.NightSummit => new Color(0.14f, 0.16f, 0.28f),
                     _ => new Color(0.3f, 0.42f, 0.28f)
                 };
                 foreach (var b in _billboards)
@@ -600,6 +633,44 @@ namespace TempleSprint
                     if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", hill);
                 }
             }
+
+            EnsureStarfield(BiomeSystem.Current == BiomeId.NightSummit);
+        }
+
+        void EnsureStarfield(bool enabled)
+        {
+            if (!enabled)
+            {
+                if (_starfield != null) _starfield.gameObject.SetActive(false);
+                return;
+            }
+
+            if (_starfield == null)
+            {
+                _starfield = new GameObject("Starfield").transform;
+                _starfield.SetParent(transform, false);
+                var mat = JunglePalette.Mat(new Color(0.92f, 0.95f, 1f), 0.9f, 0.1f);
+                for (int i = 0; i < 48; i++)
+                {
+                    var star = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                    star.name = "Star_" + i;
+                    star.transform.SetParent(_starfield, false);
+                    float ang = i * 17.3f;
+                    float elev = 18f + (i % 7) * 8f;
+                    float rad = 55f + (i % 5) * 6f;
+                    float radAng = ang * Mathf.Deg2Rad;
+                    star.transform.localPosition = new Vector3(
+                        Mathf.Cos(radAng) * rad,
+                        elev + (i % 3) * 3f,
+                        Mathf.Sin(radAng) * rad);
+                    float s = 0.18f + (i % 4) * 0.07f;
+                    star.transform.localScale = Vector3.one * s;
+                    star.GetComponent<Renderer>().sharedMaterial = mat;
+                    star.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    Object.Destroy(star.GetComponent<Collider>());
+                }
+            }
+            _starfield.gameObject.SetActive(true);
         }
 
         void LateUpdate()

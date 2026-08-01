@@ -4,7 +4,7 @@ namespace TempleSprint
 {
     public class DynamicHazard : MonoBehaviour
     {
-        public enum Kind { Pendulum, CrumblingFloor, ArrowTrap, ClosingGate, CollapsingBridge, RollingBoulder }
+        public enum Kind { Pendulum, CrumblingFloor, ArrowTrap, ClosingGate, CollapsingBridge, RollingBoulder, SpikeWheel }
 
         public Kind HazardKind;
         public bool RequiresJump;
@@ -59,6 +59,35 @@ namespace TempleSprint
                     if (transform.localPosition.z < -2f) gameObject.SetActive(false);
                     TryBoulderNearMiss();
                     break;
+                case Kind.SpikeWheel:
+                    // Spinning spiked disk that sweeps across lanes — jump or lane-dodge.
+                    transform.Rotate(0f, 0f, 360f * Time.deltaTime, Space.Self);
+                    float sweep = Mathf.Sin(_t * 1.7f) * _amp;
+                    transform.localPosition = new Vector3(_origin.x + sweep, _origin.y, _origin.z);
+                    TrySpikeWheelNearMiss();
+                    break;
+            }
+        }
+
+        void TrySpikeWheelNearMiss()
+        {
+            var player = PlayerController.Instance;
+            if (player == null || RunSession.Instance == null || !RunSession.Instance.IsAlive) return;
+            float dx = Mathf.Abs(transform.position.x - player.transform.position.x);
+            float dz = Vector3.Dot(transform.position - player.transform.position,
+                Quaternion.Euler(0f, player.FacingYaw, 0f) * Vector3.forward);
+            if (!_triggered && dz > -0.8f && dz < 1.6f && dx > 1.0f && dx < 2.8f && !player.IsJumping)
+            {
+                _triggered = true;
+                RunSession.Instance.RegisterNearMiss();
+                ChaseCamera.Instance?.PunchFov(1.5f);
+            }
+            // Jumping over the wheel also counts once.
+            if (!_triggered && dz > -0.6f && dz < 1.2f && dx < 1.0f && player.IsJumping)
+            {
+                _triggered = true;
+                RunSession.Instance.RegisterNearMiss();
+                ChaseCamera.Instance?.PunchFov(1.8f);
             }
         }
 
@@ -191,6 +220,58 @@ namespace TempleSprint
             h.HazardKind = Kind.RollingBoulder;
             h.DeathMessage = "Crushed by a rolling boulder";
             var obs = go.AddComponent<Obstacle>();
+            obs.DeathMessage = h.DeathMessage;
+            return h;
+        }
+
+        /// <summary>Spinning spiked wheel — flat disk silhouette, distinct from rolling boulders.</summary>
+        public static DynamicHazard CreateSpikeWheel(Transform parent, float localZ, int lane)
+        {
+            var go = new GameObject("SpikeWheel");
+            go.transform.SetParent(parent, false);
+            float x = (lane - 1) * PlayerController.LaneWidth;
+            go.transform.localPosition = new Vector3(x, 1.15f, localZ);
+
+            var hub = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            hub.name = "WheelHub";
+            hub.transform.SetParent(go.transform, false);
+            hub.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+            hub.transform.localScale = new Vector3(1.5f, 0.12f, 1.5f);
+            hub.GetComponent<Renderer>().sharedMaterial = JunglePalette.Charcoal;
+            Object.Destroy(hub.GetComponent<Collider>());
+
+            var rim = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            rim.transform.SetParent(go.transform, false);
+            rim.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+            rim.transform.localScale = new Vector3(1.85f, 0.06f, 1.85f);
+            rim.GetComponent<Renderer>().sharedMaterial = JunglePalette.Stone;
+            Object.Destroy(rim.GetComponent<Collider>());
+
+            // Radial spikes — toothy disk silhouette (colorblind-safe vs sphere boulder).
+            for (int i = 0; i < 8; i++)
+            {
+                float ang = i * 45f;
+                var spike = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                spike.transform.SetParent(go.transform, false);
+                spike.transform.localRotation = Quaternion.Euler(0f, 0f, ang);
+                spike.transform.localPosition = Quaternion.Euler(0f, 0f, ang) * new Vector3(0.95f, 0f, 0f);
+                spike.transform.localScale = new Vector3(0.55f, 0.14f, 0.14f);
+                spike.GetComponent<Renderer>().sharedMaterial = JunglePalette.Hazard;
+                Object.Destroy(spike.GetComponent<Collider>());
+            }
+
+            var hit = go.AddComponent<SphereCollider>();
+            hit.isTrigger = true;
+            hit.radius = 1.05f;
+            hit.center = Vector3.zero;
+
+            var h = go.AddComponent<DynamicHazard>();
+            h.HazardKind = Kind.SpikeWheel;
+            h.RequiresJump = true;
+            h.DeathMessage = "Caught by a spike wheel";
+            h._amp = 2.0f;
+            var obs = go.AddComponent<Obstacle>();
+            obs.RequiresJump = true;
             obs.DeathMessage = h.DeathMessage;
             return h;
         }
